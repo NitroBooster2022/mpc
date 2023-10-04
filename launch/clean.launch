@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="mpc" type="clear_ekf_params.sh" name="clear_ekf_params" launch-prefix="bash" respawn="false" required="true" />
+</launch>

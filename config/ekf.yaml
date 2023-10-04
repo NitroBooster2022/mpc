@@ -1,0 +1,53 @@
+frequency: 30
+sensor_timeout: 0.1
+transform_time_offset: 0.0
+transform_timeout: 0.0
+print_diagnostics: true
+debug: false
+two_d_mode: true
+initial_state: [9.051532, 0.94, 0.0, 
+                0.0, 0.0, 0.000654, 
+                0.0, 0.0, 0.0, 
+                0.0, 0.0, 0.0, 
+                0.0, 0.0, 0.0]
+initial_estimate_covariance: [0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003]
+
+map_frame: map              
+odom_frame: odom            
+base_link_frame: chassis  
+world_frame: odom          
+
+imu0: /imu
+imu0_config: [false, false, false,
+              true,  true,  true,
+              false, false, false,
+              true,  true,  true,
+              true,  true,  false]
+imu0_nodelay: false
+imu0_differential: false
+imu0_relative: false
+imu0_queue_size: 10
+imu0_pose_rejection_threshold: 0.8                 
+imu0_twist_rejection_threshold: 0.8                
+imu0_linear_acceleration_rejection_threshold: 0.8  
+imu0_remove_gravitational_acceleration: true
+
+odom0: /odom
+odom0_config: [true, true, false,
+              false, false, false,
+              true, true, false,
+              false, false, false,
+              false,  false,  false]
+# odom1: /odom1
+# odom1_config: [false, false, false,
+#                false, false, false,
+#                true, true, false,
+#                false, false, false,
+#                false, false, false]
+
+
+
