@@ -15,7 +15,15 @@ from scipy.interpolate import interp1d, UnivariateSpline, splprep, splev
 import argparse
 import tf
 from utility import Utility
+from std_srvs.srv import Trigger
 
+def call_trigger_service():
+    try:
+        trigger_service = rospy.ServiceProxy('trigger_service', Trigger)
+        response = trigger_service()
+        rospy.loginfo("Service response: %s", response.message)
+    except rospy.ServiceException as e:
+        rospy.logerr("Service call failed: %s", e)
 def compute_smooth_curvature(waypoints_x, waypoints_y, smooth_factor=0.1):
     # Step 1: Set up a spline interpolation
     t = np.linspace(0, 1, len(waypoints_x))
@@ -149,7 +157,7 @@ class MPC:
         # self.waypoints[0] += 0.5
         # self.waypoints[1] -= 1.5
         # self.waypoints = np.vstack((self.waypoints[1], self.waypoints[0])) #flip x and y
-        # self.waypoints[0] = 15-self.waypoints[0]
+        # self.waypoints[0] = 15-self.waypoints[0] # flip x
         # self.waypoints[1] = 15-self.waypoints[1]
         # self.waypoints = self.waypoints[:, 0:24]
         # self.waypoints = self.waypoints[:, :15]
@@ -162,10 +170,10 @@ class MPC:
         # Constants
         self.L = 0.27
         self.latency = 0.#7245/3
-        self.T = 0.2415
+        self.T = 0.2415 #simulation time step
         self.latency_num = int(self.latency/self.T)
         self.region_of_acceptance = 0.05
-        self.N = 10
+        self.N = 10 # prediction horizon
         self.rob_diam = 0.3
         self.v_max = 0.753*1
         self.v_min = -0.753
@@ -491,6 +499,11 @@ if __name__ == '__main__':
             #         target_waypoint_index, "kappa:", mpc.kappa[target_waypoint_index])
         # print("index: ", target_waypoint_index)
     print("done")
+    if mpc.gazebo:
+        try:
+            call_trigger_service()
+        except:
+            print("service not available")
     ## after loop
     print(mpc.mpciter)
     t_v = np.array(mpc.index_t)

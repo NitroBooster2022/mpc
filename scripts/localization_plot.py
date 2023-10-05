@@ -13,6 +13,7 @@ import tf
 import argparse
 from std_msgs.msg import String
 import os
+from std_srvs.srv import Trigger, TriggerResponse
 
 class Odom():
     def __init__(self):
@@ -42,7 +43,7 @@ class Odom():
         self.car_pose = None
         self.car_inertial = None
 
-        rospy.on_shutdown(self.plot_data)
+        # rospy.on_shutdown(self.plot_data)
         rospy.wait_for_message("/automobile/command", String)
 
         # Subscribe to topics
@@ -53,7 +54,16 @@ class Odom():
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
         self.imu1_sub = rospy.Subscriber("/imu", Imu, self.imu1_callback, queue_size=3)
         self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
+        stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
     
+    def handle_trigger(self, req):
+        print("Service has been triggered. Plotting data...")
+        response = TriggerResponse(success=True, message="Triggered successfully!")
+        self.plot_data()
+        print("Plot saved")
+        time.sleep(0.5)
+        rospy.signal_shutdown("Service has been triggered. Shutting down.")
+        return response
     def gps_callback(self, data):
         # self.gpsState[0] = data.posA
         # self.gpsState[1] = 15.0 - data.posB
@@ -106,14 +116,14 @@ class Odom():
         print("----------")
     
     def plot_data(self):
-        rospy.signal_shutdown("Finished")
-        labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel']
-        fig, axs = plt.subplots(2, len(labels), figsize=(25,10))
-        labels = ['X', 'Y', 'Accel']
+        # rospy.signal_shutdown("Finished")
+        labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel', 'error vs yaw', 'Accel']
+        fig, axs = plt.subplots(2, len(labels), figsize=(35,10))
+        labels = ['X', 'Y', 'error vs yaw']
         fig, axs = plt.subplots(2, len(labels), figsize=(15,10))
 
-        groundYaw = np.array(self.yaw1List)
-        measuredYaw = np.array(self.yaw2List)
+        groundYaw = (np.array(self.yaw1List)+np.pi)*180/np.pi
+        measuredYaw = (np.array(self.yaw2List)+np.pi)*180/np.pi
         accel_x = np.array(self.accelList_x)
         accel_y = np.array(self.accelList_y)
 
@@ -235,6 +245,33 @@ class Odom():
                 
                 axs[1, i].text(0.05, 0.95, stats_text, transform=axs[1, i].transAxes, verticalalignment='top')
                 axs[1, i].legend(loc='lower right')
+            elif label == 'error vs yaw':
+                axs[0, i].scatter(groundYaw[start_index:end_index], ekf_errors[start_index:end_index, 0], label='EKF X Error vs Yaw', s=5)
+                axs[0, i].set_title("EKF X Error vs Yaw")
+                axs[0, i].legend(loc='lower right')
+                
+                axs[1, i].scatter(groundYaw[start_index:end_index], ekf_errors[start_index:end_index, 1], label='EKF Y Error vs Yaw', s=5)
+                axs[1, i].set_title("EKF Y Error vs Yaw")
+                axs[1, i].legend(loc='lower right')
+
+                # Compute statistics for EKF errors with respect to Yaw
+                mean_error_x = np.mean(ekf_errors[start_index:end_index, 0])
+                std_dev_x = np.std(ekf_errors[start_index:end_index, 0])
+                min_error_x = np.min(ekf_errors[start_index:end_index, 0])
+                max_error_x = np.max(ekf_errors[start_index:end_index, 0])
+                correlation_x = np.corrcoef(groundYaw[start_index:end_index], ekf_errors[start_index:end_index, 0])[0, 1]
+
+                mean_error_y = np.mean(ekf_errors[start_index:end_index, 1])
+                std_dev_y = np.std(ekf_errors[start_index:end_index, 1])
+                min_error_y = np.min(ekf_errors[start_index:end_index, 1])
+                max_error_y = np.max(ekf_errors[start_index:end_index, 1])
+                correlation_y = np.corrcoef(groundYaw[start_index:end_index], ekf_errors[start_index:end_index, 1])[0, 1]
+
+                stats_text_x = f"X Error - Mean: {mean_error_x:.3f}, SD: {std_dev_x:.3f}, Min: {min_error_x:.3f}, Max: {max_error_x:.3f}, Correlation: {correlation_x:.3f}"
+                axs[0, i].text(0.05, 0.95, stats_text_x, transform=axs[0, i].transAxes, verticalalignment='top')
+
+                stats_text_y = f"Y Error - Mean: {mean_error_y:.3f}, SD: {std_dev_y:.3f}, Min: {min_error_y:.3f}, Max: {max_error_y:.3f}, Correlation: {correlation_y:.3f}"
+                axs[1, i].text(0.05, 0.95, stats_text_y, transform=axs[1, i].transAxes, verticalalignment='top')
             else:
                 axs[0, i].plot(groundValues[start_index:end_index, i], label='Ground Truth')
                 axs[0, i].plot(measuredEKFValues[start_index:end_index, i], label='EKF')
@@ -268,7 +305,7 @@ class Odom():
         plt.tight_layout()
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testPlots")
         os.makedirs(path, exist_ok=True)
-        name = os.path.join(path, "speedrun2.png")
+        name = os.path.join(path, "speedrun3.png")
         plt.savefig(name)
         print("Plot saved")
         # plt.show()

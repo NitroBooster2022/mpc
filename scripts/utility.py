@@ -117,7 +117,7 @@ class Utility:
         self.center = lane.center
     def imu_callback(self, imu):
         self.imu = imu
-        if self.pubOdom:
+        if self.pubOdom: #if true publish odom in imu callback
             self.publish_odom()
     def model_callback(self, model):
         self.model = model
