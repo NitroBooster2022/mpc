@@ -130,4 +130,6 @@ class Draw_MPC_tracking(object):
         self.robot_arr = mpatches.Arrow(position[0], position[1], self.rob_radius * np.cos(orientation),
                                         self.rob_radius * np.sin(orientation), width=0.2, color='r')
         self.ax.add_patch(self.robot_arr)
+        # add title corresponding to the index
+        self.ax.set_title('MPC Tracking Performance: ' + str(indx))
         return self.robot_arr, self.robot_body

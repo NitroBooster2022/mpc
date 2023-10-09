@@ -11,11 +11,11 @@ from std_msgs.msg import Header, String, Float32
 from robot_localization.srv import SetPose
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from gazebo_msgs.msg import ModelStates
-from utils.msg import IMU, Lane
+from utils.msg import IMU, Lane, Sign
 from sensor_msgs.msg import Imu
 
 class Utility:
-    def __init__(self, useIMU=True, subLane=True, subModel=False, subImu=False, pubOdom=False, useEkf=False):
+    def __init__(self, useIMU=True, subLane=False, subSign=False, subModel=False, subImu=False, pubOdom=False, useEkf=False):
         rospy.on_shutdown(self.stop_car)
         self.rateVal = 50.0
         self.rate = rospy.Rate(self.rateVal)
@@ -48,7 +48,8 @@ class Utility:
         self.odomYaw = 0
         self.gps_x = 0.0
         self.gps_y = 0.0
-        self.steer = 0.0
+        self.steer_command = 0.0
+        self.velocity_command = 0.0
         self.i = None
         
         #timers
@@ -64,7 +65,7 @@ class Utility:
         self.pose_to_set.header = Header()
         self.pose_to_set.header.frame_id = "chassis"
 
-        covariance_value = 0.05
+        covariance_value = 0.02
         # covariance_matrix = np.diag([covariance_value]*6).flatten().tolist()
         covariance_matrix = [covariance_value] * 6 + [0] * 30
         # Publishers
@@ -111,8 +112,30 @@ class Utility:
             print("received message from lane")
             self.timerpid = rospy.Time.now()
             self.last = 0
+        if subSign:
+            self.detected_objects = []
+            self.numObj = -1
+            self.box1 = []
+            self.box2 = []
+            self.box3 = []
+            self.confidence = []
+            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,110]
+            self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
+            self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
+            self.sign = Sign()
+            print("waiting for sign message")
+            rospy.wait_for_message("/sign", Sign)
+            print("received message from sign")
 
     # Callbacks
+    def sign_callback(self, sign):
+        self.detected_objects = sign.objects
+        self.numObj = sign.num
+        self.box1 = sign.box1
+        self.box2 = sign.box2
+        self.box3 = sign.box3
+        self.box4 = sign.box4
+        self.confidence = sign.confidence
     def lane_callback(self, lane):
         self.center = lane.center
     def imu_callback(self, imu):
@@ -185,15 +208,16 @@ class Utility:
         if not self.initializationFlag:
             self.initializationFlag = True
             print(f"intializing... gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}")
-            self.setIntialPose(self.gps_x, self.gps_y, self.yaw)
+            self.set_initial_pose(self.gps_x, self.gps_y, self.yaw)
             print(f"odomX: {self.odomX:.2f}, odomY: {self.odomY:.2f}")
-            self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
+            if self.useEkf:
+                self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
             return
-        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer)
+        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
         self.odomX += dx
         self.odomY += dy
 
-        # print(f"dt: {dt:.2f}, odomx: {self.odomX:.2f}, odomy: {self.odomY:.2f}, gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}, x_error: {abs(self.odomX-self.gps_x):.2f}, y_error: {abs(self.odomY-self.gps_y):.2f}, yaw: {self.yaw:.2f}, steer: {self.steer:.2f}, speed: {self.velocity:.2f}")
+        # print(f"dt: {dt:.2f}, odomx: {self.odomX:.2f}, odomy: {self.odomY:.2f}, gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}, x_error: {abs(self.odomX-self.gps_x):.2f}, y_error: {abs(self.odomY-self.gps_y):.2f}, yaw: {self.yaw:.2f}, steer: {self.steer_command:.2f}, speed: {self.velocity:.2f}")
        
         # Publish odom
         self.odom_msg.header.stamp = rospy.Time.now()
@@ -212,13 +236,13 @@ class Utility:
         self.odom_pub.publish(self.odom_msg)
         return
 
-    def setIntialPose(self, x, y, yaw):
+    def set_initial_pose(self, x, y, yaw):
         self.odomX = x
         self.odomY = y
         self.odomYaw = yaw
     def lane_follow(self):
-        self.steer = self.get_steering_angle()
-        self.publish_cmd_vel(self.steer, velocity=0.5)
+        self.steer_command = self.get_steering_angle()
+        self.publish_cmd_vel(self.steer_command, velocity=0.5)
     def publish_cmd_vel(self, steering_angle, velocity = None, clip = True):
         """
         steering_angle: in degrees
@@ -292,6 +316,31 @@ class Utility:
         self.odomX += magnitude * math.cos(self.yaw)
         self.odomY += magnitude * math.sin(self.yaw)
         return
+    def object_detected(self, obj_id):
+        if self.numObj >= 2:
+            if self.detected_objects[0]==obj_id: 
+                if self.check_size(obj_id,0):
+                    return True
+            elif self.detected_objects[1]==obj_id:
+                if self.check_size(obj_id,1):
+                    return True
+        elif self.numObj == 1:
+            if self.detected_objects[0]==obj_id: 
+                if self.check_size(obj_id,0):
+                    return True
+        return False
+    def check_size(self, obj_id, index):
+        #checks whether a detected object is within a certain min and max sizes defined by the obj type
+        box = self.box1 if index==0 else self.box2
+        conf = self.confidence[index]
+        size = max(box[2], box[3])
+        if obj_id==12:
+            size = min(box[2], box[3])
+        if obj_id==10:
+            conf_thresh = 0.35
+        else:
+            conf_thresh = 0.8
+        return size >= self.min_sizes[obj_id] and size <= self.max_sizes[obj_id] and conf >= conf_thresh #check this
     def publish_static_transforms(self):
         static_transforms = []
 
