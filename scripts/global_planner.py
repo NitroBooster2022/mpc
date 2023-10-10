@@ -16,6 +16,22 @@ class GlobalPlanner:
             self.intersection[node] = data['intersection']
         self.wp_x = []
         self.wp_y = []
+        self.place_names = {}
+
+        self.place_names = {
+            "parallel_parking1": 180,
+            "parallel_parking2": 182,
+            "front_parking1": 160,
+            "front_parking2": 162,
+            "highway1_start": 49,
+            "highway1_mid": 326,
+            "highway2_start": 343,
+            "highway2_mid": 357,
+            "curved_path": 426,
+            "start": 86,
+            "end": 85
+        }
+        
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]

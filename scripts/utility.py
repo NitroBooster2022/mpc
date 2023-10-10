@@ -119,7 +119,7 @@ class Utility:
             self.box2 = []
             self.box3 = []
             self.confidence = []
-            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,110]
+            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,90]
             self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
             self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
             self.sign = Sign()

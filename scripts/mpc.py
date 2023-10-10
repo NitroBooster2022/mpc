@@ -16,6 +16,7 @@ import argparse
 import tf
 from utility import Utility
 from std_srvs.srv import Trigger
+from global_planner import GlobalPlanner
 
 def call_trigger_service():
     try:
@@ -106,69 +107,10 @@ class MPC:
             rospy.init_node("mpc_node")
             self.useIMU = useIMU
             self.utils = Utility(useIMU=useIMU, subLane=False, subImu=True, subModel=True, pubOdom=True, useEkf=useEkf, subSign=sign)
-            # self.pub = rospy.Publisher("automobile/command",String,queue_size=3)
-            # self.msg = String()  
-            # self.model_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.model_callback, queue_size=3)
-            # if useIMU:
-            #     self.imu_sub = rospy.Subscriber("/automobile/IMU", IMU, self.imu_callback, queue_size=3)
-            # else:
-            #     self.imu_sub = rospy.Subscriber("/imu", Imu, self.imu_callback, queue_size=3)
             self.real_x = None
             self.real_y = None
             self.yaw = None
-            self.car_idx = None
             self.lock = threading.Lock()
-        name = 'speedrun'
-        self.last_waypoint_index = 1
-        filepath = os.path.dirname(os.path.abspath(__file__))
-        runs = []
-        runs.append(np.load(os.path.join(filepath, 'waypoints/speedrun1_noint.npy')))
-        runs.append(np.load(os.path.join(filepath, 'waypoints/speedrun2_noint.npy')))
-        runs.append(np.load(os.path.join(filepath, 'waypoints/speedrun3_noint.npy')))
-        runs.append(np.load(os.path.join(filepath, 'waypoints/speedrun4_noint.npy')))
-        # wpts = np.array([[2.37, 13.3],[2.5, 13.32],[2.8, 13.36], [3.214,13.644]]).T
-        # runs.append(wpts)
-        # print("shape2: ",wpts.shape)
-        path_lengths = np.zeros(len(runs))
-        for i in range(len(runs)):
-            for j in range(len(runs[i][0])-1):
-                path_lengths[i] += np.linalg.norm(runs[i][:,j+1]-runs[i][:,j])
-            print(i,") path length: ", path_lengths[i])
-            runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(path_lengths[i]*10)))
-        self.waypoints = runs[0]
-        for i in range(1,len(runs)):
-            self.waypoints = np.vstack((self.waypoints, runs[i]))
-        print("waypoints: ", self.waypoints.shape)
-        self.waypoints = filter_waypoints(self.waypoints, 0.01).T
-        #calculate the path length of the waypoints
-        path_length = 0
-        for i in range(len(self.waypoints[0])-1):
-            path_length += np.linalg.norm(self.waypoints[:,i+1]-self.waypoints[:,i])
-        print("path length: ", path_length)
-        # self.waypoints = self.waypoints[:,:280]
-        # self.waypoints = self.waypoints[:,280:]
-        # self.waypoints[0] += 0.5
-        # self.waypoints[1] -= 1.5
-        # self.waypoints = np.vstack((self.waypoints[1], self.waypoints[0])) #flip x and y
-        # self.waypoints[0] = 15-self.waypoints[0] # flip x
-        # self.waypoints[1] = 15-self.waypoints[1]
-        # self.waypoints = self.waypoints[:, 0:24]
-        # self.waypoints = self.waypoints[:, :15]
-        self.waypoints_x = self.waypoints[0, :]
-        self.waypoints_y = self.waypoints[1, :]
-        start_index = int(len(self.waypoints_x)*0)
-        end_index = int(len(self.waypoints_x)*1)
-        theta_ref = np.arctan2(self.waypoints_y[start_index+1] - self.waypoints_y[start_index],
-                                self.waypoints_x[start_index+1] - self.waypoints_x[start_index])        
-        self.init_state = np.array([self.waypoints_x[start_index], self.waypoints_y[start_index], theta_ref])
-        # self.init_state = np.array([0.82, 0.09, 3.14159/2])
-        index, _ = self.find_closest_waypoint(self.init_state[0], self.init_state[1])
-        self.waypoints_x = self.waypoints_x[index:end_index]
-        self.waypoints_y = self.waypoints_y[index:end_index]
-        
-        self.kappa, self.wp_theta, self.wp_normals = compute_smooth_curvature(self.waypoints_x, self.waypoints_y)
-        # self.shift_waypoints(450, 537, self.wp_normals)
-        print("initial state: ", self.init_state, self.init_state.shape, self.init_state[0])
         self.x_max = 15
         self.x_min = 0
         self.y_max = 15
@@ -193,6 +135,90 @@ class MPC:
         self.delta_v_cost = 0.25
         self.delta_steer_cost = 0.5
         self.costs = np.array([self.xy_cost, self.yaw_cost, self.v_cost, self.steer_cost, self.delta_v_cost, self.delta_steer_cost])
+        
+        self.global_planner = GlobalPlanner()
+        run1, _ = self.global_planner.plan_path(86, 467)
+        run2, _ = self.global_planner.plan_path(467, 302)
+        run3, _ = self.global_planner.plan_path(302, 264)
+        run4, _ = self.global_planner.plan_path(264, 81)
+        runs = [run1, run2, run3, run4]
+        # runs = [np.load(os.path.join(filepath, f'waypoints/speedrun{i}_noint.npy')) for i in range(1, 5)]
+        start = self.global_planner.place_names['start']
+        dest1 = self.global_planner.place_names['highway1_start']
+        dest2 = self.global_planner.place_names['highway1_mid']
+        dest3 = self.global_planner.place_names['highway2_start']
+        dest4 = self.global_planner.place_names['highway2_mid']
+        dest5 = self.global_planner.place_names['parallel_parking1']
+        run1, _ = self.global_planner.plan_path(start, dest1)
+        run2, _ = self.global_planner.plan_path(dest1, dest2)
+        run3, _ = self.global_planner.plan_path(dest2, dest3)
+        run4, _ = self.global_planner.plan_path(dest3, dest4)
+        run5, _ = self.global_planner.plan_path(dest4, dest5)
+        runs = [run1, run2]#, run3, run4, run5]
+        name = 'speedrun'
+        self.last_waypoint_index = 1
+        filepath = os.path.dirname(os.path.abspath(__file__))
+        # wpts = np.array([[2.37, 13.3],[2.5, 13.32],[2.8, 13.36], [3.214,13.644]]).T
+        # runs.append(wpts)
+        # print("shape2: ",wpts.shape)
+
+        # Compute path lengths 
+        path_lengths = [np.sum(np.linalg.norm(run[:, 1:] - run[:, :-1], axis=0)) for run in runs]
+        for i, length in enumerate(path_lengths):
+            print(i, ") path length: ", length)
+            runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*10)))
+        # Combine all runs into a single set of waypoints
+        self.waypoints = np.vstack(runs)
+        print("waypoints: ", self.waypoints.shape)
+        self.waypoints = filter_waypoints(self.waypoints, 0.01).T
+        # Calculate the total path length of the waypoints
+        total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
+        print("path length: ", total_path_length)
+        # self.waypoints = self.waypoints[:,:280]
+        # self.waypoints = self.waypoints[:,280:]
+        # self.waypoints[0] += 0.5
+        # self.waypoints[1] -= 1.5
+        # self.waypoints = np.vstack((self.waypoints[1], self.waypoints[0])) #flip x and y
+        # self.waypoints[0] = 15-self.waypoints[0] # flip x
+        # self.waypoints[1] = 15-self.waypoints[1]
+        # self.waypoints = self.waypoints[:, 0:24]
+        # self.waypoints = self.waypoints[:, :15]
+        self.waypoints_x = self.waypoints[0, :]
+        self.waypoints_y = self.waypoints[1, :]
+        # wpts = np.load(os.path.join(filepath, 'waypoints/parallel_park.npy'))
+        # self.waypoints_x = wpts[:, 0]+5
+        # self.waypoints_y = wpts[:, 1]+5
+        start_index = int(len(self.waypoints_x)*0)
+        end_index = int(len(self.waypoints_x)*1)
+        theta_ref = np.arctan2(self.waypoints_y[start_index+1] - self.waypoints_y[start_index],
+                                self.waypoints_x[start_index+1] - self.waypoints_x[start_index])        
+        self.init_state = np.array([self.waypoints_x[start_index], self.waypoints_y[start_index], theta_ref])
+        # self.init_state = np.array([0.82, 0.09, 3.14159/2])
+        index, _ = self.find_closest_waypoint(self.init_state[0], self.init_state[1])
+        self.waypoints_x = self.waypoints_x[index:end_index]
+        self.waypoints_y = self.waypoints_y[index:end_index]
+        self.num_waypoints = len(self.waypoints_x)
+        self.kappa, self.wp_theta, self.wp_normals = compute_smooth_curvature(self.waypoints_x, self.waypoints_y)
+        self.v_refs  = self.v_ref / (1 + np.abs(self.kappa))
+        self.v_refs[-2:] = 0
+        k_steer = 0 #0.4/np.amax(np.abs(self.kappa))
+        self.steer_ref = k_steer * self.kappa
+        # Extend waypoints and reference values by N
+        self.waypoints_x = np.pad(self.waypoints_x, (0,self.N+4), 'edge')
+        self.waypoints_y = np.pad(self.waypoints_y, (0,self.N+4), 'edge')
+        self.kappa = np.pad(self.kappa, (0,self.N+5), 'edge')
+        self.wp_theta = np.pad(self.wp_theta, (0,self.N+5), 'edge')
+        self.wp_normals = np.pad(self.wp_normals, ((0,self.N+5),(0,0)), 'edge')
+        self.v_refs = np.pad(self.v_refs, (0,self.N+5), 'edge')
+        self.steer_ref = np.pad(self.steer_ref, (0,self.N+5), 'edge')
+        self.state_refs = np.vstack((self.waypoints_x, self.waypoints_y, self.wp_theta[1:])).T
+        self.input_refs = np.vstack((self.v_refs, self.steer_ref)).T
+        self.waypoints = np.vstack((self.waypoints_x, self.waypoints_y)).T
+        print("state_refs: ", self.state_refs.shape, ", input_refs: ", self.input_refs.shape)
+
+        # self.change_lane(589, 609, self.wp_normals)
+        # self.change_lane(616, 636, self.wp_normals)
+        print("initial state: ", self.init_state, self.init_state.shape, self.init_state[0])
         
         self.export_fig = os.path.join(filepath+'/gifs',name + gaz_bool + '_N'+str(self.N) + '_vref'+str(self.v_ref) 
                                        + '_T'+str(self.T) + '_vmax'+str(self.v_max) + '_latency'+str(self.latency) 
@@ -288,7 +314,7 @@ class MPC:
         self.mpciter = 0
         self.start_time = time.time()
         self.index_t = []
-    def shift_waypoints(self, start_index, end_index, normals, shift_distance=0.36):
+    def change_lane(self, start_index, end_index, normals, shift_distance=0.36):
         """
         Shift waypoints in the range [start_index, end_index] by shift_distance meters in the direction of their normal.
         
@@ -297,8 +323,8 @@ class MPC:
         - end_index: Ending index of waypoints to shift.
         - shift_distance: Distance to shift waypoints by.
         """
-        self.waypoints_x[start_index:end_index] += normals[start_index:end_index, 0] * shift_distance
-        self.waypoints_y[start_index:end_index] += normals[start_index:end_index, 1] * shift_distance
+        self.state_refs[start_index:end_index,0] += normals[start_index:end_index, 0] * shift_distance
+        self.state_refs[start_index:end_index,1] += normals[start_index:end_index, 1] * shift_distance
     def shift_movement(self, t0, x0, u, x_n, f): 
         f_value = f(x0, u[0])
         st = x0 + self.T*f_value
@@ -347,56 +373,19 @@ class MPC:
         target_idx = max(self.last_waypoint_index, closest_idx)
         return min(target_idx, len(self.waypoints_x) - 1)
 
-    def desired_trajectory(self, index):
-        if index >= len(self.waypoints_x) - 1:
-            index = len(self.waypoints_x) - 2
-        v_ref = self.v_ref / (1 + np.abs(self.kappa[index]))
-
-        # Adjust the steering reference based on the curvature
-        steer_ref = self.kappa[index]
-        return self.waypoints_x[index], self.waypoints_y[index], self.wp_theta[index+1], v_ref, self.steer_ref
-
     def desired_command_and_trajectory(self, index):
-        # Get a series of reference states and inputs based on the index.
-        x_refs = np.zeros(self.N + 1)
-        y_refs = np.zeros(self.N + 1)
-        theta_refs = np.zeros(self.N + 1)
-        v_refs = np.zeros(self.N)
-        steer_refs = np.zeros(self.N)
+        return self.state_refs[index:index + self.N + 1], self.input_refs[index:index + self.N]
 
-        # Populate the reference states and inputs based on the waypoints
-        for i in range(self.N):
-            if index + i < len(self.waypoints_x) - 1:
-                x_refs[i], y_refs[i], theta_refs[i], v_refs[i], steer_refs[i] = self.desired_trajectory(index + i)
-            else: # If we have reached the end of the waypoints, just use the last waypoint for the remaining steps
-                x_refs[i], y_refs[i], theta_refs[i], v_refs[i], steer_refs[i] = self.desired_trajectory(len(self.waypoints_x) - 1)
-        
-        # Get the last reference state separately (without setting v_ref and steer_ref)
-        if index + self.N < len(self.waypoints_x) - 1:
-            x_refs[self.N], y_refs[self.N], theta_refs[self.N] = self.waypoints_x[index + self.N], self.waypoints_y[index + self.N], theta_refs[self.N - 1]
-        else:
-            x_refs[self.N], y_refs[self.N], theta_refs[self.N] = self.waypoints_x[-1], self.waypoints_y[-1], theta_refs[self.N - 1]
-
-        state_refs = np.vstack((x_refs, y_refs, theta_refs)).T
-        input_refs = np.vstack((v_refs, steer_refs)).T
-
-        return state_refs, input_refs
-
-    def model_callback(self, model):
-        if self.car_idx is None:
-            try:
-                self.car_idx = model.name.index("automobile")
-            except ValueError:
-                return
-        car_pose = model.pose[self.car_idx]
-        with self.lock:
-            self.real_x = car_pose.position.x
-            self.real_y = car_pose.position.y+15
-
-    def imu_callback(self, imu):
-        with self.lock:
-            self.yaw = tf.transformations.euler_from_quaternion([imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w])[2]
-            # self.yaw = imu.yaw
+    def update_and_solve(self):
+        ## set parameter, here only update initial state of x (x0)
+        self.opti.set_value(self.opt_x_ref[1:,:], self.next_trajectories[1:])
+        self.opti.set_value(self.opt_u_ref, self.next_controls)
+        ## provide the initial guess of the optimization targets
+        self.opti.set_initial(self.opt_controls, self.u0.reshape(self.N, 2))
+        self.opti.set_initial(self.opt_states, self.next_states)
+        ## solve the problem once again
+        sol = self.opti.solve()
+        return sol.value(self.opt_controls), sol.value(self.opt_states)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -431,8 +420,8 @@ if __name__ == '__main__':
     length = len(mpc.waypoints_x)
     target_waypoint_index = 0
     print("length: ", length)
-    while mpc.mpciter < 620:
-        if target_waypoint_index >= length-2:
+    while True:
+        if target_waypoint_index >= mpc.num_waypoints-1:
         # if target_waypoint_index >= 375:
             break
         t = time.time()
@@ -441,7 +430,7 @@ if __name__ == '__main__':
                 if mpc.utils.object_detected(12) and target_waypoint_index>=mpc.detected_index:
                     print("car detected!, changing lane...")
                     mpc.detected_index = target_waypoint_index+20
-                    mpc.shift_waypoints(target_waypoint_index, mpc.detected_index, mpc.wp_normals)
+                    mpc.change_lane(target_waypoint_index, mpc.detected_index, mpc.wp_normals)
             with mpc.lock:
                 mpc.current_state[2] = mpc.utils.yaw
                 if args.odom:
@@ -467,20 +456,10 @@ if __name__ == '__main__':
         initial_state_with_latency[2] = np.arctan2(np.sin(initial_state_with_latency[2]), np.cos(initial_state_with_latency[2]))
         mpc.current_state[2] = np.arctan2(np.sin(mpc.current_state[2]), np.cos(mpc.current_state[2]))
         mpc.next_trajectories, mpc.next_controls = mpc.desired_command_and_trajectory(target_waypoint_index)
-        ## set parameter, here only update initial state of x (x0)
-        mpc.opti.set_value(mpc.opt_x_ref[1:,:], mpc.next_trajectories[1:,:])
-        mpc.opti.set_value(mpc.opt_u_ref, mpc.next_controls)
-        ## provide the initial guess of the optimization targets
-        mpc.opti.set_initial(mpc.opt_controls, mpc.u0.reshape(mpc.N, 2))# (N, 2)
-        mpc.opti.set_initial(mpc.opt_states, mpc.next_states) # (N+1, 3)
-        ## solve the problem once again
         t_ = time.time()
-        sol = mpc.opti.solve()
+        u_res, x_m = mpc.update_and_solve()
         t2 = time.time()- t_
         mpc.index_t.append(t2)
-        ## obtain the control input
-        u_res = sol.value(mpc.opt_controls)
-        x_m = sol.value(mpc.opt_states)
         # if target_waypoint_index < length-1:
             # print("i) ", mpc.mpciter,"ref_traj:", np.around(mpc.next_trajectories, decimals=2)[0], 
             #     "cur:", np.around(initial_state_with_latency, decimals=2), "ctrl:", 
@@ -491,7 +470,7 @@ if __name__ == '__main__':
         mpc.u_cc.append(u_res)
         mpc.t_c.append(mpc.t0)
         mpc.x_c.append(x_m)
-        mpc.t0, mpc.current_state, mpc.u0, next_states = mpc.shift_movement(mpc.t0, mpc.current_state, mpc.u_cc[-mpc.latency_num-1], x_m, mpc.f_np)
+        mpc.t0, mpc.current_state, mpc.u0, _ = mpc.shift_movement(mpc.t0, mpc.current_state, mpc.u_cc[-mpc.latency_num-1], x_m, mpc.f_np)
         # mpc.current_state = mpc.add_gaussian_noise(mpc.current_state)
         mpc.xx.append(mpc.real_state) if args.odom else mpc.xx.append(mpc.current_state)
         mpc.mpciter = mpc.mpciter + 1
