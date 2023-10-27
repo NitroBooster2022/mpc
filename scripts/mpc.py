@@ -154,7 +154,7 @@ class MPC:
         run3, _ = self.global_planner.plan_path(dest2, dest3)
         run4, _ = self.global_planner.plan_path(dest3, dest4)
         run5, _ = self.global_planner.plan_path(dest4, dest5)
-        runs = [run1, run2]#, run3, run4, run5]
+        runs = [run1, run2, run3, run4, run5]
         name = 'speedrun'
         self.last_waypoint_index = 1
         filepath = os.path.dirname(os.path.abspath(__file__))
@@ -164,16 +164,17 @@ class MPC:
 
         # Compute path lengths 
         path_lengths = [np.sum(np.linalg.norm(run[:, 1:] - run[:, :-1], axis=0)) for run in runs]
+        self.density = 10 # wp/m
         for i, length in enumerate(path_lengths):
             print(i, ") path length: ", length)
-            runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*10)))
+            runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
         # Combine all runs into a single set of waypoints
         self.waypoints = np.vstack(runs)
         print("waypoints: ", self.waypoints.shape)
         self.waypoints = filter_waypoints(self.waypoints, 0.01).T
         # Calculate the total path length of the waypoints
         total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
-        print("path length: ", total_path_length)
+        print("total path length: ", total_path_length)
         # self.waypoints = self.waypoints[:,:280]
         # self.waypoints = self.waypoints[:,280:]
         # self.waypoints[0] += 0.5
@@ -198,6 +199,7 @@ class MPC:
         self.waypoints_x = self.waypoints_x[index:end_index]
         self.waypoints_y = self.waypoints_y[index:end_index]
         self.num_waypoints = len(self.waypoints_x)
+        print("num_waypoints: ", self.num_waypoints)
         self.kappa, self.wp_theta, self.wp_normals = compute_smooth_curvature(self.waypoints_x, self.waypoints_y)
         self.v_refs  = self.v_ref / (1 + np.abs(self.kappa))
         self.v_refs[-2:] = 0
@@ -250,8 +252,18 @@ class MPC:
         self.opti.subject_to(self.opt_states[0, :] == self.opt_x_ref[0, :])
         for i in range(self.N):
             x_next = self.opt_states[i, :] + self.f(self.opt_states[i, :], self.opt_controls[i, :]).T*self.T
-            # x_next[0,2] = ca.atan2(ca.sin(x_next[0,2]), ca.cos(x_next[0,2]))
             self.opti.subject_to(self.opt_states[i+1, :]==x_next)
+        # RK4 integration
+        # for i in range(self.N):
+        #     xi = self.opt_states[i, :]
+        #     ui = self.opt_controls[i, :]
+        #     k1 = self.f(xi, ui).T
+        #     k2 = self.f(xi + 0.5*self.T*k1, ui).T
+        #     k3 = self.f(xi + 0.5*self.T*k2, ui).T
+        #     k4 = self.f(xi + self.T*k3, ui).T
+        #     x_next = xi + (self.T/6.0)*(k1 + 2*k2 + 2*k3 + k4)
+        #     self.opti.subject_to(self.opt_states[i+1, :] == x_next)
+
 
         self.obstacle = []
         # self.obstacle.append([4, 2, 0.3]) # x, y, radius
@@ -427,10 +439,13 @@ if __name__ == '__main__':
         t = time.time()
         if mpc.gazebo:
             if args.sign:
-                if mpc.utils.object_detected(12) and target_waypoint_index>=mpc.detected_index:
-                    print("car detected!, changing lane...")
+                distance = mpc.utils.object_detected(12)
+                if distance>0 and target_waypoint_index>=mpc.detected_index:
+                    distance = max(distance, 0.75)-0.75 #0.75 is minimum distance
+                    print("car detected at a distance of: ", distance+0.75)
+                    offset = int(distance*mpc.density)
                     mpc.detected_index = target_waypoint_index+20
-                    mpc.change_lane(target_waypoint_index, mpc.detected_index, mpc.wp_normals)
+                    mpc.change_lane(target_waypoint_index+offset, mpc.detected_index+offset, mpc.wp_normals)
             with mpc.lock:
                 mpc.current_state[2] = mpc.utils.yaw
                 if args.odom:
@@ -530,7 +545,7 @@ if __name__ == '__main__':
     stats = [average_speed, average_steer, average_delta_speed, average_delta_steer, average_x_error, average_y_error, average_yaw_error]
 
     ## draw function
-    draw_result = Draw_MPC_tracking(obstacle = mpc.obstacle, rob_diam=0.3, init_state=mpc.init_state, 
+    draw_result = Draw_MPC_tracking(mpc.u_c, obstacle = mpc.obstacle, rob_diam=0.3, init_state=mpc.init_state, 
                                     robot_states=mpc.xx, ref_states = mpc.x_refs, export_fig=mpc.export_fig, waypoints_x=mpc.waypoints_x, 
-                                    waypoints_y=mpc.waypoints_y, stats = stats, costs = mpc.costs)
+                                    waypoints_y=mpc.waypoints_y, stats = stats, costs = mpc.costs, xmin=mpc.x_min, xmax=mpc.x_max, ymin=mpc.y_min, ymax=mpc.y_max)
     

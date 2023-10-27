@@ -9,10 +9,12 @@ from scipy.interpolate import interp1d
 import cv2
 
 class Draw_MPC_tracking(object):
-    def __init__(self, robot_states: list, ref_states:list, init_state: np.array, 
+    def __init__(self, u, robot_states: list, ref_states:list, init_state: np.array, 
                  obstacle: np.array, rob_diam=0.3,  export_fig=None
                  , xmin=-1.0, xmax=15, ymin=-1, ymax=15, waypoints_x = None, waypoints_y = None, 
-                 spline_points_x = None, spline_points_y = None, stats = None, costs = None):
+                 spline_points_x = None, spline_points_y = None, stats = None, costs = None, times=None):
+        self.times = times
+        self.u = u
         self.init_state = init_state
         self.robot_states = robot_states
         self.rob_radius = rob_diam
@@ -130,6 +132,6 @@ class Draw_MPC_tracking(object):
         self.robot_arr = mpatches.Arrow(position[0], position[1], self.rob_radius * np.cos(orientation),
                                         self.rob_radius * np.sin(orientation), width=0.2, color='r')
         self.ax.add_patch(self.robot_arr)
-        # add title corresponding to the index
-        self.ax.set_title('MPC Tracking Performance: ' + str(indx))
+        # self.ax.set_title('MPC Tracking Performance: ' + str(indx)+ ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)))
+        self.ax.set_title(str(indx)+') t:'+ str(round(self.times[indx],2)) + ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)) + ' x:' + str(round(self.robot_states[indx,0], 2)) + ' y:' + str(round(self.robot_states[indx,1], 2)) + ' yaw:' + str(round(self.robot_states[indx,2], 2)))
         return self.robot_arr, self.robot_body

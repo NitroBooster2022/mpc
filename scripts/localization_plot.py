@@ -305,7 +305,7 @@ class Odom():
         plt.tight_layout()
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testPlots")
         os.makedirs(path, exist_ok=True)
-        name = os.path.join(path, "hw1.png")
+        name = os.path.join(path, "acados1.png")
         plt.savefig(name)
         print("Plot saved")
         # plt.show()

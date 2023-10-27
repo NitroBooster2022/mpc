@@ -76,7 +76,7 @@ class Utility:
 
         self.odom1_pub = rospy.Publisher("odom1", Odometry, queue_size=3)
         self.odom1_msg = Odometry()
-        covariance_matrix = [0.05] * 6 + [0] * 30
+        covariance_matrix = [0.01] * 6 + [0] * 30
         self.odom1_msg.pose.covariance = covariance_matrix
         self.odom1_msg.twist.covariance = covariance_matrix
 
@@ -119,7 +119,8 @@ class Utility:
             self.box2 = []
             self.box3 = []
             self.confidence = []
-            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,90]
+            self.distances = []
+            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,70]
             self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
             self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
             self.sign = Sign()
@@ -136,6 +137,7 @@ class Utility:
         self.box3 = sign.box3
         self.box4 = sign.box4
         self.confidence = sign.confidence
+        self.distances = sign.distances
     def lane_callback(self, lane):
         self.center = lane.center
     def imu_callback(self, imu):
@@ -234,6 +236,14 @@ class Utility:
         self.odom_msg.twist.twist.linear.x = self.velocity*math.cos(self.yaw)
         self.odom_msg.twist.twist.linear.y = self.velocity*math.sin(self.yaw)
         self.odom_pub.publish(self.odom_msg)
+
+        # Publish odom1
+        # self.odom1_msg.header.stamp = rospy.Time.now()
+        # self.odom1_msg.header.frame_id = "odom"
+        # self.odom1_msg.child_frame_id = "chassis"
+        # self.odom1_msg.twist.twist.linear.x = self.velocity*math.cos(self.yaw)
+        # self.odom1_msg.twist.twist.linear.y = self.velocity*math.sin(self.yaw)
+        # self.odom1_pub.publish(self.odom1_msg)
         return
 
     def set_initial_pose(self, x, y, yaw):
@@ -320,15 +330,15 @@ class Utility:
         if self.numObj >= 2:
             if self.detected_objects[0]==obj_id: 
                 if self.check_size(obj_id,0):
-                    return True
+                    return self.distances[0]
             elif self.detected_objects[1]==obj_id:
                 if self.check_size(obj_id,1):
-                    return True
+                    return self.distances[1]
         elif self.numObj == 1:
             if self.detected_objects[0]==obj_id: 
                 if self.check_size(obj_id,0):
-                    return True
-        return False
+                    return self.distances[0]
+        return -1
     def check_size(self, obj_id, index):
         #checks whether a detected object is within a certain min and max sizes defined by the obj type
         box = self.box1 if index==0 else self.box2
