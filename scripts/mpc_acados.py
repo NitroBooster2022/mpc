@@ -437,34 +437,34 @@ if __name__ == '__main__':
     length = len(mpc.waypoints_x)
     mpc.target_waypoint_index = 0
     print("length: ", length)
-    # while True:
-    #     if mpc.target_waypoint_index >= mpc.num_waypoints-1:
-    #     # if mpc.target_waypoint_index >= 375:
-    #         break
-    #     t = time.time()
-    #     mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
-    #     mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
-    #     mpc.x_refs.append(mpc.next_trajectories[0, :])
-    #     mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
-    #     # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
-    #     t_ = time.time()
-    #     u_res = mpc.update_and_solve()
-    #     t2 = time.time()- t_
-    #     if u_res is None:
-    #         break
-    #     mpc.index_t.append(t2)
-    #     mpc.t_c.append(mpc.t0)
-    #     mpc.u_c.append(u_res)
-    #     mpc.integrate_next_states(u_res)
-    #     # u_res = u_res[0]
-    #     # print("time: ", t2, "u_res: ", u_res)
-    #     mpc.xx.append(mpc.current_state)
-    #     mpc.mpciter = mpc.mpciter + 1
+    while True:
+        if mpc.target_waypoint_index >= mpc.num_waypoints-1:
+        # if mpc.target_waypoint_index >= 375:
+            break
+        t = time.time()
+        mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
+        mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
+        mpc.x_refs.append(mpc.next_trajectories[0, :])
+        mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
+        # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
+        t_ = time.time()
+        u_res = mpc.update_and_solve()
+        t2 = time.time()- t_
+        if u_res is None:
+            break
+        mpc.index_t.append(t2)
+        mpc.t_c.append(mpc.t0)
+        mpc.u_c.append(u_res)
+        mpc.integrate_next_states(u_res)
+        # u_res = u_res[0]
+        # print("time: ", t2, "u_res: ", u_res)
+        mpc.xx.append(mpc.current_state)
+        mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
-    park_offset = 1
-    mpc.current_state = np.array([park_offset, 0, np.pi])
-    mpc.park(park_offset)
-    mpc.exit_park()
+    # park_offset = 1
+    # mpc.current_state = np.array([park_offset, 0, np.pi])
+    # mpc.park(park_offset)
+    # mpc.exit_park()
     print("done")
-    # mpc.draw_result(stats, 0, 15, 0, 15)
-    mpc.draw_result(stats, -1, 2, -1, 2)
+    mpc.draw_result(stats, 0, 15, 0, 15)
+    # mpc.draw_result(stats, -1, 2, -1, 2)

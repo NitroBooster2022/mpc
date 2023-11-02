@@ -24,11 +24,11 @@ class Draw_MPC_tracking(object):
         self.spline_points_y = spline_points_y
         self.stats = stats
         self.costs = costs
-        self.image = cv2.imread('/home/simonli/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png')
-        self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        self.image = np.array(self.image).T
-        # resize the image to 500 by 500
-        self.image = cv2.resize(self.image, (100, 100), interpolation=cv2.INTER_AREA)
+        # self.image = cv2.imread('/home/scandy/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png')
+        # self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        # self.image = np.array(self.image).T
+        # # resize the image to 500 by 500
+        # self.image = cv2.resize(self.image, (100, 100), interpolation=cv2.INTER_AREA)
 
         if obstacle is not None:
             self.obstacle = obstacle
@@ -40,7 +40,7 @@ class Draw_MPC_tracking(object):
         # self.fig.set_size_inches(7, 6.5)
         self.obstacle_circles = [] 
 
-        self.background_image = plt.imread('/home/simonli/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png') 
+        # self.background_image = plt.imread('/home/scandy/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png') 
 
         # init for plot
         self.animation_init()

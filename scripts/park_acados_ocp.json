@@ -1,7 +1,7 @@
 {
-    "acados_include_path": "/home/simonli/acados/include",
-    "acados_lib_path": "/home/simonli/acados/lib",
-    "code_export_directory": "/home/simonli/bfmc_pkgs/mpc/scripts/c_generated_code",
+    "acados_include_path": "/home/scandy/acados/include",
+    "acados_lib_path": "/home/scandy/acados/lib",
+    "code_export_directory": "/home/scandy/Documents/BFMC_pkgs/mpc/scripts/c_generated_code",
     "constraints": {
         "C": [],
         "C_e": [],
@@ -340,7 +340,7 @@
         "zu_e": []
     },
     "cython_include_dirs": [
-        "/home/simonli/.local/lib/python3.8/site-packages/numpy/core/include",
+        "/home/scandy/.local/lib/python3.8/site-packages/numpy/core/include",
         "/usr/include/python3.8"
     ],
     "dims": {
@@ -420,6 +420,7 @@
         },
         "name": "park",
         "p": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "t": [],
         "u": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeggaaaaaaaaaaaaaaacaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbg",
         "x": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaihegpcaaaaaaaaaaaaaabaaaaaaajhegpcaaaaaaaaaaaaaadaaaaaaaahdhjg",
         "xdot": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfadegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfbdegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfcd",
@@ -474,7 +475,8 @@
         "qp_solver_tol_ineq": null,
         "qp_solver_tol_stat": null,
         "qp_solver_warm_start": 0,
-        "regularize_method": null,
+        "reg_epsilon": 0.0001,
+        "regularize_method": "NO_REGULARIZE",
         "shooting_nodes": null,
         "sim_method_jac_reuse": [
             0,
