@@ -15,6 +15,17 @@ This project utilizes Gazebo model information alongside an Extended Kalman Filt
 
 ## Dependencies
 
+### ROS
+#### Installation:
+http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-zhuang/124-an-zhuang-ros.html
+
+### robot_localization
+#### Installation:
+    ```bash
+    sudo apt update
+    sudo apt install ros-noetic-robot-localization
+    ```
+
 ### Acados
 
 #### Installation:
@@ -68,9 +79,28 @@ This project utilizes Gazebo model information alongside an Extended Kalman Filt
     ```
 ## Running the Example
 
+### Acados Simulation
+
 1. Run the following command to execute the MPC simulation:
     ```bash
     python3 scripts/mpc_acados.py
     ```
 
 2. Upon successful execution, a GIF illustrating the simulation will be saved in `scripts/gifs_acados`.
+
+### Gazebo Simulation
+
+1. Start the gazebo simulation:
+    ```bash
+    source devel/setup.bash
+    roslaunch sim_pkgs map_with_car.launch
+    ```
+
+2. Start the ekf node:
+    ```bash
+    roslaunch mpc ekf.launch
+    ```
+3. Start the control node:
+    ```bash
+    rosrun mpc control_node.py --useEkf 
+    ```
