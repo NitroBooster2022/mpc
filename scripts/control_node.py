@@ -6,7 +6,6 @@ import threading
 import argparse
 from utility import Utility
 from std_srvs.srv import Trigger
-from MPC import MPC
 from mpc_acados import MobileRobotOptimizer
 
 def call_trigger_service():
@@ -24,7 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--sign', action='store_true', help='Boolean for whether to use sign or not')
     args = parser.parse_args()
     # mpc = MPC(gazebo=args.gazebo)
-    mpc = MobileRobotOptimizer()
+    mpc = MobileRobotOptimizer(gazebo=True)
     gaz_bool = "_gazebo_"
     rospy.init_node("mpc_node")
     mpc.real_x = None
@@ -67,7 +66,7 @@ if __name__ == '__main__':
                 print("car detected at a distance of: ", distance+0.75)
                 offset = int(distance*mpc.density)
                 mpc.path.detected_index = mpc.target_waypoint_index+20
-                mpc.path.change_lane(mpc.target_waypoint_index+offset, mpc.detected_index+offset, mpc.wp_normals)
+                mpc.path.change_lane(mpc.target_waypoint_index+offset, mpc.path.detected_index+offset, mpc.wp_normals)
         with mpc.lock:
             if args.odom:
                 mpc.update_current_state(x=utils.odomX, y=utils.odomY, yaw=utils.yaw)
@@ -83,8 +82,8 @@ if __name__ == '__main__':
         t2 = time.time()- t_
         mpc.index_t.append(t2)
         mpc.integrate_next_states(u_res)
-        # u_res = u_res[0]
-        # print("time: ", t2, "u_res: ", u_res)
+        mpc.t_c.append(mpc.t0)
+        mpc.u_c.append(u_res)
         mpc.xx.append(mpc.real_state) if args.odom else mpc.xx.append(mpc.current_state)
         mpc.mpciter = mpc.mpciter + 1
         utils.steer_command = -float(u_res[1]*180/np.pi)
@@ -98,10 +97,16 @@ if __name__ == '__main__':
             "cur:", np.around(mpc.current_state, decimals=2), "ctrl:", 
             np.around(u_res, decimals=2), "idx:", mpc.target_waypoint_index, "time:", round(t2, 4),
             "kappa:", round(mpc.kappa[mpc.target_waypoint_index],2))
+    stats = mpc.compute_stats()
+    mpc.current_state = [utils.gps_x, utils.gps_y, utils.yaw]
+    print("current state: ", mpc.current_state)
+    park_offset = 0.1
+    mpc.park(park_offset, utils=utils)
+    mpc.exit_park(utils=utils)
     print("done")
     try:
         call_trigger_service()
     except:
         print("service not available")
     ## draw function
-    mpc.draw_result(mpc.compute_stats())
+    mpc.draw_result(stats)

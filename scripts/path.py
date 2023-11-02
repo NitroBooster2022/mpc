@@ -5,6 +5,7 @@ import numpy as np
 import os
 from scipy.interpolate import UnivariateSpline, splprep, splev
 from global_planner import GlobalPlanner
+import yaml
 
 def smooth_yaw_angles(yaw_angles):
     # Calculate the differences between adjacent angles
@@ -62,36 +63,32 @@ def interpolate_waypoints(waypoints, num_points):
     return new_waypoints
 
 class Path:
-    def __init__(self, v_ref, N, T, x0=None):
+    def __init__(self, v_ref, N, T, x0=None, name="speedrun"):
         self.v_ref = v_ref
         self.N = N
-        self.region_of_acceptance = 0.05
         self.global_planner = GlobalPlanner()
-        run1, _ = self.global_planner.plan_path(86, 467)
-        run2, _ = self.global_planner.plan_path(467, 302)
-        run3, _ = self.global_planner.plan_path(302, 264)
-        run4, _ = self.global_planner.plan_path(264, 81)
-        runs = [run1, run2, run3, run4]
-        start = self.global_planner.place_names['start']
-        dest1 = self.global_planner.place_names['highway1_start']
-        dest2 = self.global_planner.place_names['highway1_mid']
-        dest3 = self.global_planner.place_names['highway2_start']
-        dest4 = self.global_planner.place_names['highway2_mid']
-        dest5 = self.global_planner.place_names['parallel_parking1']
-        run1, _ = self.global_planner.plan_path(start, dest1)
-        run2, _ = self.global_planner.plan_path(dest1, dest2)
-        run3, _ = self.global_planner.plan_path(dest2, dest3)
-        run4, _ = self.global_planner.plan_path(dest3, dest4)
-        run5, _ = self.global_planner.plan_path(dest4, dest5)
-        # append x0 to run1
+
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(current_path, 'config/paths.yaml'), 'r') as stream:
+            data = yaml.safe_load(stream)
+            destinations = data[name]
+
+        # Plan runs between sequential destinations
+        runs = []
+        for i in range(len(destinations) - 1):
+            start = self.global_planner.place_names[destinations[i]]
+            end = self.global_planner.place_names[destinations[i+1]]
+            run, _ = self.global_planner.plan_path(start, end)
+            runs.append(run)
+        # Handle x0 for the first run
         if x0 is not None:
-            run1 = np.hstack((x0[0:2].reshape(2,1), run1))
-        runs = [run1, run2, run3, run4, run5]
+            runs[0] = np.hstack((x0[0:2].reshape(2,1), runs[0]))
 
         # Compute path lengths 
         path_lengths = [np.sum(np.linalg.norm(run[:, 1:] - run[:, :-1], axis=0)) for run in runs]
-        self.density = 1/self.v_ref/T # wp/m
-        print("density: ", self.density)
+        self.density = 1/abs(self.v_ref)/T # wp/m
+        self.region_of_acceptance = 0.05/10*self.density
+        print("density: ", self.density, ", region_of_acceptance: ", self.region_of_acceptance)
         for i, length in enumerate(path_lengths):
             print(i, ") path length: ", length)
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))

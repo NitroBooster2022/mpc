@@ -20,8 +20,82 @@ from acados_template import AcadosModel
 import time
 import yaml
 
+def transform_point(pt, frame1, frame2):
+    # Unpack the frames and the point
+    x1, y1, theta1 = frame1
+    x2, y2, theta2 = frame2
+    x, y, psi = pt
+    # Step 1: Translate to the origin of frame1
+    x -= x1
+    y -= y1
+    # Step 2: Rotate to align frame1 with frame2
+    # First, compute the rotation needed
+    rotation_angle = theta2 - theta1
+    # Create the rotation matrix
+    rotation_matrix = np.array([
+        [np.cos(rotation_angle), -np.sin(rotation_angle)],
+        [np.sin(rotation_angle), np.cos(rotation_angle)]
+    ])
+    # Apply the rotation
+    rotated_xy = np.dot(np.array([x, y]), rotation_matrix.T)
+    # Update psi (yaw) and normalize
+    rotated_psi = (psi + rotation_angle) % (2 * np.pi)
+    # rotated_psi = np.arctan2(np.sin(rotated_psi), np.cos(rotated_psi))
+    # Step 3: Translate to the origin of frame2
+    transformed_xy = rotated_xy + np.array([x2, y2])
+    # Recombine into the complete array and return
+    return np.array([transformed_xy[0], transformed_xy[1], rotated_psi])
+
 class MobileRobotOptimizer(object):
     def __init__(self, gazebo = False):
+        self.gazebo = gazebo
+        self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
+
+        self.init_state = np.array([0.2, 0.2, 0])
+        name = 'path1'
+        self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=self.init_state)
+        self.waypoints_x = self.path.waypoints_x
+        self.waypoints_y = self.path.waypoints_y
+        self.num_waypoints = self.path.num_waypoints
+        self.wp_normals = self.path.wp_normals
+        self.kappa = self.path.kappa
+        self.density = self.path.density
+        self.state_refs = self.path.state_refs
+        self.input_refs = self.path.input_refs
+        self.waypoints_x = self.state_refs[:,0]
+        self.waypoints_y = self.state_refs[:,1]
+        self.init_state = self.path.init_state
+
+        self.t0 = 0
+        self.current_state = self.init_state.copy()
+        self.u0 = np.zeros((self.N, 2))
+        self.next_trajectories = np.tile(self.init_state, self.N+1).reshape(self.N+1, -1) # set the initial state as the first trajectories for the robot
+        self.next_controls = np.zeros((self.N, 2))
+        self.next_states = np.zeros((self.N+1, 3))
+        self.x_c = [] # contains for the history of the state
+        self.u_c = []
+        self.u_cc = []
+        self.t_c = [self.t0] # for the time
+        self.xx = []
+        self.x_refs = []
+        self.x_errors = []
+        self.y_errors = []
+        self.yaw_errors = []
+        ## start MPC
+        self.mpciter = 0
+        self.start_time = time.time()
+        self.index_t = []
+        gaz_bool = "" if not gazebo else "_gazebo_"
+        filepath = os.path.dirname(os.path.abspath(__file__))
+        self.export_fig = os.path.join(filepath+'/gifs_acados',name + gaz_bool + '_N'+str(self.N) + '_vref'+str(self.v_ref) 
+                                       + '_T'+str(self.T))
+        self.obstacle = []
+        self.target_waypoint_index = 0
+        self.region_of_acceptance = 0.05
+        self.last_waypoint_index = 0
+    def create_solver(self, config_path='config/mpc_config.yaml'):
+        print("creating solver...")
+        t1 = timeit.default_timer()
         model = AcadosModel() #  ca.types.SimpleNamespace()
         # control inputs
         v = ca.SX.sym('v')
@@ -46,18 +120,16 @@ class MobileRobotOptimizer(object):
         model.xdot = x_dot
         model.u = controls
         model.p = []
-        model.name = 'scandy'
+        model.name = 'park'
 
-        self.model = model
-
-        #get current path
-        cur_path = os.path.dirname(os.path.realpath(__file__))
-        with open(cur_path + '/config/mpc_config.yaml', 'r') as f:
+        current_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(current_path, config_path)
+        with open(path, 'r') as f:
             config = yaml.safe_load(f)
         
-        self.T = config['T']
-        self.N = config['N']
-        self.t_horizon = self.T * self.N
+        T = config['T']
+        N = config['N']
+        t_horizon = T * N
 
         # constraints
         self.v_max = config['constraints']['v_max']
@@ -70,23 +142,22 @@ class MobileRobotOptimizer(object):
         self.y_max = config['constraints']['y_max']
         self.v_ref = config['constraints']['v_ref']
         # costs
-        self.xy_cost = config['costs']['xy_cost']
+        self.x_cost = config['costs']['x_cost']
+        self.y_cost = config['costs']['y_cost']
         self.yaw_cost = config['costs']['yaw_cost']
         self.v_cost = config['costs']['v_cost']
         self.steer_cost = config['costs']['steer_cost']
         self.delta_v_cost = config['costs']['delta_v_cost']
         self.delta_steer_cost = config['costs']['delta_steer_cost']
-        self.costs = np.array([self.xy_cost, self.yaw_cost, self.v_cost, self.steer_cost, self.delta_v_cost, self.delta_steer_cost])
+        self.costs = np.array([self.x_cost, self.yaw_cost, self.v_cost, self.steer_cost, self.delta_v_cost, self.delta_steer_cost])
         # 代价函数
-        Q = np.array([[self.xy_cost, 0.0, 0.0],[0.0, self.xy_cost, 0.0],[0.0, 0.0, self.yaw_cost]])*1
+        Q = np.array([[self.x_cost, 0.0, 0.0],[0.0, self.y_cost, 0.0],[0.0, 0.0, self.yaw_cost]])*1
         R = np.array([[self.v_cost, 0.0], [0.0, self.steer_cost]])*1
 
         # x状态数
         nx = model.x.size()[0]
-        self.nx = nx
         # u状态数
         nu = model.u.size()[0]
-        self.nu = nu
         # ny数为x与u之和，原因详见系统CasADi例子以及ACADOS构建优化问题PDF介绍
         ny = nx + nu
         # 额外参数，本例中没有
@@ -103,9 +174,9 @@ class MobileRobotOptimizer(object):
         ocp.acados_include_path = acados_source_path + '/include'
         ocp.acados_lib_path = acados_source_path + '/lib'
         ## 设置模型
-        ocp.model = self.model
-        ocp.dims.N = self.N
-        ocp.solver_options.tf = self.t_horizon
+        ocp.model = model
+        ocp.dims.N = N
+        ocp.solver_options.tf = t_horizon
         ocp.dims.np = n_params
         ocp.parameter_values = np.zeros(n_params)
 
@@ -148,51 +219,12 @@ class MobileRobotOptimizer(object):
 
         json_file = os.path.join('./'+model.name+'_acados_ocp.json')
         initialize_solver_time = timeit.default_timer()
-        self.solver = AcadosOcpSolver(ocp, json_file=json_file)
+        solver = AcadosOcpSolver(ocp, json_file=json_file)
         print("initialize_solver_time: ", timeit.default_timer() - initialize_solver_time)
-        self.integrator = AcadosSimSolver(ocp, json_file=json_file)
-        
-        self.init_state = np.array([0.2, 0.2, 0])
-        self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, x0=self.init_state)
-        self.waypoints_x = self.path.waypoints_x
-        self.waypoints_y = self.path.waypoints_y
-        self.num_waypoints = self.path.num_waypoints
-        self.wp_normals = self.path.wp_normals
-        self.kappa = self.path.kappa
-        self.density = self.path.density
-        self.state_refs = self.path.state_refs
-        self.input_refs = self.path.input_refs
-        self.waypoints_x = self.state_refs[:,0]
-        self.waypoints_y = self.state_refs[:,1]
-
-        self.t0 = 0
-        self.current_state = self.init_state.copy()
-        self.u0 = np.zeros((self.N, 2))
-        self.next_trajectories = np.tile(self.init_state, self.N+1).reshape(self.N+1, -1) # set the initial state as the first trajectories for the robot
-        self.next_controls = np.zeros((self.N, 2))
-        self.next_states = np.zeros((self.N+1, 3))
-        self.x_c = [] # contains for the history of the state
-        self.u_c = []
-        self.u_cc = []
-        self.t_c = [self.t0] # for the time
-        self.xx = []
-        self.x_refs = []
-        self.x_errors = []
-        self.y_errors = []
-        self.yaw_errors = []
-        ## start MPC
-        self.mpciter = 0
-        self.start_time = time.time()
-        self.index_t = []
-        gaz_bool = "" if not gazebo else "_gazebo_"
-        filepath = os.path.dirname(os.path.abspath(__file__))
-        name = 'hahaha'
-        self.export_fig = os.path.join(filepath+'/gifs_acados',name + gaz_bool + '_N'+str(self.N) + '_vref'+str(self.v_ref) 
-                                       + '_T'+str(self.T))
-        self.obstacle = []
-        self.target_waypoint_index = 0
-        self.region_of_acceptance = 0.05
-        self.last_waypoint_index = 0
+        integrator = AcadosSimSolver(ocp, json_file=json_file)
+        print("done creating solver, time: ", timeit.default_timer() - t1)
+        return solver, integrator, T, N, t_horizon
+    
     def update_and_solve(self):
         self.target_waypoint_index = self.find_next_waypoint(self.current_state[0], self.current_state[1])
         self.next_trajectories, self.next_controls = self.path.desired_command_and_trajectory(self.target_waypoint_index)
@@ -228,9 +260,86 @@ class MobileRobotOptimizer(object):
             raise Exception('acados integrator returned status {}. Exiting.'.format(status_s))
         # 将仿真器计算的小车位置作为下一个时刻的初始值
         self.current_state = self.integrator.get('x')
-        self.t_c.append(self.t0)
-        self.u_c.append(u_res)
         self.t0 += self.T
+    
+    def move_to(self, xs, cur_frame, ref_frame, thresh, utils=None, odom=False):
+        if utils is not None:
+            utils.set_rate(1/self.T)
+            print("rate: ", utils.rate)
+        errors = []
+        current_state_transformed = transform_point(self.current_state, cur_frame, ref_frame)
+        xs_between = np.concatenate((xs, np.zeros(2)))
+        self.solver.set(self.N, 'yref', xs)
+        d = -1
+        for i in range(self.N):
+            self.solver.set(i, 'yref', xs_between)
+        while True:
+            current_state_transformed = transform_point(self.current_state, cur_frame, ref_frame)
+            d+=1
+            error = (current_state_transformed - xs)
+            # error = np.linalg.norm(np.array([error[1], error[2]]))
+            error = np.linalg.norm(error)
+            errors.append(error)
+            if d>200 or error < thresh:
+                break
+            t_ = time.time()
+            self.solver.set(0, 'lbx', current_state_transformed)
+            self.solver.set(0, 'ubx', current_state_transformed)
+            status = self.solver.solve()
+            u_res = self.solver.get(0, 'u')
+            print(d, ") trans: ", np.around(current_state_transformed, 2), ", cur: ", np.around(self.current_state, 2), ", error: ", round(error, 2), ", u: ", np.around(u_res, 2))
+            if status != 0 :
+                raise Exception('acados acados_ocp_solver returned status {}. Exiting.'.format(status))
+            t2 = time.time()- t_
+            if u_res is None:
+                break
+            self.t_c.append(self.t0)
+            self.u_c.append(u_res)
+            self.index_t.append(t2)
+            if utils is None:
+                self.integrate_next_states(u_res)
+            else:
+                utils.steer_command = -float(u_res[1]*180/np.pi)
+                utils.velocity_command = float(u_res[0])
+                utils.publish_cmd_vel(steering_angle=utils.steer_command, velocity=utils.velocity_command)
+                with self.lock:
+                    if odom:
+                        self.update_current_state(x=utils.odomX, y=utils.odomY, yaw=utils.yaw)
+                        self.update_real_state(x=utils.gps_x, y=utils.gps_y, yaw=utils.yaw)
+                    else:
+                        self.update_current_state(x=utils.gps_x, y=utils.gps_y, yaw=utils.yaw)
+                utils.rate.sleep()
+            self.xx.append(self.current_state)
+            self.mpciter = self.mpciter + 1
+        if utils is not None:
+            for i in range(10):
+                utils.steer_command = -float(0.0)
+                utils.velocity_command = float(0.0)
+                utils.publish_cmd_vel(steering_angle=utils.steer_command, velocity=utils.velocity_command)
+                utils.rate.sleep()
+        print("min error: ", np.min(errors)," at index: ", np.argmin(errors))
+        return 
+    def park(self, offset, utils=None, odom=False):
+        del self.solver, self.integrator
+        parking_config_path = 'config/mpc_config_park.yaml'
+        self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver(parking_config_path)
+        cur_frame = self.current_state.copy()
+        ref_frame = np.array([offset, 0, np.pi])
+        xs = np.array([0, 0, np.pi])
+        self.move_to(xs, cur_frame, ref_frame, thresh = 0.01, utils=utils, odom=odom)
+        cur_frame = self.current_state.copy()
+        ref_frame = np.array([0, 0, np.pi])
+        self.solver.reset()
+        xs = np.array([0.63, 0.32, np.pi])
+        self.move_to(xs, cur_frame, ref_frame, thresh = 0.08, utils=utils, odom=odom)
+    def exit_park(self, utils=None, odom=False):
+        self.solver.reset()
+        cur_frame = self.current_state.copy()
+        ref_frame = np.array([0.63, 0.32, np.pi])
+        xs = np.array([0.0, 0.0, np.pi])
+        self.move_to(xs, cur_frame, ref_frame, thresh = 0.08, utils=utils, odom=odom)
+        del self.solver, self.integrator
+        self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
     def update_current_state(self, x, y, yaw):
         # Ensure target_waypoint_index is within bounds
@@ -274,72 +383,33 @@ class MobileRobotOptimizer(object):
         # print("dist_to_waypoint: ", dist_to_waypoint, ", closest_idx: ", closest_idx, ", last_waypoint_index: ", self.last_waypoint_index)
         target_idx = max(self.last_waypoint_index, closest_idx)
         return min(target_idx, len(self.waypoints_x) - 1)
-   # 开始仿真
-    def simulation(self):
-        x0 = self.init_state
-        self.last_waypoint_index = 0
-        # 初始位置
-        self.current_state = self.state_refs[self.last_waypoint_index]
-        print("x start: ", self.current_state)
-        # 存储仿真结果
-        simX = [self.current_state]
-        simU = []
-        simRef = [self.current_state]
-        # 只是为了计算运行时间
-        time_record = []
-
-		# 闭环仿真
-        i = -1
-        for _ in range(500):
-            if self.target_waypoint_index >= self.state_refs.shape[0]-1: 
-                break
-        # print("shape1: ", self.state_refs.shape[0], ", shape2: ", self.input_refs.shape[0])
-        while self.target_waypoint_index < self.num_waypoints-1:
-            i += 1
-            start = timeit.default_timer()
-            u_current = self.update_and_solve()
-            simU.append(u_current)
-            # 计时结束
-            time_record.append(timeit.default_timer() - start)
-            self.integrate_next_states(u_current)
-            simX.append(self.current_state)
-            simRef.append(self.state_refs[self.target_waypoint_index])
-            # print(i,") cur idx: ", self.target_waypoint_index, ", x: ", round(self.current_state[0],2), ", y: ", round(self.current_state[1],2), ", psi: ", round(self.current_state[2],2), ", v: ", round(u_current[0],2), ", w: ", round(u_current[1],2), ", inputrefs: ", self.input_refs[self.target_waypoint_index])
-        simX = np.array(simX)
-        simU = np.array(simU)
-        simRef = np.array(simRef)
-        time_record = np.array(time_record)
-        print("average estimation time is {}".format(time_record.mean()))
-        print("max estimation time is {}".format(time_record.max()))
-        print("min estimation time is {}".format(time_record.min()))
-        print("average speed is {}".format(np.mean(simU[:,0])))
-        print("average steer is {}".format(np.mean(simU[:,1])))
-        # print("simU: ", simU)
-        print("simX: ", simX.shape, "ref: ", simRef.shape)
-        # Draw_MPC_point_stabilization_v1(rob_diam=0.3, init_state=x0, target_state=xs, robot_states=simX, )
-        draw_result = Draw_MPC_tracking(simU, simX, simRef, x0,
-                                       self.state_refs[:,0], 
-                                      self.state_refs[:,1])
-    def draw_result(self, stats):
+    def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None):
+        if xmin is None:
+            xmin = self.x_min
+            xmax = self.x_max
+            ymin = self.y_min
+            ymax = self.y_max
         print("saving as ", self.export_fig)
         Draw_MPC_tracking(self.u_c, obstacle = self.obstacle, rob_diam=0.3, init_state=self.init_state, 
                         robot_states=self.xx, ref_states = self.x_refs, export_fig=self.export_fig, waypoints_x=self.waypoints_x, 
-                        waypoints_y=self.waypoints_y, stats = stats, costs = self.costs, xmin=self.x_min, xmax=self.x_max, ymin=self.y_min, ymax=self.y_max, times = self.t_c)
+                        waypoints_y=self.waypoints_y, stats = stats, costs = self.costs, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, times = self.t_c)
     def compute_stats(self):
         ## after loop
         print("iter: ", self.mpciter)
         t_v = np.array(self.index_t)
-        print("mean solve time: ",t_v.mean(), "max: ", t_v.max(), "min: ", t_v.min(), "std: ", t_v.std(), "median: ", np.median(t_v))
-        print((time.time() - self.start_time)/(self.mpciter))
+        try:
+            print("mean solve time: ",t_v.mean(), "max: ", t_v.max(), "min: ", t_v.min(), "std: ", t_v.std(), "median: ", np.median(t_v))
+            print((time.time() - self.start_time)/(self.mpciter))
+        except:
+            print("error when computing time")
         # print the control input, keep 2 digits after the decimal point
-        self.u_c = np.array(self.u_c)
-        self.x_c = np.array(self.x_c)
+        u_c = np.array(self.u_c).reshape(-1, 2)
 
         print("average kappa: ", np.mean(self.kappa))
-        average_speed = np.mean(self.u_c[:, 0])
-        average_steer = np.mean(self.u_c[:, 1])
+        average_speed = np.mean(u_c[:, 0])
+        average_steer = np.mean(u_c[:, 1])
         
-        delta_u_c = np.diff(self.u_c, axis=0)
+        delta_u_c = np.diff(u_c, axis=0)
         average_delta_speed = np.mean(np.abs(delta_u_c[:, 0]))
         average_delta_steer = np.mean(np.abs(delta_u_c[:, 1]))
         
@@ -367,23 +437,34 @@ if __name__ == '__main__':
     length = len(mpc.waypoints_x)
     mpc.target_waypoint_index = 0
     print("length: ", length)
-    while True:
-        if mpc.target_waypoint_index >= mpc.num_waypoints-1:
-        # if mpc.target_waypoint_index >= 375:
-            break
-        t = time.time()
-        mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
-        mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
-        mpc.x_refs.append(mpc.next_trajectories[0, :])
-        mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
-        t_ = time.time()
-        u_res = mpc.update_and_solve()
-        t2 = time.time()- t_
-        mpc.index_t.append(t2)
-        mpc.integrate_next_states(u_res)
-        # u_res = u_res[0]
-        # print("time: ", t2, "u_res: ", u_res)
-        mpc.xx.append(mpc.current_state)
-        mpc.mpciter = mpc.mpciter + 1
+    # while True:
+    #     if mpc.target_waypoint_index >= mpc.num_waypoints-1:
+    #     # if mpc.target_waypoint_index >= 375:
+    #         break
+    #     t = time.time()
+    #     mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
+    #     mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
+    #     mpc.x_refs.append(mpc.next_trajectories[0, :])
+    #     mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
+    #     # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
+    #     t_ = time.time()
+    #     u_res = mpc.update_and_solve()
+    #     t2 = time.time()- t_
+    #     if u_res is None:
+    #         break
+    #     mpc.index_t.append(t2)
+    #     mpc.t_c.append(mpc.t0)
+    #     mpc.u_c.append(u_res)
+    #     mpc.integrate_next_states(u_res)
+    #     # u_res = u_res[0]
+    #     # print("time: ", t2, "u_res: ", u_res)
+    #     mpc.xx.append(mpc.current_state)
+    #     mpc.mpciter = mpc.mpciter + 1
+    stats = mpc.compute_stats()
+    park_offset = 1
+    mpc.current_state = np.array([park_offset, 0, np.pi])
+    mpc.park(park_offset)
+    mpc.exit_park()
     print("done")
-    mpc.draw_result(mpc.compute_stats())
+    # mpc.draw_result(stats, 0, 15, 0, 15)
+    mpc.draw_result(stats, -1, 2, -1, 2)

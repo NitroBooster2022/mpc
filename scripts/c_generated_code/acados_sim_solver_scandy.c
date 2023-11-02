@@ -74,7 +74,7 @@ int scandy_acados_sim_create(scandy_sim_solver_capsule * capsule)
     bool tmp_bool;
 
     
-    double Tsim = 0.25;
+    double Tsim = 0.05;
 
     
     // explicit ode

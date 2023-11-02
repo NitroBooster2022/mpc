@@ -29,7 +29,11 @@ class GlobalPlanner:
             "highway2_mid": 357,
             "curved_path": 426,
             "start": 86,
-            "end": 85
+            "end": 85,
+            "speedrun2": 467,
+            "speedrun3": 302,
+            "speedrun4": 264,
+            "speedrun5": 81
         }
         
     def plan_path(self, start, end):
@@ -60,12 +64,7 @@ class GlobalPlanner:
         # Highlight the path
         nx.draw_networkx_edges(self.G, self.pos, edgelist=path_edges, edge_color='g', width=2)
         plt.show()
-"""
-speedrun1: 86, 467
-speedrun2: 467, 302
-speedrun3: 302, 264
-speedrun4: 264, 81
-"""   
+  
 if __name__ == "__main__":
     planner = GlobalPlanner()
     planner.illustrate_path(86, 467)

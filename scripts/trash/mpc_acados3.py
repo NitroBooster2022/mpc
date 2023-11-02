@@ -86,6 +86,52 @@ def rotate_waypoints(waypoints, theta):
     rotated_waypoints = np.hstack((rotated_xy, rotated_psi[:, None]))  # None is used to reshape psi from (n,) to (n,1)
 
     return rotated_waypoints
+def transform_waypoints(waypoints, theta, x, y):
+    """
+    Transforms a set of waypoints by rotating them around the origin by an angle theta and then translating them so that the first waypoint is at (x, y).
+
+    Parameters:
+    - waypoints : np.array
+        Array of shape (n x 3) where columns are x, y, and psi respectively.
+    - theta : float
+        The angle by which to rotate the waypoints, in radians.
+    - x : float
+        The x-coordinate of the desired location for the first waypoint.
+    - y : float
+        The y-coordinate of the desired location for the first waypoint.
+
+    Returns:
+    - transformed_waypoints : np.array
+        Array of shape (n x 3) with the transformed waypoints.
+    """
+
+    # Create the 2D rotation matrix
+    rotation_matrix = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta), np.cos(theta)]
+    ])
+
+    # Separate x, y, and psi from the waypoints
+    xy = waypoints[:, :2]
+    psi = waypoints[:, 2]
+
+    # Translate the waypoints such that the first waypoint is at the origin
+    xy -= xy[0]
+
+    # Apply the rotation to x, y coordinates
+    rotated_xy = np.dot(xy, rotation_matrix.T)
+
+    # Apply the rotation to psi (yaw) angles and normalize them
+    rotated_psi = (psi + theta) % (2 * np.pi)
+    rotated_psi = np.arctan2(np.sin(rotated_psi), np.cos(rotated_psi))
+
+    # Translate the waypoints to the desired (x, y) location
+    rotated_xy += np.array([x, y])
+
+    # Recombine into the complete array and return
+    transformed_waypoints = np.hstack((rotated_xy, rotated_psi[:, None]))
+
+    return transformed_waypoints
 class BicycleModel(object):
     def __init__(self, L=0.27):
         model = AcadosModel() #  ca.types.SimpleNamespace()
@@ -318,8 +364,8 @@ class MobileRobotOptimizer(object):
         # plt.ylim(-20, 20)
         if useLocal:
             # print("local: ", np.around(self.local_states[0],3), ", xs: ", np.around(xs,3), "cur: ", np.around(self.current_state,3))
-            self.local_states = rotate_waypoints(self.local_states, np.pi)
-            xs = rotate_waypoints(xs.reshape(1,-1), np.pi).reshape(-1)
+            self.local_states = transform_waypoints(self.local_states, np.pi, 5, 5)
+            xs = transform_waypoints(xs.reshape(1,-1), np.pi).reshape(-1)
             # print(self.local_states.shape, xs.shape)
             # plot_waypoints(self.local_states, color='red', label_suffix='2')
             # plot_waypoints(self.next_trajectories, color='blue', label_suffix='1')

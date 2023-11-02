@@ -1,0 +1,14 @@
+path1:
+  - start
+  - highway1_start
+  - highway1_mid
+  - highway2_start
+  - highway2_mid
+  - parallel_parking1
+
+speedrun:
+  - start
+  - speedrun2
+  - speedrun3
+  - speedrun4
+  - speedrun5

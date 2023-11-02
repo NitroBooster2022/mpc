@@ -60,7 +60,7 @@
 #define SCANDY_NY0    5
 #define SCANDY_NY     5
 #define SCANDY_NYN    3
-#define SCANDY_N      100
+#define SCANDY_N      99
 #define SCANDY_NH     0
 #define SCANDY_NPHI   0
 #define SCANDY_NHN    0

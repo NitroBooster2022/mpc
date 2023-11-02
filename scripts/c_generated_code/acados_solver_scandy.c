@@ -351,7 +351,7 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     if (new_time_steps) {
         scandy_acados_update_time_steps(capsule, N, new_time_steps);
     } else {// all time_steps are identical
-        double time_step = 0.25;
+        double time_step = 0.05;
         for (int i = 0; i < N; i++)
         {
             ocp_nlp_in_set(nlp_config, nlp_dims, nlp_in, i, "Ts", &time_step);
@@ -386,20 +386,20 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     free(yref_e);
    double* W_0 = calloc(NY0*NY0, sizeof(double));
     // change only the non-zero elements:
-    W_0[0+(NY0) * 0] = 2;
-    W_0[1+(NY0) * 1] = 2;
-    W_0[2+(NY0) * 2] = 0.5;
-    W_0[3+(NY0) * 3] = 1;
-    W_0[4+(NY0) * 4] = 0.25;
+    W_0[0+(NY0) * 0] = 1;
+    W_0[1+(NY0) * 1] = 5;
+    W_0[2+(NY0) * 2] = 0.1;
+    W_0[3+(NY0) * 3] = 0.5;
+    W_0[4+(NY0) * 4] = 0.05;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "W", W_0);
     free(W_0);
     double* W = calloc(NY*NY, sizeof(double));
     // change only the non-zero elements:
-    W[0+(NY) * 0] = 2;
-    W[1+(NY) * 1] = 2;
-    W[2+(NY) * 2] = 0.5;
-    W[3+(NY) * 3] = 1;
-    W[4+(NY) * 4] = 0.25;
+    W[0+(NY) * 0] = 1;
+    W[1+(NY) * 1] = 5;
+    W[2+(NY) * 2] = 0.1;
+    W[3+(NY) * 3] = 0.5;
+    W[4+(NY) * 4] = 0.05;
 
     for (int i = 1; i < N; i++)
     {
@@ -408,9 +408,9 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     free(W);
     double* W_e = calloc(NYN*NYN, sizeof(double));
     // change only the non-zero elements:
-    W_e[0+(NYN) * 0] = 2;
-    W_e[1+(NYN) * 1] = 2;
-    W_e[2+(NYN) * 2] = 0.5;
+    W_e[0+(NYN) * 0] = 1;
+    W_e[1+(NYN) * 1] = 5;
+    W_e[2+(NYN) * 2] = 0.1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "W", W_e);
     free(W_e);
     double* Vx_0 = calloc(NY0*NX, sizeof(double));
@@ -499,7 +499,7 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* ubu = lubu + NBU;
     
     lbu[0] = -1;
-    ubu[0] = 1.5;
+    ubu[0] = 1;
     lbu[1] = -0.4;
     ubu[1] = 0.4;
 
@@ -528,8 +528,10 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    ubx[0] = 15;
-    ubx[1] = 15;
+    lbx[0] = -1;
+    ubx[0] = 1;
+    lbx[1] = -1;
+    ubx[1] = 1;
 
     for (int i = 1; i < N; i++)
     {

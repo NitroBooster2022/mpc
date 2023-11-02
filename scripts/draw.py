@@ -17,7 +17,7 @@ class Draw_MPC_tracking(object):
         self.u = u
         self.init_state = init_state
         self.robot_states = robot_states
-        self.rob_radius = rob_diam
+        self.rob_radius = rob_diam /15*(xmax-xmin)
         self.waypoints_x = waypoints_x
         self.waypoints_y = waypoints_y
         self.spline_points_x = spline_points_x
@@ -87,22 +87,36 @@ class Draw_MPC_tracking(object):
             self.obstacle_circles.append(obs_circle)
         return
     
-    def interpolate_trajectories(self):
-        t = np.linspace(0, 1, len(self.ref_states))
-        
-        self.ref_traj_interp_x = interp1d(t, self.ref_states[:, 0], kind='cubic')
-        self.ref_traj_interp_y = interp1d(t, self.ref_states[:, 1], kind='cubic')
+    def interpolate_trajectories(self):        
+        print("ref state shape: ", self.ref_states.shape)
+        print("robot state shape: ", self.robot_states.shape)
+        if len(self.ref_states) == 0:
+            self.ref_states = self.robot_states
+        if len(self.ref_states) < len(self.robot_states):
+            # extend ref state with extra values in robot state
+            ref_states = np.concatenate((self.ref_states, np.tile(self.ref_states[-1], (len(self.robot_states) - len(self.ref_states), 1))))
+        else:
+            ref_states = self.ref_states
+
+        t = np.linspace(0, 1, len(ref_states))  
+        print("ref state shape: ", ref_states.shape)
+        self.ref_traj_interp_x = interp1d(t, ref_states[:, 0], kind='cubic')
+        self.ref_traj_interp_y = interp1d(t, ref_states[:, 1], kind='cubic')
         
         self.true_traj_interp_x = interp1d(t, self.robot_states[:, 0], kind='cubic')
         self.true_traj_interp_y = interp1d(t, self.robot_states[:, 1], kind='cubic')
 
     def calculate_statistics(self):
-        self.mean_error_x = np.mean(np.abs(self.robot_states[:, 0] - self.ref_states[:, 0]))
-        self.mean_error_y = np.mean(np.abs(self.robot_states[:, 1] - self.ref_states[:, 1]))
-        self.max_error_x = np.max(np.abs(self.robot_states[:, 0] - self.ref_states[:, 0]))
-        self.max_error_y = np.max(np.abs(self.robot_states[:, 1] - self.ref_states[:, 1]))
-        self.min_error_x = np.min(np.abs(self.robot_states[:, 0] - self.ref_states[:, 0]))
-        self.min_error_y = np.min(np.abs(self.robot_states[:, 1] - self.ref_states[:, 1]))
+        if len(self.ref_states) < len(self.robot_states):
+            robot_states = self.robot_states[:len(self.ref_states)]
+        else:
+            robot_states = self.robot_states
+        self.mean_error_x = np.mean(np.abs(robot_states[:, 0] - self.ref_states[:, 0]))
+        self.mean_error_y = np.mean(np.abs(robot_states[:, 1] - self.ref_states[:, 1]))
+        self.max_error_x = np.max(np.abs(robot_states[:, 0] - self.ref_states[:, 0]))
+        self.max_error_y = np.max(np.abs(robot_states[:, 1] - self.ref_states[:, 1]))
+        self.min_error_x = np.min(np.abs(robot_states[:, 0] - self.ref_states[:, 0]))
+        self.min_error_y = np.min(np.abs(robot_states[:, 1] - self.ref_states[:, 1]))
 
     def plot_and_save(self, output_path='output.png'):
         # Plot the interpolated trajectories

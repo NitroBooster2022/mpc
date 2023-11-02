@@ -166,7 +166,7 @@ class Utility:
         self.pose_to_set.pose.pose.orientation.w = quaternion[3]
         if self.useEkf:
             print("waiting for set_pose service")
-            rospy.wait_for_service('/set_pose')  # Replace with the actual service name
+            rospy.wait_for_service('/set_pose')  
         try:
             set_pose_service = rospy.ServiceProxy('/set_pose', SetPose)
             set_pose_service(self.pose_to_set)
@@ -351,6 +351,9 @@ class Utility:
         else:
             conf_thresh = 0.8
         return size >= self.min_sizes[obj_id] and size <= self.max_sizes[obj_id] and conf >= conf_thresh #check this
+    def set_rate(self, rate):
+        self.rateVal = rate
+        self.rate = rospy.Rate(self.rateVal)
     def publish_static_transforms(self):
         static_transforms = []
 

@@ -30,33 +30,33 @@
 
 cimport acados_solver_common
 
-cdef extern from "acados_solver_scandy.h":
-    ctypedef struct nlp_solver_capsule "scandy_solver_capsule":
+cdef extern from "acados_solver_park.h":
+    ctypedef struct nlp_solver_capsule "park_solver_capsule":
         pass
 
-    nlp_solver_capsule * acados_create_capsule "scandy_acados_create_capsule"()
-    int acados_free_capsule "scandy_acados_free_capsule"(nlp_solver_capsule *capsule)
+    nlp_solver_capsule * acados_create_capsule "park_acados_create_capsule"()
+    int acados_free_capsule "park_acados_free_capsule"(nlp_solver_capsule *capsule)
 
-    int acados_create "scandy_acados_create"(nlp_solver_capsule * capsule)
+    int acados_create "park_acados_create"(nlp_solver_capsule * capsule)
 
-    int acados_create_with_discretization "scandy_acados_create_with_discretization"(nlp_solver_capsule * capsule, int n_time_steps, double* new_time_steps)
-    int acados_update_time_steps "scandy_acados_update_time_steps"(nlp_solver_capsule * capsule, int N, double* new_time_steps)
-    int acados_update_qp_solver_cond_N "scandy_acados_update_qp_solver_cond_N"(nlp_solver_capsule * capsule, int qp_solver_cond_N)
+    int acados_create_with_discretization "park_acados_create_with_discretization"(nlp_solver_capsule * capsule, int n_time_steps, double* new_time_steps)
+    int acados_update_time_steps "park_acados_update_time_steps"(nlp_solver_capsule * capsule, int N, double* new_time_steps)
+    int acados_update_qp_solver_cond_N "park_acados_update_qp_solver_cond_N"(nlp_solver_capsule * capsule, int qp_solver_cond_N)
 
-    int acados_update_params "scandy_acados_update_params"(nlp_solver_capsule * capsule, int stage, double *value, int np_)
-    int acados_update_params_sparse "scandy_acados_update_params_sparse"(nlp_solver_capsule * capsule, int stage, int *idx, double *p, int n_update)
-    int acados_solve "scandy_acados_solve"(nlp_solver_capsule * capsule)
-    int acados_reset "scandy_acados_reset"(nlp_solver_capsule * capsule, int reset_qp_solver_mem)
-    int acados_free "scandy_acados_free"(nlp_solver_capsule * capsule)
-    void acados_print_stats "scandy_acados_print_stats"(nlp_solver_capsule * capsule)
+    int acados_update_params "park_acados_update_params"(nlp_solver_capsule * capsule, int stage, double *value, int np_)
+    int acados_update_params_sparse "park_acados_update_params_sparse"(nlp_solver_capsule * capsule, int stage, int *idx, double *p, int n_update)
+    int acados_solve "park_acados_solve"(nlp_solver_capsule * capsule)
+    int acados_reset "park_acados_reset"(nlp_solver_capsule * capsule, int reset_qp_solver_mem)
+    int acados_free "park_acados_free"(nlp_solver_capsule * capsule)
+    void acados_print_stats "park_acados_print_stats"(nlp_solver_capsule * capsule)
 
-    int acados_custom_update "scandy_acados_custom_update"(nlp_solver_capsule* capsule, double * data, int data_len)
+    int acados_custom_update "park_acados_custom_update"(nlp_solver_capsule* capsule, double * data, int data_len)
 
-    acados_solver_common.ocp_nlp_in *acados_get_nlp_in "scandy_acados_get_nlp_in"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_out *acados_get_nlp_out "scandy_acados_get_nlp_out"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_out *acados_get_sens_out "scandy_acados_get_sens_out"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_solver *acados_get_nlp_solver "scandy_acados_get_nlp_solver"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_config *acados_get_nlp_config "scandy_acados_get_nlp_config"(nlp_solver_capsule * capsule)
-    void *acados_get_nlp_opts "scandy_acados_get_nlp_opts"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_dims *acados_get_nlp_dims "scandy_acados_get_nlp_dims"(nlp_solver_capsule * capsule)
-    acados_solver_common.ocp_nlp_plan *acados_get_nlp_plan "scandy_acados_get_nlp_plan"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_in *acados_get_nlp_in "park_acados_get_nlp_in"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_out *acados_get_nlp_out "park_acados_get_nlp_out"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_out *acados_get_sens_out "park_acados_get_sens_out"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_solver *acados_get_nlp_solver "park_acados_get_nlp_solver"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_config *acados_get_nlp_config "park_acados_get_nlp_config"(nlp_solver_capsule * capsule)
+    void *acados_get_nlp_opts "park_acados_get_nlp_opts"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_dims *acados_get_nlp_dims "park_acados_get_nlp_dims"(nlp_solver_capsule * capsule)
+    acados_solver_common.ocp_nlp_plan *acados_get_nlp_plan "park_acados_get_nlp_plan"(nlp_solver_capsule * capsule)
