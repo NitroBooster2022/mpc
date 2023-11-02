@@ -21,9 +21,11 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
 
 ### robot_localization
 #### Installation:
+
+1. Install it as follows:
     ```bash
-    sudo apt update
     sudo apt install ros-noetic-robot-localization
+    sudo apt update
     ```
 
 ### Acados
@@ -34,6 +36,8 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     ```bash
     git clone https://github.com/acados/acados.git
     cd acados
+    sudo apt install ros-noetic-robot-localization
+    sudo apt update
     git submodule update --recursive --init
     ```
 
