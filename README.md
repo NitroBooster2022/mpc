@@ -66,3 +66,11 @@ This project utilizes Gazebo model information alongside an Extended Kalman Filt
     cargo build --verbose --release
     # Replace the file <acados_root_dir>/bin/t_renderer with the one compiled natively i.e. <tera_renderer_dir>/target/release/t_renderer
     ```
+## Running the Example
+
+1. Run the following command to execute the MPC simulation:
+    ```bash
+    python3 scripts/mpc_acados.py
+    ```
+
+2. Upon successful execution, a GIF illustrating the simulation will be saved in `scripts/gifs_acados`.
