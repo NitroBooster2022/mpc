@@ -1,5 +1,7 @@
 T: 0.05
 N: 99
+park_thresh: 0.1
+exit_thresh: 0.1
 
 parallel_park:
   offset_x = 0.63
@@ -7,15 +9,22 @@ parallel_park:
   target_yaw = 3.14159265359
 
 constraints:
-  v_max: 0.7
-  v_min: -0.7
-  v_ref: -0.7
+  # sim
+  # v_max: 0.7
+  # v_min: -0.7
+  # v_ref: -0.7
+
+  #gazebo
+  v_max: 0.5
+  v_min: -0.5
+  v_ref: -0.5
+
   delta_max: 0.4
   delta_min: -0.4
-  x_min: -2
-  x_max: 2
-  y_min: -2
-  y_max: 2
+  x_min: -4
+  x_max: 4
+  y_min: -4
+  y_max: 4
 
 costs:
   x_cost: 1

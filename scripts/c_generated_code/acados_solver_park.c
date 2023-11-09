@@ -157,7 +157,6 @@ void park_acados_create_1_set_plan(ocp_nlp_plan_t* nlp_solver_plan, const int N)
     {nlp_solver_plan->nlp_constraints[i] = BGH;
     }
     nlp_solver_plan->nlp_constraints[N] = BGH;
-    nlp_solver_plan->regularization = NO_REGULARIZE;
 }
 
 
@@ -352,7 +351,7 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     if (new_time_steps) {
         park_acados_update_time_steps(capsule, N, new_time_steps);
     } else {// all time_steps are identical
-        double time_step = 0.1;
+        double time_step = 0.125;
         for (int i = 0; i < N; i++)
         {
             ocp_nlp_in_set(nlp_config, nlp_dims, nlp_in, i, "Ts", &time_step);
@@ -387,19 +386,19 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     free(yref_e);
    double* W_0 = calloc(NY0*NY0, sizeof(double));
     // change only the non-zero elements:
-    W_0[0+(NY0) * 0] = 2.0;
-    W_0[1+(NY0) * 1] = 2.0;
+    W_0[0+(NY0) * 0] = 2;
+    W_0[1+(NY0) * 1] = 2;
     W_0[2+(NY0) * 2] = 0.5;
-    W_0[3+(NY0) * 3] = 1.0;
+    W_0[3+(NY0) * 3] = 1;
     W_0[4+(NY0) * 4] = 0.25;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "W", W_0);
     free(W_0);
     double* W = calloc(NY*NY, sizeof(double));
     // change only the non-zero elements:
-    W[0+(NY) * 0] = 2.0;
-    W[1+(NY) * 1] = 2.0;
+    W[0+(NY) * 0] = 2;
+    W[1+(NY) * 1] = 2;
     W[2+(NY) * 2] = 0.5;
-    W[3+(NY) * 3] = 1.0;
+    W[3+(NY) * 3] = 1;
     W[4+(NY) * 4] = 0.25;
 
     for (int i = 1; i < N; i++)
@@ -409,29 +408,29 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     free(W);
     double* W_e = calloc(NYN*NYN, sizeof(double));
     // change only the non-zero elements:
-    W_e[0+(NYN) * 0] = 2.0;
-    W_e[1+(NYN) * 1] = 2.0;
+    W_e[0+(NYN) * 0] = 2;
+    W_e[1+(NYN) * 1] = 2;
     W_e[2+(NYN) * 2] = 0.5;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "W", W_e);
     free(W_e);
     double* Vx_0 = calloc(NY0*NX, sizeof(double));
     // change only the non-zero elements:
-    Vx_0[0+(NY0) * 0] = 1.0;
-    Vx_0[1+(NY0) * 1] = 1.0;
-    Vx_0[2+(NY0) * 2] = 1.0;
+    Vx_0[0+(NY0) * 0] = 1;
+    Vx_0[1+(NY0) * 1] = 1;
+    Vx_0[2+(NY0) * 2] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Vx", Vx_0);
     free(Vx_0);
     double* Vu_0 = calloc(NY0*NU, sizeof(double));
     // change only the non-zero elements:
-    Vu_0[3+(NY0) * 0] = 1.0;
-    Vu_0[4+(NY0) * 1] = 1.0;
+    Vu_0[3+(NY0) * 0] = 1;
+    Vu_0[4+(NY0) * 1] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "Vu", Vu_0);
     free(Vu_0);
     double* Vx = calloc(NY*NX, sizeof(double));
     // change only the non-zero elements:
-    Vx[0+(NY) * 0] = 1.0;
-    Vx[1+(NY) * 1] = 1.0;
-    Vx[2+(NY) * 2] = 1.0;
+    Vx[0+(NY) * 0] = 1;
+    Vx[1+(NY) * 1] = 1;
+    Vx[2+(NY) * 2] = 1;
     for (int i = 1; i < N; i++)
     {
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "Vx", Vx);
@@ -442,8 +441,8 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     double* Vu = calloc(NY*NU, sizeof(double));
     // change only the non-zero elements:
     
-    Vu[3+(NY) * 0] = 1.0;
-    Vu[4+(NY) * 1] = 1.0;
+    Vu[3+(NY) * 0] = 1;
+    Vu[4+(NY) * 1] = 1;
 
     for (int i = 1; i < N; i++)
     {
@@ -453,9 +452,9 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     double* Vx_e = calloc(NYN*NX, sizeof(double));
     // change only the non-zero elements:
     
-    Vx_e[0+(NYN) * 0] = 1.0;
-    Vx_e[1+(NYN) * 1] = 1.0;
-    Vx_e[2+(NYN) * 2] = 1.0;
+    Vx_e[0+(NYN) * 0] = 1;
+    Vx_e[1+(NYN) * 1] = 1;
+    Vx_e[2+(NYN) * 2] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "Vx", Vx_e);
     free(Vx_e);
 
@@ -499,8 +498,8 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
-    lbu[0] = -1.0;
-    ubu[0] = 1.3;
+    lbu[0] = -1;
+    ubu[0] = 1.5;
     lbu[1] = -0.4;
     ubu[1] = 0.4;
 
@@ -529,8 +528,10 @@ void park_acados_create_5_set_nlp_in(park_solver_capsule* capsule, const int N, 
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    ubx[0] = 15.0;
-    ubx[1] = 15.0;
+    lbx[0] = -1;
+    ubx[0] = 16;
+    lbx[1] = -1;
+    ubx[1] = 16;
 
     for (int i = 1; i < N; i++)
     {
@@ -604,15 +605,16 @@ void park_acados_create_6_set_opts(park_solver_capsule* capsule)
     for (int i = 0; i < N; i++)
         ocp_nlp_solver_opts_set_at_stage(nlp_config, nlp_opts, i, "dynamics_newton_iter", &newton_iter_val);
 
+
     // set up sim_method_jac_reuse
     bool tmp_bool = (bool) 0;
     for (int i = 0; i < N; i++)
         ocp_nlp_solver_opts_set_at_stage(nlp_config, nlp_opts, i, "dynamics_jac_reuse", &tmp_bool);
 
-    double nlp_solver_step_length = 1.0;
+    double nlp_solver_step_length = 1;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "step_length", &nlp_solver_step_length);
 
-    double levenberg_marquardt = 0.0;
+    double levenberg_marquardt = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */

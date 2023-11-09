@@ -12,7 +12,9 @@ class Draw_MPC_tracking(object):
     def __init__(self, u, robot_states: list, ref_states:list, init_state: np.array, 
                  obstacle: np.array, rob_diam=0.3,  export_fig=None
                  , xmin=-1.0, xmax=15, ymin=-1, ymax=15, waypoints_x = None, waypoints_y = None, 
-                 spline_points_x = None, spline_points_y = None, stats = None, costs = None, times=None):
+                 spline_points_x = None, spline_points_y = None, stats = None, costs = None, times=None, objects=None, car_states=None):
+        self.objects = objects
+        self.car_states = car_states
         self.times = times
         self.u = u
         self.init_state = init_state
@@ -61,6 +63,28 @@ class Draw_MPC_tracking(object):
             self.ani.save(export_fig+'.gif', writer='imagemagick', fps=100)
         plt.show()
 
+    # def draw_static_objects(self):
+    #     # This method assumes each object has a 'type' and 'pose' key
+    #     for obj in self.objects:
+    #         obj_pose = obj['pose']
+    #         obj_type = obj['type']
+    #         self.ax.text(obj_pose[0], obj_pose[1], obj_type, color='blue', fontsize=12)  # Label text
+
+    def draw_static_objects(self):
+        # This method assumes each object has a 'type' and 'pose' key
+        for obj in self.objects:
+            obj_pose = obj['pose']
+            obj_type = obj['type']
+            # Label text for each object
+            self.ax.text(obj_pose[0] + 0.1, obj_pose[1] + 0.1, '{} ({:.2f}, {:.2f})'.format(obj_type, *obj_pose), 
+                        color='blue', fontsize=12, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none'))
+            # Object position marker
+            self.ax.scatter(obj_pose[0], obj_pose[1], c='blue', s=100)  
+            
+        for car in self.car_states:
+            self.ax.scatter(car[0], car[1], c='red', s=100, marker='s')  # Square for car
+            self.ax.text(car[0] + 0.1, car[1] + 0.1, '{} ({:.2f}, {:.2f}, {:.2f})'.format("car", *car), 
+                        color='red', fontsize=12, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none'))
 
     def animation_init(self, ):
         if self.spline_points_x is not None:
@@ -74,6 +98,8 @@ class Draw_MPC_tracking(object):
 
         # draw the initial position of the robot
         self.init_robot_position = plt.Circle(self.init_state[:2], self.rob_radius, color='r', fill=False)
+        if self.objects is not None:
+            self.draw_static_objects()
         self.ax.add_artist(self.init_robot_position)
         self.robot_body = plt.Circle(self.init_state[:2], self.rob_radius, color='r', fill=False)
         self.ax.add_artist(self.robot_body)

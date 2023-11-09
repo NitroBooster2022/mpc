@@ -18,24 +18,24 @@ def smooth_yaw_angles(yaw_angles):
     return smooth_yaw
 
 def compute_smooth_curvature(waypoints_x, waypoints_y, smooth_factor=0.1):
-    # Step 1: Set up a spline interpolation
+    # Step 1: set up a spline interpolation
     t = np.linspace(0, 1, len(waypoints_x))
     spline_x = UnivariateSpline(t, waypoints_x, k=3, s=smooth_factor)
     spline_y = UnivariateSpline(t, waypoints_y, k=3, s=smooth_factor)
-    # Step 2: Get smoothed derivatives of the path
+    # Step 2: get smoothed derivatives of the path
     t_smooth = np.linspace(0, 1, len(waypoints_x))
     dx_dt = spline_x.derivative()(t_smooth)
     dy_dt = spline_y.derivative()(t_smooth)
     ddx_dt = spline_x.derivative(n=2)(t_smooth)
     ddy_dt = spline_y.derivative(n=2)(t_smooth)
-    # Step 3: Compute curvature
+    # Step 3: compute curvature
     # κ = |dx/dt * d²y/dt² - dy/dt * d²x/dt²| / (dx/dt² + dy/dt²)^(3/2)
     curvature = np.abs(dx_dt * ddy_dt - dy_dt * ddx_dt) / (dx_dt**2 + dy_dt**2)**(3/2)
-    # Step 4: Compute tangent 
+    # Step 4: compute tangent 
     tangent_angles = np.arctan2(dy_dt, dx_dt)
-    # Step 5: Compute normal
+    # Step 5: compute normal
     normal_angles = tangent_angles + np.pi / 2
-    # Convert normal angles to vectors (dx, dy)
+    # convert normal angles to vectors (dx, dy)
     dx = np.cos(normal_angles)
     dy = np.sin(normal_angles)
     normals = np.vstack((dx, dy)).T
@@ -79,11 +79,45 @@ class Path:
             start = self.global_planner.place_names[destinations[i]]
             end = self.global_planner.place_names[destinations[i+1]]
             run, _ = self.global_planner.plan_path(start, end)
+            print("run: ", run.shape)
             runs.append(run)
-        # Handle x0 for the first run
+        runs1 = np.hstack(runs)
+        print("runs1: ", runs1.shape, "x0: ", x0)
+        # runs1:  (2, 168) x0:  [3 2 0]
+        #find closest index to x0
         if x0 is not None:
-            runs[0] = np.hstack((x0[0:2].reshape(2,1), runs[0]))
+            def calculate_distances(run, x0):
+                return np.sqrt(np.sum((run[:2, :] - x0[:2, None])**2, axis=0))
+            # Find the closest point across all runs
+            min_distance = np.inf
+            min_distance_run_index = -1
+            min_distance_point_index = -1
 
+            for i, run in enumerate(runs):
+                distances = calculate_distances(run, x0)
+                min_index = np.argmin(distances)
+                min_dist = distances[min_index]
+                
+                if min_dist < min_distance:
+                    min_distance = min_dist
+                    min_distance_run_index = i
+                    min_distance_point_index = min_index
+
+            # Now modify the list of runs as per the instructions
+            if min_distance_run_index != -1:
+                closest_run = runs[min_distance_run_index]
+                # Append x0 to the closest run before the closest waypoint
+                modified_run = np.hstack((closest_run[:, :min_distance_point_index], x0[:2, None], closest_run[:, min_distance_point_index:]))
+                # Eliminate the waypoints before x0
+                modified_run = modified_run[:, min_distance_point_index:]
+                # Update the list of runs
+                runs = [modified_run] + runs[min_distance_run_index+1:]
+
+            # Show the results
+            for i, run in enumerate(runs):
+                print(f"run{i+1}: shape is {run.shape}")
+                
+        print("runs: ", len(runs))
         # Compute path lengths 
         path_lengths = [np.sum(np.linalg.norm(run[:, 1:] - run[:, :-1], axis=0)) for run in runs]
         self.density = 1/abs(self.v_ref)/T # wp/m
@@ -99,6 +133,7 @@ class Path:
         # Calculate the total path length of the waypoints
         total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
         print("total path length: ", total_path_length)
+        
         # self.waypoints = np.vstack((self.waypoints[1], self.waypoints[0])) #flip x and y
         # self.waypoints[0] = 15-self.waypoints[0] # flip x
         # self.waypoints[1] = 15-self.waypoints[1] # flip y
@@ -108,12 +143,6 @@ class Path:
         # wpts = np.load(os.path.join(filepath, 'waypoints/parallel_park.npy'))
         # self.waypoints_x = wpts[:, 0]+5
         # self.waypoints_y = wpts[:, 1]+5
-        start_index = int(len(self.waypoints_x)*0)
-        end_index = int(len(self.waypoints_x)*1)
-        theta_ref = np.arctan2(self.waypoints_y[start_index+1] - self.waypoints_y[start_index],
-                                self.waypoints_x[start_index+1] - self.waypoints_x[start_index])        
-        self.init_state = np.array([self.waypoints_x[start_index], self.waypoints_y[start_index], theta_ref])
-        print("init_state: ", self.init_state)
 
         self.num_waypoints = len(self.waypoints_x)
         print("num_waypoints: ", self.num_waypoints)

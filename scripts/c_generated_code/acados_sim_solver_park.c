@@ -74,7 +74,7 @@ int park_acados_sim_create(park_sim_solver_capsule * capsule)
     bool tmp_bool;
 
     
-    double Tsim = 0.1;
+    double Tsim = 0.125;
 
     
     // explicit ode
@@ -129,7 +129,7 @@ int park_acados_sim_create(park_sim_solver_capsule * capsule)
     capsule->acados_sim_opts = park_sim_opts;
     int tmp_int = 3;
     sim_opts_set(park_sim_config, park_sim_opts, "newton_iter", &tmp_int);
-    double tmp_double = 0.0;
+    double tmp_double = 0;
     sim_opts_set(park_sim_config, park_sim_opts, "newton_tol", &tmp_double);
     sim_collocation_type collocation_type = GAUSS_LEGENDRE;
     sim_opts_set(park_sim_config, park_sim_opts, "collocation_type", &collocation_type);

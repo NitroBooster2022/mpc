@@ -60,7 +60,7 @@
 #define PARK_NY0    5
 #define PARK_NY     5
 #define PARK_NYN    3
-#define PARK_N      100
+#define PARK_N      40
 #define PARK_NH     0
 #define PARK_NPHI   0
 #define PARK_NHN    0

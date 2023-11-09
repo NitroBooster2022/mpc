@@ -43,7 +43,7 @@ class Odom():
         self.car_pose = None
         self.car_inertial = None
 
-        # rospy.on_shutdown(self.plot_data)
+        rospy.on_shutdown(self.plot_data)
         rospy.wait_for_message("/automobile/command", String)
 
         # Subscribe to topics
@@ -119,7 +119,7 @@ class Odom():
         # rospy.signal_shutdown("Finished")
         labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel', 'error vs yaw', 'Accel']
         fig, axs = plt.subplots(2, len(labels), figsize=(35,10))
-        labels = ['X', 'Y', 'error vs yaw']
+        labels = ['X', 'Y', 'Yaw']
         fig, axs = plt.subplots(2, len(labels), figsize=(15,10))
 
         groundYaw = (np.array(self.yaw1List)+np.pi)*180/np.pi
@@ -305,7 +305,7 @@ class Odom():
         plt.tight_layout()
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testPlots")
         os.makedirs(path, exist_ok=True)
-        name = os.path.join(path, "acados1.png")
+        name = os.path.join(path, "1109.png")
         plt.savefig(name)
         print("Plot saved")
         # plt.show()

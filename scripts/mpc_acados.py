@@ -46,14 +46,13 @@ def transform_point(pt, frame1, frame2):
     # Recombine into the complete array and return
     return np.array([transformed_xy[0], transformed_xy[1], rotated_psi])
 
-class MobileRobotOptimizer(object):
-    def __init__(self, gazebo = False):
+class Optimizer(object):
+    def __init__(self, gazebo = False, x0 = None):
         self.gazebo = gazebo
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
-        self.init_state = np.array([0.2, 0.2, 0])
         name = 'path1'
-        self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=self.init_state)
+        self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=x0)
         self.waypoints_x = self.path.waypoints_x
         self.waypoints_y = self.path.waypoints_y
         self.num_waypoints = self.path.num_waypoints
@@ -64,10 +63,19 @@ class MobileRobotOptimizer(object):
         self.input_refs = self.path.input_refs
         self.waypoints_x = self.state_refs[:,0]
         self.waypoints_y = self.state_refs[:,1]
-        self.init_state = self.path.init_state
+
+        self.target_waypoint_index = 0
+        self.last_waypoint_index = 0
+        density = 1/abs(self.v_ref)/self.T
+        # self.region_of_acceptance = 0.05
+        self.region_of_acceptance = 0.05/10*density
 
         self.t0 = 0
-        self.current_state = self.init_state.copy()
+        self.init_state = x0 if x0 is not None else self.state_refs[0]
+        self.update_current_state(self.init_state[0], self.init_state[1], self.init_state[2])
+        self.init_state = self.current_state.copy()
+        # self.init_state = np.array([0.2, 0.2, 0])
+        # self.current_state = self.init_state.copy()
         self.u0 = np.zeros((self.N, 2))
         self.next_trajectories = np.tile(self.init_state, self.N+1).reshape(self.N+1, -1) # set the initial state as the first trajectories for the robot
         self.next_controls = np.zeros((self.N, 2))
@@ -90,9 +98,7 @@ class MobileRobotOptimizer(object):
         self.export_fig = os.path.join(filepath+'/gifs_acados',name + gaz_bool + '_N'+str(self.N) + '_vref'+str(self.v_ref) 
                                        + '_T'+str(self.T))
         self.obstacle = []
-        self.target_waypoint_index = 0
-        self.region_of_acceptance = 0.05
-        self.last_waypoint_index = 0
+        
     def create_solver(self, config_path='config/mpc_config.yaml'):
         print("creating solver...")
         t1 = timeit.default_timer()
@@ -126,7 +132,9 @@ class MobileRobotOptimizer(object):
         path = os.path.join(current_path, config_path)
         with open(path, 'r') as f:
             config = yaml.safe_load(f)
-        
+        if "park" in config_path:
+            self.park_thresh = config['park_thresh']
+            self.exit_thresh = config['exit_thresh']
         T = config['T']
         N = config['N']
         t_horizon = T * N
@@ -212,9 +220,12 @@ class MobileRobotOptimizer(object):
         ocp.cost.yref_e = x_ref # yref_e means the reference for the last stage
 
         ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
+        # ocp.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
+        # ocp.solver_options.qp_solver = 'FULL_CONDENSING_QPOASES'
         ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
         ocp.solver_options.integrator_type = 'ERK'
         ocp.solver_options.print_level = 0
+        # ocp.solver_options.nlp_solver_type = 'SQP'
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
 
         json_file = os.path.join('./'+model.name+'_acados_ocp.json')
@@ -287,7 +298,7 @@ class MobileRobotOptimizer(object):
             self.solver.set(0, 'ubx', current_state_transformed)
             status = self.solver.solve()
             u_res = self.solver.get(0, 'u')
-            print(d, ") trans: ", np.around(current_state_transformed, 2), ", cur: ", np.around(self.current_state, 2), ", error: ", round(error, 2), ", u: ", np.around(u_res, 2))
+            # print(d, ") trans: ", np.around(current_state_transformed, 2), ", cur: ", np.around(self.current_state, 2), ", error: ", round(error, 2), ", u: ", np.around(u_res, 2))
             if status != 0 :
                 raise Exception('acados acados_ocp_solver returned status {}. Exiting.'.format(status))
             t2 = time.time()- t_
@@ -319,25 +330,29 @@ class MobileRobotOptimizer(object):
                 utils.rate.sleep()
         print("min error: ", np.min(errors)," at index: ", np.argmin(errors))
         return 
-    def park(self, offset, utils=None, odom=False):
+    def park(self, offset, utils=None, odom=False, cur_frame = None):
         del self.solver, self.integrator
         parking_config_path = 'config/mpc_config_park.yaml'
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver(parking_config_path)
-        cur_frame = self.current_state.copy()
+        if cur_frame is None:
+            cur_frame = self.current_state.copy()
         ref_frame = np.array([offset, 0, np.pi])
         xs = np.array([0, 0, np.pi])
-        self.move_to(xs, cur_frame, ref_frame, thresh = 0.01, utils=utils, odom=odom)
+        thresh = self.park_thresh if self.park_thresh is not None else 0.05
+        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
         cur_frame = self.current_state.copy()
         ref_frame = np.array([0, 0, np.pi])
         self.solver.reset()
         xs = np.array([0.63, 0.32, np.pi])
         self.move_to(xs, cur_frame, ref_frame, thresh = 0.08, utils=utils, odom=odom)
-    def exit_park(self, utils=None, odom=False):
+    def exit_park(self, utils=None, odom=False, cur_frame = None):
         self.solver.reset()
-        cur_frame = self.current_state.copy()
+        if cur_frame is None:
+            cur_frame = self.current_state.copy()
         ref_frame = np.array([0.63, 0.32, np.pi])
         xs = np.array([0.0, 0.0, np.pi])
-        self.move_to(xs, cur_frame, ref_frame, thresh = 0.08, utils=utils, odom=odom)
+        thresh = self.exit_thresh if self.exit_thresh is not None else 0.08
+        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
         del self.solver, self.integrator
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
@@ -371,28 +386,36 @@ class MobileRobotOptimizer(object):
             if closest_idx - self.last_waypoint_index < 15:
                 self.last_waypoint_index = max(self.last_waypoint_index, closest_idx+1)
             else:
-                print("here: ", closest_idx, self.last_waypoint_index, closest_idx - self.last_waypoint_index)
+                # print("here: ", closest_idx, self.last_waypoint_index, closest_idx - self.last_waypoint_index)
                 closest_idx = self.last_waypoint_index
                 # self.last_waypoint_index += 1
         else:
             if closest_idx - self.last_waypoint_index > 15:
-                print("here2: ", closest_idx, self.last_waypoint_index, closest_idx - self.last_waypoint_index)
+                # print("here2: ", closest_idx, self.last_waypoint_index, closest_idx - self.last_waypoint_index)
                 closest_idx = self.last_waypoint_index + 1
             # If not within the region of acceptance, take smaller steps forward in the waypoint list
             self.last_waypoint_index += 1
         # print("dist_to_waypoint: ", dist_to_waypoint, ", closest_idx: ", closest_idx, ", last_waypoint_index: ", self.last_waypoint_index)
         target_idx = max(self.last_waypoint_index, closest_idx)
         return min(target_idx, len(self.waypoints_x) - 1)
-    def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None):
+    def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None, objects=None, car_states=None):
         if xmin is None:
             xmin = self.x_min
             xmax = self.x_max
             ymin = self.y_min
             ymax = self.y_max
         print("saving as ", self.export_fig)
+        # objects = [
+        #     {'type': 'stop_sign', 'pose': [3, 3]},
+        #     {'type': 'traffic_light', 'pose': [7, 8]},
+        #     {'type': 'parking_spot', 'pose': [10, 2]},
+        #     {'type': 'crosswalk', 'pose': [12, 4]},
+        #     {'type': 'roundabout', 'pose': [5, 10]}
+        # ]
         Draw_MPC_tracking(self.u_c, obstacle = self.obstacle, rob_diam=0.3, init_state=self.init_state, 
                         robot_states=self.xx, ref_states = self.x_refs, export_fig=self.export_fig, waypoints_x=self.waypoints_x, 
-                        waypoints_y=self.waypoints_y, stats = stats, costs = self.costs, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, times = self.t_c)
+                        waypoints_y=self.waypoints_y, stats = stats, costs = self.costs, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+                        times = self.t_c, objects=objects, car_states=car_states)
     def compute_stats(self):
         ## after loop
         print("iter: ", self.mpciter)
@@ -432,8 +455,11 @@ class MobileRobotOptimizer(object):
         return stats
    
 if __name__ == '__main__':
-    mpc = MobileRobotOptimizer()
+    x0 = np.array([10, 13.29, np.pi])
+    # mpc = Optimizer(x0=x0)
+    mpc = Optimizer()
     # stop when last waypoint is reached
+
     length = len(mpc.waypoints_x)
     mpc.target_waypoint_index = 0
     print("length: ", length)
@@ -461,8 +487,9 @@ if __name__ == '__main__':
         mpc.xx.append(mpc.current_state)
         mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
-    # park_offset = 1
-    # mpc.current_state = np.array([park_offset, 0, np.pi])
+
+    # park_offset = 0.95
+    # # mpc.current_state = np.array([park_offset, 0, np.pi])
     # mpc.park(park_offset)
     # mpc.exit_park()
     print("done")

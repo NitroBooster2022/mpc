@@ -13,16 +13,23 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from gazebo_msgs.msg import ModelStates
 from utils.msg import IMU, Lane, Sign
 from sensor_msgs.msg import Imu
+from std_srvs.srv import Trigger
+from std_msgs.msg import Float32MultiArray
 
 class Utility:
-    def __init__(self, useIMU=True, subLane=False, subSign=False, subModel=False, subImu=False, pubOdom=False, useEkf=False):
+    def __init__(self, lock, useIMU=True, subLane=False, subSign=False, subModel=False, subImu=False, pubOdom=False, useEkf=False):
         rospy.on_shutdown(self.stop_car)
+        self.lock = lock
         self.rateVal = 50.0
         self.rate = rospy.Rate(self.rateVal)
         self.pubOdom = pubOdom # publish odom in imu callback if true
         self.useEkf = useEkf
         self.useIMU = useIMU
         self.process_yaw = self.process_IMU if useIMU else self.process_Imu
+
+        # Constants
+        self.NUM_VALUES_PER_OBJECT = 7
+        self.SIGN_VALUES = {"x1": 0, "y1": 1, "x2": 2, "y2": 3, "distance": 4, "confidence": 5, "id": 6}
 
         # Parameters
         self.wheelbase = 0.27
@@ -66,8 +73,8 @@ class Utility:
         self.pose_to_set.header.frame_id = "chassis"
 
         covariance_value = 0.02
-        # covariance_matrix = np.diag([covariance_value]*6).flatten().tolist()
-        covariance_matrix = [covariance_value] * 6 + [0] * 30
+        covariance_matrix = (np.identity(6)*covariance_value).flatten().tolist()
+        # covariance_matrix = [covariance_value] * 6 + [0] * 30
         # Publishers
         self.odom_pub = rospy.Publisher("odom", Odometry, queue_size=3)
         self.odom_msg = Odometry()
@@ -88,7 +95,7 @@ class Utility:
         if self.useIMU:
             rospy.wait_for_message("/automobile/IMU", IMU)
         else:
-            rospy.wait_for_message("/imu", Imu)
+            rospy.wait_for_message("/camera/imu", Imu)
         print("waiting for model_states message")
         rospy.wait_for_message("/gazebo/model_states", ModelStates)
         print("received message from IMU and model_states")
@@ -113,16 +120,19 @@ class Utility:
             self.timerpid = rospy.Time.now()
             self.last = 0
         if subSign:
-            self.detected_objects = []
+            # self.numObj = -1
+            # self.detected_objects = []
+            # self.box1 = []
+            # self.box2 = []
+            # self.box3 = []
+            # self.confidence = []
+            # self.distances = []
+            # self.min_sizes = [25,25,60,50,45,35,30,25,25,130,75,72,70]
+            # self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
+            # self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
+            self.detected_objects = np.array([])
             self.numObj = -1
-            self.box1 = []
-            self.box2 = []
-            self.box3 = []
-            self.confidence = []
-            self.distances = []
-            self.min_sizes = [25,25,40,50,45,35,30,25,25,130,75,72,70]
-            self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
-            self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
+            self.sign_sub = rospy.Subscriber("/sign", Float32MultiArray, self.sign_callback, queue_size=3)
             self.sign = Sign()
             print("waiting for sign message")
             rospy.wait_for_message("/sign", Sign)
@@ -130,22 +140,27 @@ class Utility:
 
     # Callbacks
     def sign_callback(self, sign):
-        self.detected_objects = sign.objects
-        self.numObj = sign.num
-        self.box1 = sign.box1
-        self.box2 = sign.box2
-        self.box3 = sign.box3
-        self.box4 = sign.box4
-        self.confidence = sign.confidence
-        self.distances = sign.distances
+        with self.lock:
+            if sign.data:
+                self.numObj = len(sign.data) // self.NUM_VALUES_PER_OBJECT
+                if self.numObj == 1:
+                    self.detected_objects = np.array(sign.data)
+                    return 
+                self.detected_objects = np.array(sign.data).reshape(-1, self.NUM_VALUES_PER_OBJECT).T 
+            else:
+                self.numObj = 0
+
     def lane_callback(self, lane):
-        self.center = lane.center
+        with self.lock:
+            self.center = lane.center
     def imu_callback(self, imu):
-        self.imu = imu
+        with self.lock:
+            self.imu = imu
         if self.pubOdom: #if true publish odom in imu callback
             self.publish_odom()
     def model_callback(self, model):
-        self.model = model
+        with self.lock:
+            self.model = model
     def stop_car(self):
         pub = rospy.Publisher("/automobile/command", String, queue_size=3)
         msg = String()
@@ -238,14 +253,16 @@ class Utility:
         self.odom_pub.publish(self.odom_msg)
 
         # Publish odom1
-        # self.odom1_msg.header.stamp = rospy.Time.now()
-        # self.odom1_msg.header.frame_id = "odom"
-        # self.odom1_msg.child_frame_id = "chassis"
-        # self.odom1_msg.twist.twist.linear.x = self.velocity*math.cos(self.yaw)
-        # self.odom1_msg.twist.twist.linear.y = self.velocity*math.sin(self.yaw)
-        # self.odom1_pub.publish(self.odom1_msg)
+        self.odom1_msg.header.stamp = rospy.Time.now()
+        self.odom1_msg.header.frame_id = "odom"
+        self.odom1_msg.child_frame_id = "chassis"
+        self.odom1_msg.twist.twist.linear.x = self.velocity*math.cos(self.yaw)
+        self.odom1_msg.twist.twist.linear.y = self.velocity*math.sin(self.yaw)
+        self.odom1_pub.publish(self.odom1_msg)
         return
 
+    def get_real_states(self):
+        return np.array([self.gps_x, self.gps_y, self.yaw])
     def set_initial_pose(self, x, y, yaw):
         self.odomX = x
         self.odomY = y
@@ -267,6 +284,10 @@ class Utility:
         # print(self.msg.data)
         self.cmd_vel_pub.publish(self.msg)
         self.cmd_vel_pub.publish(self.msg2)
+    def idle(self):
+        self.steer_command = 0
+        self.velocity_command = 0
+        self.publish_cmd_vel(0, 0)
     def get_steering_angle(self, offset=0):
         """
         Determine the steering angle based on the lane center
@@ -313,7 +334,6 @@ class Utility:
         # print(f"dt: {dt:.4f}, magnitude: {magnitude:.4f}, yaw: {self.yaw:.4f}, speed: {speed:.4f}, k1_x: {k1_x:.4f}, k2_x: {k2_x:.4f}, k3_x: {k3_x:.4f}, k4_x: {k4_x:.4f}")
         # print(f"dt: {dt:.4f}, magnitude: {magnitude:.4f}, yaw: {self.yaw:.4f}, speed: {speed:.4f}, dx: {dx:.4f}, dy: {dy:.4f}, dyaw: {dyaw:.4f}, k1_x: {k1_x:.4f}")
         return dx, dy, dyaw
-
     def update_states_euler(self, speed, steering_angle):
         dt = (rospy.Time.now()-self.timerodom).to_sec()
         self.timerodom = rospy.Time.now()
@@ -326,24 +346,71 @@ class Utility:
         self.odomX += magnitude * math.cos(self.yaw)
         self.odomY += magnitude * math.sin(self.yaw)
         return
-    def object_detected(self, obj_id):
-        if self.numObj >= 2:
-            if self.detected_objects[0]==obj_id: 
-                if self.check_size(obj_id,0):
-                    return self.distances[0]
-            elif self.detected_objects[1]==obj_id:
-                if self.check_size(obj_id,1):
-                    return self.distances[1]
-        elif self.numObj == 1:
-            if self.detected_objects[0]==obj_id: 
-                if self.check_size(obj_id,0):
-                    return self.distances[0]
+    def object_index(self, obj_id):
+        """
+        return index of object with id obj_id if it is detected, otherwise return -1
+        """
+        if self.numObj < 1:
+            return -1
+        if self.numObj == 1:
+            if self.detected_objects[self.SIGN_VALUES["id"]]==obj_id:
+                return 0
+            return -1
+        id_array = self.detected_objects[self.SIGN_VALUES["id"]]
+        if obj_id in id_array:
+            obj_index = np.where(id_array == obj_id)[0][0]
+            return obj_index
         return -1
+    def object_distance(self, index):
+        if self.numObj == 1:
+            return self.detected_objects[self.SIGN_VALUES["distance"]]
+        return self.detected_objects[self.SIGN_VALUES["distance"], index]
+    def object_box(self, index):
+        if self.numObj == 1:
+            return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1]
+        return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1, index]
+    # def object_distance(self, obj_id):
+    #     """
+    #     return distance to object with id obj_id if it is detected, otherwise return -1
+    #     """
+    #     # print("num: ", self.numObj)
+    #     if self.numObj < 1:
+    #         return -1
+    #     if self.numObj == 1:
+    #         # print("id: ", self.detected_objects[self.SIGN_VALUES["id"]])
+    #         if self.detected_objects[self.SIGN_VALUES["id"]]==obj_id:
+    #             # print("distance: ", self.detected_objects[self.SIGN_VALUES["distance"]])
+    #             return self.detected_objects[self.SIGN_VALUES["distance"]]
+    #         return -1
+    #     id_array = self.detected_objects[self.SIGN_VALUES["id"]]
+    #     # print("id_array: ", id_array)
+    #     if obj_id in id_array:
+    #         obj_index = np.where(id_array == obj_id)[0][0] # if multiple objects with same id, return the first one
+    #         # print("obj_index: ", obj_index)
+    #         # print("distance: ", self.detected_objects[self.SIGN_VALUES["distance"], obj_index])
+    #         return self.detected_objects[self.SIGN_VALUES["distance"], obj_index]
+    #     return -1
+    # def object_box(self, obj_id):
+    #     """
+    #     return box of object with id obj_id if it is detected, otherwise return None
+    #     """
+    #     if self.numObj < 1:
+    #         return None
+    #     if self.numObj == 1:
+    #         if self.detected_objects[self.SIGN_VALUES["id"]]==obj_id:
+    #             return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1]
+    #         return None
+    #     id_array = self.detected_objects[self.SIGN_VALUES["id"]]
+    #     if obj_id in id_array:
+    #         obj_index = np.where(id_array == obj_id)[0][0]
+    #         return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1, obj_index]
+    
     def check_size(self, obj_id, index):
         #checks whether a detected object is within a certain min and max sizes defined by the obj type
+        #box[0] is x, box[1] is y, box[2] is width, box[3] is height
         box = self.box1 if index==0 else self.box2
         conf = self.confidence[index]
-        size = max(box[2], box[3])
+        size = max(box[2], box[3]) #width or height
         if obj_id==12:
             size = min(box[2], box[3])
         if obj_id==10:
@@ -351,9 +418,27 @@ class Utility:
         else:
             conf_thresh = 0.8
         return size >= self.min_sizes[obj_id] and size <= self.max_sizes[obj_id] and conf >= conf_thresh #check this
+    def get_current_orientation(self):
+        hsy = 0
+        while self.yaw > 2 * np.pi:
+            self.yaw -= 2 * np.pi
+            hsy += 1
+        while self.yaw < 0:
+            self.yaw += 2 * np.pi
+            hsy -= 1
+        ori = np.argmin([abs(self.yaw),abs(self.yaw-np.pi/2),abs((self.yaw)-np.pi),abs(self.yaw-np.pi/2*3),abs(self.yaw-np.pi*2)])%4*np.pi/2
+        ori += hsy * np.pi * 2
+        return ori
     def set_rate(self, rate):
         self.rateVal = rate
         self.rate = rospy.Rate(self.rateVal)
+    def call_trigger_service(self):
+        try:
+            trigger_service = rospy.ServiceProxy('trigger_service', Trigger)
+            response = trigger_service()
+            rospy.loginfo("Service response: %s", response.message)
+        except rospy.ServiceException as e:
+            rospy.logerr("Service call failed: %s", e)
     def publish_static_transforms(self):
         static_transforms = []
 
