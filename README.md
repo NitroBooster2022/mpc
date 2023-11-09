@@ -70,7 +70,8 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
 
 6. Update your `.bashrc` and source it:
     ```bash
-    echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"home/{your user name}/acados/lib"' >> ~/.bashrc
+    echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"/home/{your user name}/acados/lib"' >> ~/.bashrc
+    echo 'export ACADOS_SOURCE_DIR="/home/{your user name}/acados"' >> ~/.bashrc
     source ~/.bashrc
     ```
 
