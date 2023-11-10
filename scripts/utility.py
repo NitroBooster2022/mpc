@@ -53,6 +53,8 @@ class Utility:
         self.odomX = 0
         self.odomY = 0
         self.odomYaw = 0
+        self.ekf_x = 0.0
+        self.ekf_y = 0.0
         self.gps_x = 0.0
         self.gps_y = 0.0
         self.steer_command = 0.0
@@ -72,7 +74,7 @@ class Utility:
         self.pose_to_set.header = Header()
         self.pose_to_set.header.frame_id = "chassis"
 
-        covariance_value = 0.02
+        covariance_value = 0.01
         covariance_matrix = (np.identity(6)*covariance_value).flatten().tolist()
         # covariance_matrix = [covariance_value] * 6 + [0] * 30
         # Publishers
@@ -137,6 +139,9 @@ class Utility:
             print("waiting for sign message")
             rospy.wait_for_message("/sign", Sign)
             print("received message from sign")
+        if useEkf:
+            self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
+            self.ekf_msg = Odometry()
 
     # Callbacks
     def sign_callback(self, sign):
@@ -158,6 +163,10 @@ class Utility:
             self.imu = imu
         if self.pubOdom: #if true publish odom in imu callback
             self.publish_odom()
+    def ekf_callback(self, ekf):
+        with self.lock:
+            self.ekf_x = ekf.pose.pose.position.x
+            self.ekf_y = ekf.pose.pose.position.y
     def model_callback(self, model):
         with self.lock:
             self.model = model

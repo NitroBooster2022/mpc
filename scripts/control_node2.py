@@ -67,7 +67,8 @@ class StateMachine:
     def update_mpc_state(self):
         with self.lock:
             if self.args.odom:
-                self.mpc.update_current_state(x=self.utils.odomX, y=self.utils.odomY, yaw=self.utils.yaw)
+                # self.mpc.update_current_state(x=self.utils.odomX, y=self.utils.odomY, yaw=self.utils.yaw)
+                self.mpc.update_current_state(x=self.utils.ekf_x, y=self.utils.ekf_y, yaw=self.utils.yaw)
                 self.mpc.update_real_state(x=self.utils.gps_x, y=self.utils.gps_y, yaw=self.utils.yaw)
             else:
                 self.mpc.update_current_state(x=self.utils.gps_x, y=self.utils.gps_y, yaw=self.utils.yaw)
