@@ -95,6 +95,7 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
 
 ### Gazebo Simulation
 
+#### Path Following
 1. Start the gazebo simulation:
     ```bash
     source devel/setup.bash
@@ -107,5 +108,25 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     ```
 3. Start the control node:
     ```bash
-    rosrun mpc control_node.py --useEkf 
+    rosrun mpc control_node2.py --useEkf 
+    ```
+
+#### Follow Traffic Rules
+1. Start the gazebo simulation:
+    ```bash
+    source devel/setup.bash
+    roslaunch sim_pkgs map_with_some_objects.launch
+    ```
+
+2. Start the ekf node:
+    ```bash
+    roslaunch mpc ekf.launch
+    ```
+3. Start the object detctor node:
+    ```bash
+    roslaunch control signFastest.launch show:=true print:=true
+    ```
+3. Start the control node:
+    ```bash
+    rosrun mpc control_node2.py --useEkf --sign
     ```

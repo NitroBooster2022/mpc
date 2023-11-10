@@ -1,4 +1,6 @@
 <launch>
+
+  <node pkg="control" type="bridge" name="localization_bridge" output="screen"> </node>
   <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization" clear_params="true">
     <rosparam command="load" file="$(find mpc)/config/ekf.yaml" />
   </node>

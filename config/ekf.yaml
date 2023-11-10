@@ -49,28 +49,28 @@ pose0_config: [true,  true,  false,
 # pose0_debug: false
 # pose0_two_d_mode: true
 
-# imu0: /camera/imu
-# imu0_config: [false, false, false,
-#               true,  true,  true,
-#               false, false, false,
-#               false,  false,  false,
-#               false,  false,  false]
-# imu0_nodelay: false
-# imu0_differential: false
-# imu0_relative: false
-# # imu0_queue_size: 10
-# imu0_pose_rejection_threshold: 0.8                 
-# imu0_twist_rejection_threshold: 0.8                
-# imu0_linear_acceleration_rejection_threshold: 0.8  
-# imu0_remove_gravitational_acceleration: false
+imu0: /camera/imu
+imu0_config: [false, false, false,
+              true,  true,  true,
+              false, false, false,
+              true,  true,  true, 
+              true,  true,  true]
+imu0_nodelay: false
+imu0_differential: false
+imu0_relative: false
+# imu0_queue_size: 10
+imu0_pose_rejection_threshold: 0.8                 
+imu0_twist_rejection_threshold: 0.8                
+imu0_linear_acceleration_rejection_threshold: 0.8  
+imu0_remove_gravitational_acceleration: false
 
-# odom0: /odom
-# odom0_config: [true, true, false,
-#               false, false, false,
-#               true, true, false,
-#               false, false, false,
-#               false,  false,  false]
-# odom0_differential: false
+odom0: /odom
+odom0_config: [true, true, false,
+              false, false, false,
+              false, false, false,
+              false, false, false,
+              false,  false,  false]
+odom0_differential: true
 
 # odom1: /odom1
 # odom1_config: [false, false, false,

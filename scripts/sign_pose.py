@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from numpy import cos, sin
 import os
 def draw_scene(cars, objects, save=True):
+    if len(cars) == 0 and len(objects) == 0:
+        print("No cars or objects to draw")
+        return
     # Initialize the plot
     fig, ax = plt.subplots()
     ax.set_aspect('equal')
