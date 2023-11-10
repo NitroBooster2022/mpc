@@ -122,6 +122,10 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     ```bash
     roslaunch mpc ekf.launch
     ```
+3. Start the object detctor node:
+    ```bash
+    roslaunch control signFastest.launch show:=true print:=true
+    ```
 3. Start the control node:
     ```bash
     rosrun mpc control_node2.py --useEkf --sign
