@@ -387,8 +387,8 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
    double* W_0 = calloc(NY0*NY0, sizeof(double));
     // change only the non-zero elements:
     W_0[0+(NY0) * 0] = 1;
-    W_0[1+(NY0) * 1] = 5;
-    W_0[2+(NY0) * 2] = 0.1;
+    W_0[1+(NY0) * 1] = 7;
+    W_0[2+(NY0) * 2] = 1;
     W_0[3+(NY0) * 3] = 0.5;
     W_0[4+(NY0) * 4] = 0.05;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "W", W_0);
@@ -396,8 +396,8 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* W = calloc(NY*NY, sizeof(double));
     // change only the non-zero elements:
     W[0+(NY) * 0] = 1;
-    W[1+(NY) * 1] = 5;
-    W[2+(NY) * 2] = 0.1;
+    W[1+(NY) * 1] = 7;
+    W[2+(NY) * 2] = 1;
     W[3+(NY) * 3] = 0.5;
     W[4+(NY) * 4] = 0.05;
 
@@ -409,8 +409,8 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* W_e = calloc(NYN*NYN, sizeof(double));
     // change only the non-zero elements:
     W_e[0+(NYN) * 0] = 1;
-    W_e[1+(NYN) * 1] = 5;
-    W_e[2+(NYN) * 2] = 0.1;
+    W_e[1+(NYN) * 1] = 7;
+    W_e[2+(NYN) * 2] = 1;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "W", W_e);
     free(W_e);
     double* Vx_0 = calloc(NY0*NX, sizeof(double));
@@ -498,8 +498,8 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
-    lbu[0] = -1;
-    ubu[0] = 1;
+    lbu[0] = -0.5;
+    ubu[0] = 0.5;
     lbu[1] = -0.4;
     ubu[1] = 0.4;
 
@@ -528,10 +528,10 @@ void scandy_acados_create_5_set_nlp_in(scandy_solver_capsule* capsule, const int
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -1;
-    ubx[0] = 1;
-    lbx[1] = -1;
-    ubx[1] = 1;
+    lbx[0] = -4;
+    ubx[0] = 4;
+    lbx[1] = -4;
+    ubx[1] = 4;
 
     for (int i = 1; i < N; i++)
     {

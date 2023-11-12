@@ -464,7 +464,8 @@ class Utility:
         t_camera.transform.translation.x = joint_x + link_x
         t_camera.transform.translation.y = joint_y + link_y
         t_camera.transform.translation.z = joint_z + link_z
-        roll, pitch, yaw = 0, 0.2617, 0
+        # roll, pitch, yaw = 0, 0.2617, 0
+        roll, pitch, yaw = 0, 0., 0
         qtn = tf.transformations.quaternion_from_euler(roll, pitch, yaw)
         t_camera.transform.rotation.x = qtn[0]
         t_camera.transform.rotation.y = qtn[1]
@@ -504,3 +505,20 @@ class Utility:
         t_laser.transform.rotation.w = 1
         static_transforms.append(t_laser)
         self.static_broadcaster.sendTransform(static_transforms)
+
+        t_camera = TransformStamped()
+        t_camera.header.stamp = rospy.Time.now()
+        t_camera.header.frame_id = "chassis"
+        t_camera.child_frame_id = "imu_link"
+        joint_x, joint_y, joint_z = 0, 0, 0
+        link_x, link_y, link_z = 0, 0, 0.2
+        t_camera.transform.translation.x = joint_x + link_x
+        t_camera.transform.translation.y = joint_y + link_y
+        t_camera.transform.translation.z = joint_z + link_z
+        roll, pitch, yaw = 0, 0, 0
+        qtn = tf.transformations.quaternion_from_euler(roll, pitch, yaw)
+        t_camera.transform.rotation.x = qtn[0]
+        t_camera.transform.rotation.y = qtn[1]
+        t_camera.transform.rotation.z = qtn[2]
+        t_camera.transform.rotation.w = qtn[3]
+        static_transforms.append(t_camera)

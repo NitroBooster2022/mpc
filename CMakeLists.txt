@@ -4,6 +4,32 @@ project(mpc)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
+# set compiler standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -DEXT_DEP -fdiagnostics-show-option")
+find_package(PkgConfig)
+pkg_search_module(Eigen3 REQUIRED eigen3)
+include_directories(${Eigen3_INCLUDE_DIRS})
+include_directories($ENV{ACADOS_SOURCE_DIR}/include)
+include_directories($ENV{ACADOS_SOURCE_DIR}/include/blasfeo/include)
+include_directories($ENV{ACADOS_SOURCE_DIR}/include/hpipm/include)
+include_directories($ENV{ACADOS_SOURCE_DIR}/include/acados)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code)
+link_directories($ENV{ACADOS_SOURCE_DIR}/lib)
+file(GLOB ocp_solver
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/acados_solver_mobile_robot.c
+        )
+
+file(GLOB casadi_fun
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_ode_fun.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_forw.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c)
+
+file(GLOB sim_solver
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/acados_sim_solver_mobile_robot.c
+        )
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
@@ -44,32 +70,16 @@ link_directories(
   /usr/local/lib 
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mpc.cpp
-# )
+add_library(ocp_shared_lib SHARED ${ocp_solver} ${casadi_fun} )
+target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun})
+target_link_libraries(sim_shared_lib acados hpipm blasfeo)
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(mpc
-#  src/MPC.cpp
-#  src/mpc_node.cpp)
-
-## Rename C++ executable without prefix
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-# target_link_libraries(mpc ipopt
-#   ${catkin_LIBRARIES}
-# )
+add_executable(opt src/optimizer.cpp )
+target_link_libraries(opt 
+ocp_shared_lib 
+sim_shared_lib
+${catkin_LIBRARIES}
+)
 

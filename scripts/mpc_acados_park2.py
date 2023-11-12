@@ -144,9 +144,9 @@ class MobileRobotOptimizer(object):
         # u状态数
         nu = model.u.size()[0]
         self.nu = nu
-        # ny数为x与u之和，原因详见系统CasADi例子以及ACADOS构建优化问题PDF介绍
+        # ny数为x与u之和
         ny = nx + nu
-        # 额外参数，本例中没有
+        # 额外参数，没有
         n_params = len(model.p)
 
         # 设置环境变量
@@ -156,7 +156,7 @@ class MobileRobotOptimizer(object):
         sys.path.insert(0, acados_source_path)
         # 构建OCP
         ocp = AcadosOcp()
-        ## 设置ACADOS系统引用以及库的路径（因为ACADOS最后将以C的形式运行，所以必须设置正确）
+        ## 设置ACADOS系统引用以及库的路径（因为ACADOS最后将以C的形式运行）
         ocp.acados_include_path = acados_source_path + '/include'
         ocp.acados_lib_path = acados_source_path + '/lib'
         ## 设置模型
@@ -181,7 +181,7 @@ class MobileRobotOptimizer(object):
         # 约束条件设置
         ocp.constraints.lbu = np.array([self.v_min, self.delta_min])
         ocp.constraints.ubu = np.array([self.v_max, self.delta_max])
-        ## 这里是为了定义之前约束条件影响的index，它不需要像CasADi那样定义np.inf这种没有实际意义的约束。
+        ## 这里是为了定义之前约束条件影响的index，不需要像CasADi那样定义np.inf这种没有实际意义的约束。
         ocp.constraints.idxbu = np.array([0, 1])
         ocp.constraints.lbx = np.array([self.x_min, self.y_min])
         ocp.constraints.ubx = np.array([self.x_max, self.y_max])

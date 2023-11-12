@@ -14,7 +14,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 import numpy as np
 import scipy.linalg
 
-from draw import Draw_MPC_tracking
+from draw2 import Draw_MPC_tracking
 import casadi as ca
 from acados_template import AcadosModel
 import time
@@ -273,13 +273,13 @@ class Optimizer(object):
         self.current_state = self.integrator.get('x')
         self.t0 += self.T
     
-    def move_to(self, xs, cur_frame, ref_frame, thresh, utils=None, odom=False):
+    def move_to(self, xs, cur_frame, ref_frame, thresh, utils=None, odom=False, u_ref = np.zeros(2)):
         if utils is not None:
             utils.set_rate(1/self.T)
             print("rate: ", utils.rate)
         errors = []
         current_state_transformed = transform_point(self.current_state, cur_frame, ref_frame)
-        xs_between = np.concatenate((xs, np.zeros(2)))
+        xs_between = np.concatenate((xs, u_ref))
         self.solver.set(self.N, 'yref', xs)
         d = -1
         for i in range(self.N):
@@ -291,7 +291,7 @@ class Optimizer(object):
             # error = np.linalg.norm(np.array([error[1], error[2]]))
             error = np.linalg.norm(error)
             errors.append(error)
-            if d>200 or error < thresh:
+            if d>150 or error < thresh:
                 break
             t_ = time.time()
             self.solver.set(0, 'lbx', current_state_transformed)
@@ -330,29 +330,39 @@ class Optimizer(object):
                 utils.rate.sleep()
         print("min error: ", np.min(errors)," at index: ", np.argmin(errors))
         return 
-    def park(self, offset, utils=None, odom=False, cur_frame = None):
+    def go_straight(self, offset, utils=None, odom=False, cur_frame = None):
+        if cur_frame is None:
+            cur_frame = self.current_state.copy()
+        self.park_yaw = cur_frame[2]
+        ref_frame = np.array([offset, 0, np.pi])
+        xs = np.array([0, 0, np.pi])
+        thresh = 0.05
+        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
+    def park(self, utils=None, odom=False, cur_frame = None):
         del self.solver, self.integrator
         parking_config_path = 'config/mpc_config_park.yaml'
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver(parking_config_path)
         if cur_frame is None:
             cur_frame = self.current_state.copy()
-        ref_frame = np.array([offset, 0, np.pi])
-        xs = np.array([0, 0, np.pi])
+        self.park_yaw = cur_frame[2]
+        # ref_frame = np.array([offset, 0, np.pi])
+        # xs = np.array([0, 0, np.pi])
         thresh = self.park_thresh if self.park_thresh is not None else 0.05
-        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
-        cur_frame = self.current_state.copy()
+        # self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
+        # self.solver.reset()
+        # cur_frame = self.current_state.copy()
         ref_frame = np.array([0, 0, np.pi])
-        self.solver.reset()
         xs = np.array([0.63, 0.32, np.pi])
-        self.move_to(xs, cur_frame, ref_frame, thresh = 0.08, utils=utils, odom=odom)
+        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom, u_ref = np.array([0.0, -0.0]))
     def exit_park(self, utils=None, odom=False, cur_frame = None):
         self.solver.reset()
         if cur_frame is None:
             cur_frame = self.current_state.copy()
+        cur_frame[2] = self.park_yaw
         ref_frame = np.array([0.63, 0.32, np.pi])
         xs = np.array([0.0, 0.0, np.pi])
         thresh = self.exit_thresh if self.exit_thresh is not None else 0.08
-        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
+        self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom, u_ref = np.array([0.0, 0.0]))
         del self.solver, self.integrator
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
@@ -412,7 +422,7 @@ class Optimizer(object):
         #     {'type': 'crosswalk', 'pose': [12, 4]},
         #     {'type': 'roundabout', 'pose': [5, 10]}
         # ]
-        Draw_MPC_tracking(self.u_c, obstacle = self.obstacle, rob_diam=0.3, init_state=self.init_state, 
+        Draw_MPC_tracking(self.u_c, init_state=self.init_state, 
                         robot_states=self.xx, ref_states = self.x_refs, export_fig=self.export_fig, waypoints_x=self.waypoints_x, 
                         waypoints_y=self.waypoints_y, stats = stats, costs = self.costs, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
                         times = self.t_c, objects=objects, car_states=car_states)
@@ -488,10 +498,11 @@ if __name__ == '__main__':
         mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
 
-    # park_offset = 0.95
-    # # mpc.current_state = np.array([park_offset, 0, np.pi])
-    # mpc.park(park_offset)
+    # park_offset = 0.#95
+    # mpc.current_state = np.array([park_offset, 0, np.pi])
+    # mpc.go_straight(park_offset)
+    # mpc.park()
     # mpc.exit_park()
     print("done")
     mpc.draw_result(stats, 0, 15, 0, 15)
-    # mpc.draw_result(stats, -1, 2, -1, 2)
+    # mpc.draw_result(stats, -1, 5, -1, 2)

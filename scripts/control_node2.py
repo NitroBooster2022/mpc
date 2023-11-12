@@ -109,7 +109,7 @@ class StateMachine:
         while True:
             if self.mpc.target_waypoint_index >= self.mpc.num_waypoints-1:
             # if self.mpc.target_waypoint_index >= 600 or self.mpc.target_waypoint_index >= self.mpc.num_waypoints-1:
-                break
+                self.change_state(self.STATE_DICT["done"])
             if self.state == self.STATE_DICT["moving"]:
                 t = time.time()
                 if self.args.sign:
@@ -217,7 +217,10 @@ class StateMachine:
                 orientation = self.utils.get_current_orientation()
                 frame = self.utils.get_real_states()
                 frame[2] = orientation
-                self.mpc.park(utils=self.utils, offset=offset, cur_frame = frame)
+                self.mpc.go_straight(utils=self.utils, cur_frame = frame)
+                frame = self.utils.get_real_states()
+                frame[2] = orientation
+                self.mpc.park(utils=self.utils, cur_frame = frame)
                 self.change_state(self.STATE_DICT["parked"])
             elif self.state == self.STATE_DICT["parked"]:
                 timer = rospy.Time.now() + rospy.Duration(3)
@@ -232,6 +235,9 @@ class StateMachine:
                 self.mpc.exit_park(utils=self.utils, cur_frame = frame)
                 self.change_state(self.STATE_DICT["done"])
             elif self.state == self.STATE_DICT["done"]:
+                for hsy in range(5):
+                    self.utils.idle()
+                    self.rate.sleep()
                 break
                 
         if self.debug:
