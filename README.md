@@ -24,8 +24,8 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
 
 1. Install it as follows:
     ```bash
-    sudo apt install ros-noetic-robot-localization
     sudo apt update
+    sudo apt install ros-noetic-robot-localization
     ```
 
 ### Acados
@@ -36,8 +36,6 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     ```bash
     git clone https://github.com/acados/acados.git
     cd acados
-    sudo apt install ros-noetic-robot-localization
-    sudo apt update
     git submodule update --recursive --init
     ```
 
@@ -49,17 +47,17 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     # Note: Replace ARMV8A_ARM_CORTEX_A57 with your device's architecture or use GENERIC if unsure.
     ```
 
-3. Build and install Acados:
-    ```bash
-    make -j4
-    make install -j4
-    ```
-
-4. Update the Makefile:
+3. Update the Makefile:
     ```bash
     # Set the following in <acados_root_folder>/Makefile.rule
     BLASFEO_TARGET = ARMV8A_ARM_CORTEX_A57
     ACADOS_WITH_QPOASES = 1
+    ```
+
+4. Build and install Acados:
+    ```bash
+    make -j4
+    sudo make install -j4
     make shared_library
     ```
 
