@@ -237,8 +237,11 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        self.target_waypoint_index = self.find_next_waypoint(self.current_state[0], self.current_state[1])
-        self.next_trajectories, self.next_controls = self.path.desired_command_and_trajectory(self.target_waypoint_index)
+        self.target_waypoint_index = self.find_next_waypoint()
+        idx = self.target_waypoint_index
+        self.next_trajectories = self.state_refs[idx:idx + self.N + 1]
+        self.next_controls = self.input_refs[idx:idx + self.N]
+        # self.next_trajectories, self.next_controls = self.path.desired_command_and_trajectory(self.target_waypoint_index)
         xs = self.state_refs[self.target_waypoint_index]
         self.solver.set(self.N, 'yref', xs)
         for j in range(self.N):
@@ -251,9 +254,6 @@ class Optimizer(object):
         self.solver.set(0, 'ubx', self.current_state)
         # 求解
         status = self.solver.solve()
-        # if self.target_waypoint_index % 100 == 0:
-        #     print("reset solver")
-        #     self.solver.reset()
         if status != 0 :
             print('ERROR!!! acados acados_ocp_solver returned status {}. Exiting.'.format(status))
             return None
@@ -385,12 +385,12 @@ class Optimizer(object):
             while yaw - ref_yaw < -np.pi:
                 yaw += 2 * np.pi
         self.real_state = np.array([x, y, yaw])
-    def find_closest_waypoint(self, x, y):
-        distances = np.linalg.norm(np.vstack((self.waypoints_x, self.waypoints_y)).T - np.array([x, y]), axis=1)
+    def find_closest_waypoint(self):
+        distances = np.linalg.norm(np.vstack((self.waypoints_x, self.waypoints_y)).T - self.current_state[:2], axis=1)
         index = np.argmin(distances)
         return index, distances[index]
-    def find_next_waypoint(self, x, y):
-        closest_idx, dist_to_waypoint = self.find_closest_waypoint(x, y)
+    def find_next_waypoint(self):
+        closest_idx, dist_to_waypoint = self.find_closest_waypoint()
         # ensure we're moving forward in the waypoint list, but not jumping too far ahead
         if dist_to_waypoint < self.region_of_acceptance:
             if closest_idx - self.last_waypoint_index < 15:
