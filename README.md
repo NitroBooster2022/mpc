@@ -58,6 +58,7 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     ```bash
     make -j4
     sudo make install -j4
+    cd ..
     make shared_library
     ```
 
