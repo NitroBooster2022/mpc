@@ -9,21 +9,19 @@ from scipy.interpolate import interp1d
 import cv2
 
 class Draw_MPC_tracking(object):
-    def __init__(self, u, robot_states: list, ref_states:list, init_state: np.array, 
-                 obstacle: np.array, rob_diam=0.3,  export_fig=None
+    def __init__(self, u, robot_states: list, ref_states:list, init_state: np.array, export_fig=None
                  , xmin=-1.0, xmax=15, ymin=-1, ymax=15, waypoints_x = None, waypoints_y = None, 
-                 spline_points_x = None, spline_points_y = None, stats = None, costs = None, times=None, objects=None, car_states=None):
+                  stats = None, costs = None, times=None, objects=None, car_states=None):
         self.objects = objects
         self.car_states = car_states
-        self.times = times
+        self.times = times if times is not None else np.arange(len(robot_states))
         self.u = u
         self.init_state = init_state
         self.robot_states = robot_states
-        self.rob_radius = rob_diam /15*(xmax-xmin)
+        self.robot_states_np = np.array(robot_states)
+        self.rob_radius = 0.3 /15*(xmax-xmin)
         self.waypoints_x = waypoints_x
         self.waypoints_y = waypoints_y
-        self.spline_points_x = spline_points_x
-        self.spline_points_y = spline_points_y
         self.stats = stats
         self.costs = costs
         # self.image = cv2.imread('/home/scandy/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png')
@@ -32,15 +30,8 @@ class Draw_MPC_tracking(object):
         # # resize the image to 500 by 500
         # self.image = cv2.resize(self.image, (100, 100), interpolation=cv2.INTER_AREA)
 
-        if obstacle is not None:
-            self.obstacle = obstacle
-        else:
-            print('no obstacle given, break')
         self.fig = plt.figure()
-        # self.ax = plt.axes(xlim=(-1.0, 15), ylim=(-1, 15))
         self.ax = plt.axes(xlim=(xmin, xmax), ylim=(ymin, ymax))
-        # self.fig.set_size_inches(7, 6.5)
-        self.obstacle_circles = [] 
 
         # self.background_image = plt.imread('/home/scandy/Documents/husky_ws/src/control/scripts/imgs/Competition_track_graph.png') 
 
@@ -56,22 +47,15 @@ class Draw_MPC_tracking(object):
         self.ax.set_xlabel('X (m)')
         self.ax.set_ylabel('Y (m)')
         self.ax.set_title('MPC Tracking Performance')
-        self.plot_and_save(output_path=export_fig.replace('gifs', 'plots')+ '.png')
+        if export_fig is not None:
+            self.plot_and_save(output_path=export_fig.replace('gifs', 'plots')+ '.png')
         # self.ax.legend(loc='center', frameon=True, bbox_to_anchor=(0.8, 0.1))
         plt.grid('--')
         if export_fig is not None:
             self.ani.save(export_fig+'.gif', writer='imagemagick', fps=100)
         plt.show()
 
-    # def draw_static_objects(self):
-    #     # This method assumes each object has a 'type' and 'pose' key
-    #     for obj in self.objects:
-    #         obj_pose = obj['pose']
-    #         obj_type = obj['type']
-    #         self.ax.text(obj_pose[0], obj_pose[1], obj_type, color='blue', fontsize=12)  # Label text
-
     def draw_static_objects(self):
-        # This method assumes each object has a 'type' and 'pose' key
         for obj in self.objects:
             obj_pose = obj['pose']
             obj_type = obj['type']
@@ -87,31 +71,58 @@ class Draw_MPC_tracking(object):
                         color='red', fontsize=12, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none'))
 
     def animation_init(self, ):
-        if self.spline_points_x is not None:
-            self.ax.plot(self.spline_points_x, self.spline_points_y, '-g', label='Continuous Path', linewidth=0.357)
-       
-        # if self.waypoints_x is not None:
-        #     self.ax.plot(self.waypoints_x[:], self.waypoints_y[:], 'go', label='Waypoints',markersize=1)
-            # draw waypoints smaller circle
-        
-        # self.ax.imshow(self.background_image, extent=[0, 15, 0, 15], aspect='auto')
+        self.recent_positions = []
+        self.max_recent_positions = 5
+        cos_o, sin_o = np.cos(self.init_state[2]), np.sin(self.init_state[2])
+        corner_x = self.init_state[0] - 0.25 * cos_o + 0.15 * sin_o
+        corner_y = self.init_state[1] - 0.25 * sin_o - 0.15 * cos_o
+        self.residual_rectangles = [
+            mpatches.Rectangle(
+                # (self.init_state[0] - 0.25, self.init_state[1] - 0.15), 
+                (corner_x, corner_y), 
+                0.5, 0.3, 
+                color='blue', 
+                fill=False, 
+                angle=np.degrees(self.init_state[2])
+            ) for _ in range(self.max_recent_positions)
+        ]
+        for rect in self.residual_rectangles:
+            self.ax.add_patch(rect)
 
-        # draw the initial position of the robot
         self.init_robot_position = plt.Circle(self.init_state[:2], self.rob_radius, color='r', fill=False)
         if self.objects is not None:
             self.draw_static_objects()
         self.ax.add_artist(self.init_robot_position)
         self.robot_body = plt.Circle(self.init_state[:2], self.rob_radius, color='r', fill=False)
-        self.ax.add_artist(self.robot_body)
+        self.ax.add_artist(self.robot_body) 
         self.robot_arr = mpatches.Arrow(self.init_state[0], self.init_state[1],
                                         self.rob_radius * np.cos(self.init_state[2]),
                                         self.rob_radius * np.sin(self.init_state[2]), width=0.2, color='r')
         self.ax.add_patch(self.robot_arr)
-        for obs in self.obstacle:  # Iterate over each obstacle
-            obs_circle = plt.Circle(obs[:2], obs[2], color='purple', fill=True)
-            self.ax.add_artist(obs_circle)
-            self.obstacle_circles.append(obs_circle)
         return
+    
+    def animation_loop(self, indx):
+        # position = self.robot_states[indx][:2]
+        orientation = self.robot_states[indx][2]
+
+        self.recent_positions.append(self.robot_states[indx])
+        if len(self.recent_positions) > self.max_recent_positions:
+            self.recent_positions.pop(0)
+        for i, pos in enumerate(self.recent_positions):
+            cos_o, sin_o = np.cos(pos[2]), np.sin(pos[2])
+            corner_x = pos[0] - 0.25 * cos_o + 0.15 * sin_o
+            corner_y = pos[1] - 0.25 * sin_o - 0.15 * cos_o
+            self.residual_rectangles[i].set_xy((corner_x, corner_y))
+            self.residual_rectangles[i].angle = np.degrees(pos[2])
+
+        self.robot_body.center = self.robot_states[indx][:2]
+        self.robot_arr.remove()
+        self.robot_arr = mpatches.Arrow(self.robot_states[indx][0], self.robot_states[indx][1], self.rob_radius * np.cos(orientation),
+                                        self.rob_radius * np.sin(orientation), width=0.2, color='r')
+        self.ax.add_patch(self.robot_arr)
+        # self.ax.set_title('MPC Tracking Performance: ' + str(indx)+ ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)))
+        self.ax.set_title(str(indx)+') t:'+ str(round(self.times[indx],2)) + ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)) + ' x:' + str(round(self.robot_states[indx,0], 2)) + ' y:' + str(round(self.robot_states[indx,1], 2)) + ' yaw:' + str(round(self.robot_states[indx,2], 2)))
+        return self.robot_arr, self.robot_body
     
     def interpolate_trajectories(self):        
         print("ref state shape: ", self.ref_states.shape)
@@ -158,20 +169,20 @@ class Draw_MPC_tracking(object):
         
         self.ax.legend(loc='center', frameon=True, bbox_to_anchor=(0.83, 0.04))
         
-        stats_text = f"""Statistics\nAverage Speed: {self.stats[0]:.3f}\nAverage Steer: {self.stats[1]:.3f}\nAverage Delta Speed: {self.stats[2]:.3f}\nAverage Delta Steer: {self.stats[3]:.3f}\nAverage X Error: {self.stats[4]:.3f}\nAverage Y Error: {self.stats[5]:.3f}\nAverage Yaw Error: {self.stats[6]:.3f}"""
-        costs_text = f"""Cost Values\nXY Cost: {self.costs[0]:.2f}\nYaw Cost: {self.costs[1]:.2f}\nV Cost: {self.costs[2]:.2f}\nSteer Cost: {self.costs[3]:.2f}\nDelta V Cost: {self.costs[4]:.2f}\nDelta Steer Cost: {self.costs[5]:.2f}"""
-        self.ax.text(0.123, 0.685, stats_text, transform=self.ax.transAxes, verticalalignment='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-        self.ax.text(0.123, 0.325, costs_text, transform=self.ax.transAxes, verticalalignment='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        if self.stats is not None:
+            stats_text = f"""Statistics\nAverage Speed: {self.stats[0]:.3f}\nAverage Steer: {self.stats[1]:.3f}\nAverage Delta Speed: {self.stats[2]:.3f}\nAverage Delta Steer: {self.stats[3]:.3f}\nAverage X Error: {self.stats[4]:.3f}\nAverage Y Error: {self.stats[5]:.3f}\nAverage Yaw Error: {self.stats[6]:.3f}"""
+            costs_text = f"""Cost Values\nXY Cost: {self.costs[0]:.2f}\nYaw Cost: {self.costs[1]:.2f}\nV Cost: {self.costs[2]:.2f}\nSteer Cost: {self.costs[3]:.2f}\nDelta V Cost: {self.costs[4]:.2f}\nDelta Steer Cost: {self.costs[5]:.2f}"""
+            self.ax.text(0.123, 0.685, stats_text, transform=self.ax.transAxes, verticalalignment='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            self.ax.text(0.123, 0.325, costs_text, transform=self.ax.transAxes, verticalalignment='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         plt.savefig(output_path)
+    
+if __name__ == '__main__':
+    import os
+    current_path = os.path.dirname(os.path.realpath(__file__))
+    current_path = current_path.replace('/scripts', '/src')
+    robot_states = np.loadtxt(os.path.join(current_path, 'simX.txt'))
+    u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
+    print(robot_states.shape, u.shape)
+    Draw_MPC_tracking(u, robot_states, robot_states, robot_states[0])
 
-    def animation_loop(self, indx):
-        position = self.robot_states[indx][:2]
-        orientation = self.robot_states[indx][2]
-        self.robot_body.center = position
-        self.robot_arr.remove()
-        self.robot_arr = mpatches.Arrow(position[0], position[1], self.rob_radius * np.cos(orientation),
-                                        self.rob_radius * np.sin(orientation), width=0.2, color='r')
-        self.ax.add_patch(self.robot_arr)
-        # self.ax.set_title('MPC Tracking Performance: ' + str(indx)+ ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)))
-        self.ax.set_title(str(indx)+') t:'+ str(round(self.times[indx],2)) + ' v:' + str(round(self.u[indx][0], 2)) + ' steer:' + str(round(self.u[indx][1], 2)) + ' x:' + str(round(self.robot_states[indx,0], 2)) + ' y:' + str(round(self.robot_states[indx,1], 2)) + ' yaw:' + str(round(self.robot_states[indx,2], 2)))
-        return self.robot_arr, self.robot_body
+    
