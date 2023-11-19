@@ -59,16 +59,18 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS} 
   include 
-  /usr/include
-  /usr/lib/gcc/x86_64-linux-gnu/9/include/
-  /usr/include/c++/9/
-  /usr/include/coin
+  # /usr/include
+  # /usr/lib/gcc/x86_64-linux-gnu/9/include/
+  # /usr/include/c++/9/
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src
 )
 
-link_directories(
-  /usr/lib
-  /usr/local/lib 
-)
+# link_directories(
+#   /usr/lib
+#   /usr/local/lib 
+# )
+file(GLOB_RECURSE ALGLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src/*.cpp)
+add_library(alglib SHARED ${ALGLIB_SOURCES})
 
 add_library(ocp_shared_lib SHARED ${ocp_solver} ${casadi_fun} )
 target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
@@ -76,10 +78,17 @@ target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
 add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun})
 target_link_libraries(sim_shared_lib acados hpipm blasfeo)
 
-add_executable(opt src/optimizer.cpp )
+
+add_executable(opt src/optimizer.cpp)
 target_link_libraries(opt 
 ocp_shared_lib 
 sim_shared_lib
+alglib
 ${catkin_LIBRARIES}
+)
+
+add_executable(path_planner src/path_planner.cpp)
+target_link_libraries(path_planner
+alglib
 )
 

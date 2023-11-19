@@ -117,9 +117,9 @@ class Odom():
     
     def plot_data(self):
         # rospy.signal_shutdown("Finished")
-        labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel', 'error vs yaw', 'Accel']
+        labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel', 'error vs yaw', 'Accel', 'XY']
         fig, axs = plt.subplots(2, len(labels), figsize=(35,10))
-        labels = ['X', 'Y', 'Yaw']
+        labels = ['X', 'Y', 'XY']
         fig, axs = plt.subplots(2, len(labels), figsize=(15,10))
 
         groundYaw = (np.array(self.yaw1List)+np.pi)*180/np.pi
@@ -272,6 +272,28 @@ class Odom():
 
                 stats_text_y = f"Y Error - Mean: {mean_error_y:.3f}, SD: {std_dev_y:.3f}, Min: {min_error_y:.3f}, Max: {max_error_y:.3f}, Correlation: {correlation_y:.3f}"
                 axs[1, i].text(0.05, 0.95, stats_text_y, transform=axs[1, i].transAxes, verticalalignment='top')
+            elif label == 'XY':
+                # Plot paths for Ground Truth, EKF, and Odom
+                axs[0, i].plot(groundValues[start_index:end_index, 0], groundValues[start_index:end_index, 1], label='Ground Truth')
+                axs[0, i].plot(measuredEKFValues[start_index:end_index, 0], measuredEKFValues[start_index:end_index, 1], label='EKF')
+                axs[0, i].plot(measuredOdomValues[start_index:end_index, 0], measuredOdomValues[start_index:end_index, 1], label='Odom')
+                axs[0, i].set_title("Path in XY Plane")
+                axs[0, i].set_xlabel("X")
+                axs[0, i].set_ylabel("Y")
+                axs[0, i].legend(loc='upper right')
+                axs[0, i].axis('equal')  # Ensuring equal scaling on both axes
+
+                axs[1, i].plot(groundYaw[start_index:end_index], label='Ground Truth Yaw')
+                axs[1, i].plot(measuredYaw[start_index:end_index], label='Measured Yaw')
+                axs[1, i].set_title(f"{label} Over Time")
+                axs[1, i].legend(loc='lower right')
+
+                # min_error_yaw = np.min(yaw_errors[start_index:end_index])
+                # max_error_yaw = np.max(yaw_errors[start_index:end_index])
+                # mean_error_yaw = np.mean(np.abs(yaw_errors[start_index:end_index]))
+                # sd_error_yaw = np.std(yaw_errors[start_index:end_index])
+                # stats_text = f"Yaw - Min: {min_error_yaw:.3f} Max: {max_error_yaw:.3f} Mean: {mean_error_yaw:.3f} SD: {sd_error_yaw:.3f}"
+                # axs[1, i].text(0.05, 0.95, stats_text, transform=axs[1, i].transAxes, verticalalignment='top')
             else:
                 axs[0, i].plot(groundValues[start_index:end_index, i], label='Ground Truth')
                 axs[0, i].plot(measuredEKFValues[start_index:end_index, i], label='EKF')

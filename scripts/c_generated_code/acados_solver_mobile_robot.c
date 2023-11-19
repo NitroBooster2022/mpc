@@ -351,7 +351,7 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     if (new_time_steps) {
         mobile_robot_acados_update_time_steps(capsule, N, new_time_steps);
     } else {// all time_steps are identical
-        double time_step = 0.25;
+        double time_step = 0.125;
         for (int i = 0; i < N; i++)
         {
             ocp_nlp_in_set(nlp_config, nlp_dims, nlp_in, i, "Ts", &time_step);
@@ -528,8 +528,10 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    ubx[0] = 15;
-    ubx[1] = 15;
+    lbx[0] = -1;
+    ubx[0] = 16;
+    lbx[1] = -1;
+    ubx[1] = 16;
 
     for (int i = 1; i < N; i++)
     {

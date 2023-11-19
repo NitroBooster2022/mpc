@@ -5,16 +5,18 @@ transform_timeout: 0.0
 print_diagnostics: true
 debug: false
 two_d_mode: true
-# initial_state: [9.051532, 0.94, 0.0, 
-#                 0.0, 0.0, 0.000654, 
-#                 0.0, 0.0, 0.0, 
-#                 0.0, 0.0, 0.0, 
-#                 0.0, 0.0, 0.0]
-# initial_estimate_covariance: [0.003, 0.003, 0.003, 
-#                               0.003, 0.003, 0.003, 
-#                               0.003, 0.003, 0.003, 
-#                               0.003, 0.003, 0.003, 
-#                               0.003, 0.003, 0.003]
+smooth_lagged_data: true 
+history_length: 1.57
+initial_state: [0.82, 0.09, 0.0, 
+                0.0, 0.0, 1.570761, 
+                0.0, 0.0, 0.0, 
+                0.0, 0.0, 0.0, 
+                0.0, 0.0, 0.0]
+initial_estimate_covariance: [0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003, 
+                              0.003, 0.003, 0.003]
 
   # values: 
   # [X,Y,Z,
@@ -34,20 +36,8 @@ pose0_config: [true,  true,  false,
                false, false, false,
                false, false, false,
                false, false, false]
-# pose0_queue_size: 10
-# pose0_pose_rejection_threshold: 0.8                 
-# pose0_twist_rejection_threshold: 0.8                
-# pose0_linear_acceleration_rejection_threshold: 0.8  
-# pose0_differential: false
-# pose0_relative: false
-# pose0_nodelay: false
-# pose0_frequency: 30
-# pose0_sensor_timeout: 0.1
-# pose0_transform_time_offset: 0.0
-# pose0_transform_timeout: 0.0
-# pose0_print_diagnostics: true
-# pose0_debug: false
-# pose0_two_d_mode: true
+pose0_queue_size: 10
+pose0_pose_rejection_threshold: 0.357 #0.375 # 1.5m/s * 0.25s                
 
 imu0: /camera/imu
 imu0_config: [false, false, false,
@@ -55,14 +45,31 @@ imu0_config: [false, false, false,
               false, false, false,
               true,  true,  true, 
               true,  true,  true]
+# imu0_config: [false, false, false,
+#               true,  true,  true,
+#               false, false, false,
+#               false,  false,  false, 
+#               false,  false,  false]
 imu0_nodelay: false
 imu0_differential: false
 imu0_relative: false
 # imu0_queue_size: 10
 imu0_pose_rejection_threshold: 0.8                 
 imu0_twist_rejection_threshold: 0.8                
-imu0_linear_acceleration_rejection_threshold: 0.8  
+imu0_linear_acceleration_rejection_threshold: 0.8
 imu0_remove_gravitational_acceleration: false
+
+imu1: /imu
+# imu1_config: [false, false, false,
+#               true,  true,  true,
+#               false, false, false,
+#               true,  true,  true, 
+#               true,  true,  true]
+imu1_config: [false, false, false,
+              true,  true,  true,
+              false, false, false,
+              false,  false,  false, 
+              false,  false,  false]
 
 odom0: /odom
 odom0_config: [true, true, false,
