@@ -44,11 +44,12 @@ class StateMachine:
         self.lock = threading.Lock()
         self.utils = Utility(self.lock, subLane=False, subImu=True, subModel=True, pubOdom=True, useEkf=args.useEkf, subSign=args.sign)
         x0 = np.array([self.utils.gps_x, self.utils.gps_y, self.utils.yaw])
+        thread = threading.Thread(target=self.spin_thread)
+        thread.start()
+        print("creating optimizer..., x0: ", x0)
         self.mpc = Optimizer(gazebo=True, x0 = x0)
         self.mpc.lock = self.lock
         self.rate = rospy.Rate(1/self.mpc.T)
-        thread = threading.Thread(target=self.spin_thread)
-        thread.start()
         # wait until the first state is received
         print("waiting for first state...")
         while not self.utils.initializationFlag:

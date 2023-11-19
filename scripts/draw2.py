@@ -125,9 +125,10 @@ class Draw_MPC_tracking(object):
         return self.robot_arr, self.robot_body
     
     def interpolate_trajectories(self):        
-        print("ref state shape: ", self.ref_states.shape)
+        print("ref state shape1: ", self.ref_states.shape)
         print("robot state shape: ", self.robot_states.shape)
         if len(self.ref_states) == 0:
+            print("No reference states provided. Using robot states as reference.")
             self.ref_states = self.robot_states
         if len(self.ref_states) < len(self.robot_states):
             # extend ref state with extra values in robot state
@@ -136,7 +137,7 @@ class Draw_MPC_tracking(object):
             ref_states = self.ref_states
 
         t = np.linspace(0, 1, len(ref_states))  
-        print("ref state shape: ", ref_states.shape)
+        print("ref state shape2: ", ref_states.shape)
         self.ref_traj_interp_x = interp1d(t, ref_states[:, 0], kind='cubic')
         self.ref_traj_interp_y = interp1d(t, ref_states[:, 1], kind='cubic')
         
@@ -179,9 +180,13 @@ class Draw_MPC_tracking(object):
 if __name__ == '__main__':
     import os
     current_path = os.path.dirname(os.path.realpath(__file__))
+    wpts_x = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_x.txt'))
+    wpts_y = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_y.txt'))
+    ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs.txt'))
+    current_path = current_path.replace('scripts', 'src')
     robot_states = np.loadtxt(os.path.join(current_path, 'simX.txt'))
     u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
     print(robot_states.shape, u.shape)
-    Draw_MPC_tracking(u, robot_states, robot_states, robot_states[0])
+    Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
 
     

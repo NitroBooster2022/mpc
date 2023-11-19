@@ -19,6 +19,7 @@ import casadi as ca
 from acados_template import AcadosModel
 import time
 import yaml
+import argparse
 
 def transform_point(pt, frame1, frame2):
     # Unpack the frames and the point
@@ -126,7 +127,7 @@ class Optimizer(object):
         model.xdot = x_dot
         model.u = controls
         model.p = []
-        model.name = 'park'
+        model.name = 'mobile_robot'
 
         current_path = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(current_path, config_path)
@@ -241,8 +242,8 @@ class Optimizer(object):
         idx = self.target_waypoint_index
         self.next_trajectories = self.state_refs[idx:idx + self.N + 1]
         self.next_controls = self.input_refs[idx:idx + self.N]
-        # self.next_trajectories, self.next_controls = self.path.desired_command_and_trajectory(self.target_waypoint_index)
-        xs = self.state_refs[self.target_waypoint_index]
+        # xs = self.state_refs[idx+ self.N]
+        xs = self.state_refs[idx]
         self.solver.set(self.N, 'yref', xs)
         for j in range(self.N):
             if self.target_waypoint_index+j >= self.state_refs.shape[0]:
@@ -390,6 +391,7 @@ class Optimizer(object):
         index = np.argmin(distances)
         return index, distances[index]
     def find_next_waypoint(self):
+        # start = timeit.default_timer()
         closest_idx, dist_to_waypoint = self.find_closest_waypoint()
         # ensure we're moving forward in the waypoint list, but not jumping too far ahead
         if dist_to_waypoint < self.region_of_acceptance:
@@ -407,6 +409,7 @@ class Optimizer(object):
             self.last_waypoint_index += 1
         # print("dist_to_waypoint: ", dist_to_waypoint, ", closest_idx: ", closest_idx, ", last_waypoint_index: ", self.last_waypoint_index)
         target_idx = max(self.last_waypoint_index, closest_idx)
+        # print("find_next_waypoint time: ", timeit.default_timer() - start)
         return min(target_idx, len(self.waypoints_x) - 1)
     def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None, objects=None, car_states=None):
         if xmin is None:
@@ -465,14 +468,30 @@ class Optimizer(object):
         return stats
    
 if __name__ == '__main__':
+    argparser = argparse.ArgumentParser(description='MPC controller')
+    argparser.add_argument('--save_path', action='store_true', help='save path')
+    args = argparser.parse_args()
+
     x0 = np.array([10, 13.29, np.pi])
     # mpc = Optimizer(x0=x0)
     mpc = Optimizer()
+    if args.save_path:
+        cur_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(cur_path, 'paths')
+        os.makedirs(path, exist_ok=True)
+        name1 = os.path.join(path, 'waypoints_x.txt')
+        np.savetxt(name1, mpc.waypoints_x, fmt='%.8f')
+        print("saved to ", name1)
+        np.savetxt(os.path.join(path,'waypoints_y.txt'), mpc.waypoints_y, fmt='%.8f')
+        np.savetxt(os.path.join(path,'state_refs.txt'), mpc.state_refs, fmt='%.8f')
+        print("stateref shape: ", mpc.state_refs.shape)
+        np.savetxt(os.path.join(path,'input_refs.txt'), mpc.input_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'kappa.txt'), mpc.kappa, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_normals.txt'), mpc.wp_normals, fmt='%.8f')
+        exit()
     # stop when last waypoint is reached
 
-    length = len(mpc.waypoints_x)
     mpc.target_waypoint_index = 0
-    print("length: ", length)
     while True:
         if mpc.target_waypoint_index >= mpc.num_waypoints-1:
         # if mpc.target_waypoint_index >= 375:
@@ -497,7 +516,9 @@ if __name__ == '__main__':
         mpc.xx.append(mpc.current_state)
         mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
-
+    # save current states and controls as txt
+    np.savetxt('x.txt', mpc.xx, fmt='%.8f')
+    np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
     # park_offset = 0.#95
     # mpc.current_state = np.array([park_offset, 0, np.pi])
     # mpc.go_straight(park_offset)

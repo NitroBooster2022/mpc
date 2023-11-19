@@ -126,6 +126,9 @@ class Path:
         for i, length in enumerate(path_lengths):
             print(i, ") path length: ", length)
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
+        # for run,i in zip(runs, range(len(runs))):
+        #     np.savetxt(f"run{i+1}.txt", run, fmt="%.8f")
+        # exit()
         # Combine all runs into a single set of waypoints
         self.waypoints = np.vstack(runs)
         print("waypoints: ", self.waypoints.shape)
@@ -183,6 +186,3 @@ class Path:
         self.state_refs[start_index:end_index,0] += normals[start_index:end_index, 0] * shift_distance
         self.state_refs[start_index:end_index,1] += normals[start_index:end_index, 1] * shift_distance
         return self.state_refs
-
-    def desired_command_and_trajectory(self, index):
-        return self.state_refs[index:index + self.N + 1], self.input_refs[index:index + self.N]

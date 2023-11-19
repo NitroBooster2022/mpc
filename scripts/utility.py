@@ -1,23 +1,46 @@
+#!/usr/bin/env python3
 import rospy
 import tf
 from geometry_msgs.msg import TransformStamped
 import math
-from geometry_msgs.msg import TransformStamped
 import time
+import timeit
 import numpy as np
 from nav_msgs.msg import Odometry
 import tf2_ros
-from std_msgs.msg import Header, String, Float32
+import tf_conversions
+from std_msgs.msg import Header, String
 from robot_localization.srv import SetPose
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from gazebo_msgs.msg import ModelStates
-from utils.msg import IMU, Lane, Sign
+from utils.msg import IMU, Lane, Sign, localisation
 from sensor_msgs.msg import Imu
 from std_srvs.srv import Trigger
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Float64MultiArray, Header, String
+import queue
 
+class gps_data:
+    def __init__(self, x=None, y=None, stamp=None):
+        self.x = x
+        self.y = y
+        self.stamp = stamp
 class Utility:
     def __init__(self, lock, useIMU=True, subLane=False, subSign=False, subModel=False, subImu=False, pubOdom=False, useEkf=False):
+        self.command_msg = Float64MultiArray()
+        self.history_size = 10
+        self.steer_commands = np.zeros(self.history_size)
+        self.steer_commands_time = np.zeros(self.history_size)
+        self.steer_feedbacks_time = np.zeros(self.history_size)
+        self.v_history = np.zeros(self.history_size)
+        self.yaw_history = np.ones(self.history_size)*np.pi/2
+        self.prev_steer = 0
+        self.prev_speed = 0
+        self.prev_yaw = 0
+        self.steer_pointer = 0
+        self.ack_count = 0
+        self.current_steer = 0
+        self.reset_timer = rospy.Time.now() + rospy.Duration(10)
+
         rospy.on_shutdown(self.stop_car)
         self.lock = lock
         self.rateVal = 50.0
@@ -64,7 +87,6 @@ class Utility:
         #timers
         self.timerodom = rospy.Time.now()
         self.initializationTimer = None
-        self.t1 = None
         self.timerpid = None
 
         # Flags
@@ -74,7 +96,7 @@ class Utility:
         self.pose_to_set.header = Header()
         self.pose_to_set.header.frame_id = "chassis"
 
-        covariance_value = 0.01
+        covariance_value = 0.01 * 4
         covariance_matrix = (np.identity(6)*covariance_value).flatten().tolist()
         # covariance_matrix = [covariance_value] * 6 + [0] * 30
         # Publishers
@@ -101,7 +123,7 @@ class Utility:
         print("waiting for model_states message")
         rospy.wait_for_message("/gazebo/model_states", ModelStates)
         print("received message from IMU and model_states")
-        
+
         # Subscribers
         self.model = ModelStates()
         self.imu = IMU()
@@ -112,7 +134,7 @@ class Utility:
             if useIMU:
                 self.imu_sub = rospy.Subscriber("/automobile/IMU", IMU, self.imu_callback, queue_size=3)
             else:
-                self.imu_sub = rospy.Subscriber("/imu", Imu, self.imu_callback, queue_size=3)
+                self.imu_sub = rospy.Subscriber("/camera/imu", Imu, self.imu_callback, queue_size=3)
         if subLane:
             self.lane_sub = rospy.Subscriber("/lane", Lane, self.lane_callback, queue_size=3)
             self.lane = Lane()
@@ -140,10 +162,100 @@ class Utility:
             rospy.wait_for_message("/sign", Sign)
             print("received message from sign")
         if useEkf:
+            rospy.wait_for_service('/set_pose')
             self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
             self.ekf_msg = Odometry()
+        self.max_noise = 0.2
+        self.delay = 1.0
+        self.gps_rate = 4.0
+        self.pos_cov = pow(2*self.max_noise, 2) / 12 + covariance_value * 3
+        rospy.loginfo("Position covariance: %f", self.pos_cov)
+        self.pose_msg = PoseWithCovarianceStamped()
+        covariance = (np.identity(6) * self.pos_cov).flatten().tolist()
+        self.pose_msg.pose.covariance = covariance
+        self.pose_msg.header.frame_id = "odom"
+        self.pose_pub = rospy.Publisher('/gps', PoseWithCovarianceStamped, queue_size=10)
+        self.commands_pub = rospy.Publisher('/commands', Float64MultiArray, queue_size=10)
+        # self.localisation_sub = rospy.Subscriber('/automobile/localisation', localisation, self.localisation_callback)
+        # self.feedback_sub = rospy.Subscriber('/automobile/feedback', String, self.feedback_callback)
 
     # Callbacks
+    def localisation_callback(self, localisation):
+        t1 = timeit.default_timer()
+        time_now = rospy.Time.now()
+        last_time = time_now.to_sec() - self.steer_commands_time[(self.steer_pointer-1)%self.history_size]
+        self.pose_msg.header.stamp = time_now
+        x = localisation.posA
+        y = 15 - localisation.posB
+        time = localisation.header.stamp.to_sec()
+        # time1 = self.steer_commands_time[self.ack_count]
+        # print("time difference: ", (time1 - time))
+        print("t: ", time, ", time_now: ", time_now.to_sec())
+        print("time history: \n", self.steer_commands_time)
+        print("current yaw: ", self.yaw, ", yaw history: \n", self.yaw_history)
+        with self.lock:
+            dt = self.steer_feedbacks_time - time
+            print("dt: \n", dt)
+            mask = dt > 0
+            yaws = self.yaw_history[mask]
+            speeds = self.v_history[mask]
+            steers = self.steer_commands[mask]
+        dt = dt[mask]
+        if len(dt) == 0:
+            print("empty dt")
+            return
+        indices = np.argsort(dt)
+        dt = dt[indices] 
+        yaws = yaws[indices]
+        print("yaws: \n", yaws)
+        speeds = speeds[indices]
+        steers = steers[indices]
+        print("dt2: \n", dt)
+        dt_diff = np.diff(dt, prepend= dt[0]) 
+        dt_diff[0] = dt[0] 
+        # sum_dt = np.sum(dt_diff)
+        # dt_diff[-1] += 1-sum_dt
+        print("dt_diff: \n", dt_diff)
+        for i in range(len(dt_diff)+1):
+            if i == len(dt_diff):
+                t = last_time
+                print("last t: ", t)
+                if t < 0:
+                    break
+                v = speeds[i-1]
+                yaw = yaws[i-1]
+                steer = steers[i-1]
+            else:
+                t = dt_diff[i]
+                v = speeds[i]
+                yaw = yaws[i]
+                steer = steers[i]
+            # steer = steers[i-1]
+            # v = speeds[i-1]
+            # yaw = yaws[i-1]
+            if i == 0:
+                v = self.prev_speed
+                yaw = self.prev_yaw
+                steer = self.prev_steer
+            #     continue
+            dx, dy, _ = self.update_states_rk4(v, steer, dt=t)
+            # dx, dy, _ = self.update_states_rk4(self.velocity, steer, dt=t)
+            # dx, dy, _ = self.update_states_rk4(v, steer, dt=t, yaw=yaw)
+            x += dx
+            y += dy
+        self.pose_msg.pose.pose.position.x = x
+        self.pose_msg.pose.pose.position.y = y
+        self.pose_pub.publish(self.pose_msg)
+        print("time taken: ", timeit.default_timer()-t1)
+    def feedback_callback(self, feedback):
+        if feedback.data[1] == '2': # steer
+            time = rospy.Time.now().to_sec()
+            # sent_time = self.steer_commands_time[self.ack_count]
+            # print("time difference: ", (time - sent_time))
+            self.current_steer = self.steer_commands[self.ack_count]
+            self.steer_feedbacks_time[self.ack_count] = time
+            self.ack_count = (self.ack_count + 1) % self.history_size
+
     def sign_callback(self, sign):
         with self.lock:
             if sign.data:
@@ -165,6 +277,7 @@ class Utility:
             self.publish_odom()
     def ekf_callback(self, ekf):
         with self.lock:
+            # self.ekf = ekf
             self.ekf_x = ekf.pose.pose.position.x
             self.ekf_y = ekf.pose.pose.position.y
     def model_callback(self, model):
@@ -203,20 +316,17 @@ class Utility:
     def process_Imu(self, imu):
         self.yaw = tf.transformations.euler_from_quaternion([imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w])[2]
     def publish_odom(self):
-        try:
-            dt = time.time()-self.t1
-        except:
-            pass
-        self.t1 = time.time()
-
         if self.i is None:
             try:
                 self.i = self.model.name.index("automobile") # index of the car
             except ValueError:
                 pass
         # set yaw
+        # yaw2 = tf.transformations.euler_from_quaternion([self.ekf.pose.pose.orientation.x, self.ekf.pose.pose.orientation.y, self.ekf.pose.pose.orientation.z, self.ekf.pose.pose.orientation.w])[2]
+        # print(f"yaw: {self.yaw:.2f}, yaw2: {yaw2:.2f}")
         self.process_yaw(self.imu)
         self.yaw = np.fmod(self.yaw, 2*math.pi)
+        # print(f"yaw: {self.yaw:.2f}")
         # set velocity
         self.car_inertial = self.model.twist[self.i]
         x_speed = self.car_inertial.linear.x
@@ -236,10 +346,16 @@ class Utility:
             print(f"intializing... gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}")
             self.set_initial_pose(self.gps_x, self.gps_y, self.yaw)
             print(f"odomX: {self.odomX:.2f}, odomY: {self.odomY:.2f}")
-            if self.useEkf:
-                self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
+            # if self.useEkf:
+            #     self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
             return
-        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
+        # dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
+        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.current_steer)
+        # if rospy.Time.now() > self.reset_timer:
+        #     print("resetting odom")
+        #     self.reset_timer = rospy.Time.now() + rospy.Duration(10)
+        #     self.odomX = self.gps_x
+        #     self.odomY = self.gps_y
         self.odomX += dx
         self.odomY += dy
 
@@ -252,11 +368,11 @@ class Utility:
         self.odom_msg.pose.pose.position.x = self.odomX
         self.odom_msg.pose.pose.position.y = self.odomY
         self.odom_msg.pose.pose.position.z = 0.032939
-        quaternion = tf.transformations.quaternion_from_euler(0, 0, self.yaw)
-        self.odom_msg.pose.pose.orientation.x = quaternion[0]
-        self.odom_msg.pose.pose.orientation.y = quaternion[1]
-        self.odom_msg.pose.pose.orientation.z = quaternion[2]
-        self.odom_msg.pose.pose.orientation.w = quaternion[3]
+        self.quaternion = tf.transformations.quaternion_from_euler(0, 0, self.yaw)
+        self.odom_msg.pose.pose.orientation.x = self.quaternion[0]
+        self.odom_msg.pose.pose.orientation.y = self.quaternion[1]
+        self.odom_msg.pose.pose.orientation.z = self.quaternion[2]
+        self.odom_msg.pose.pose.orientation.w = self.quaternion[3]
         self.odom_msg.twist.twist.linear.x = self.velocity*math.cos(self.yaw)
         self.odom_msg.twist.twist.linear.y = self.velocity*math.sin(self.yaw)
         self.odom_pub.publish(self.odom_msg)
@@ -290,7 +406,18 @@ class Utility:
             steering_angle = np.clip(steering_angle, -23, 23)
         self.msg.data = '{"action":"1","speed":'+str(velocity)+'}'
         self.msg2.data = '{"action":"2","steerAngle":'+str(float(steering_angle))+'}'
-        # print(self.msg.data)
+        # with self.lock:
+        #     self.prev_steer = self.steer_commands[self.steer_pointer]
+        #     self.prev_speed = self.v_history[self.steer_pointer]
+        #     self.prev_yaw = self.yaw_history[self.steer_pointer]
+        #     self.steer_commands[self.steer_pointer] = steering_angle
+        #     self.v_history[self.steer_pointer] = self.velocity
+        #     self.yaw_history[self.steer_pointer] = self.yaw
+        #     self.steer_commands_time[self.steer_pointer] = rospy.Time.now().to_sec()
+        #     self.steer_pointer = (self.steer_pointer + 1) % self.history_size
+        # self.command_msg.data = [steering_angle, self.velocity, self.yaw, rospy.Time.now().to_sec()]
+        self.command_msg.data = [steering_angle, velocity, self.yaw, rospy.Time.now().to_sec()]
+        self.commands_pub.publish(self.command_msg)
         self.cmd_vel_pub.publish(self.msg)
         self.cmd_vel_pub.publish(self.msg2)
     def idle(self):
@@ -314,27 +441,30 @@ class Utility:
         self.last = error
         steering_angle = np.clip((error*self.p+d_error*self.d)*180/np.pi, -23, 23)
         return steering_angle
-    def update_states_rk4(self, speed, steering_angle):
+    def update_states_rk4(self, speed, steering_angle, dt=None, yaw=None):
         # dead reckoning odometry using Runge-Kutta 4th order method
-        dt = (rospy.Time.now()-self.timerodom).to_sec()
-        self.timerodom = rospy.Time.now()
+        if dt is None:
+            dt = (rospy.Time.now()-self.timerodom).to_sec()
+            self.timerodom = rospy.Time.now()
+        if yaw is None:
+            yaw = self.yaw
         magnitude = speed * dt * self.odomRatio
         yaw_rate = magnitude * math.tan(-steering_angle*math.pi/180) / self.wheelbase
         
-        k1_x = magnitude * math.cos(self.yaw)
-        k1_y = magnitude * math.sin(self.yaw)
+        k1_x = magnitude * math.cos(yaw)
+        k1_y = magnitude * math.sin(yaw)
         k1_yaw = yaw_rate
 
-        k2_x = magnitude * math.cos(self.yaw + dt/2 * k1_yaw)
-        k2_y = magnitude * math.sin(self.yaw + dt/2 * k1_yaw)
+        k2_x = magnitude * math.cos(yaw + dt/2 * k1_yaw)
+        k2_y = magnitude * math.sin(yaw + dt/2 * k1_yaw)
         k2_yaw = yaw_rate
 
-        k3_x = magnitude * math.cos(self.yaw + dt/2 * k2_yaw)
-        k3_y = magnitude * math.sin(self.yaw + dt/2 * k2_yaw)
+        k3_x = magnitude * math.cos(yaw + dt/2 * k2_yaw)
+        k3_y = magnitude * math.sin(yaw + dt/2 * k2_yaw)
         k3_yaw = yaw_rate
 
-        k4_x = magnitude * math.cos(self.yaw + dt * k3_yaw)
-        k4_y = magnitude * math.sin(self.yaw + dt * k3_yaw)
+        k4_x = magnitude * math.cos(yaw + dt * k3_yaw)
+        k4_y = magnitude * math.sin(yaw + dt * k3_yaw)
         k4_yaw = yaw_rate
 
         dx = 1 / 6 * (k1_x + 2 * k2_x + 2 * k3_x + k4_x)
@@ -343,18 +473,18 @@ class Utility:
         # print(f"dt: {dt:.4f}, magnitude: {magnitude:.4f}, yaw: {self.yaw:.4f}, speed: {speed:.4f}, k1_x: {k1_x:.4f}, k2_x: {k2_x:.4f}, k3_x: {k3_x:.4f}, k4_x: {k4_x:.4f}")
         # print(f"dt: {dt:.4f}, magnitude: {magnitude:.4f}, yaw: {self.yaw:.4f}, speed: {speed:.4f}, dx: {dx:.4f}, dy: {dy:.4f}, dyaw: {dyaw:.4f}, k1_x: {k1_x:.4f}")
         return dx, dy, dyaw
-    def update_states_euler(self, speed, steering_angle):
-        dt = (rospy.Time.now()-self.timerodom).to_sec()
-        self.timerodom = rospy.Time.now()
+    def update_states_euler(self, speed, steering_angle, dt=None, yaw=None):
+        if dt is None:
+            dt = (rospy.Time.now()-self.timerodom).to_sec()
+            self.timerodom = rospy.Time.now()
+        if yaw is None:
+            yaw = self.yaw
         magnitude = speed*dt*self.odomRatio
 
-        odomYaw += magnitude*math.tan(-steering_angle*math.pi/180)/self.wheelbase
-        odomYaw = np.fmod(odomYaw, 2*math.pi) 
-        if odomYaw < 0: #convert to 0-2pi
-            odomYaw += 2*np.pi
-        self.odomX += magnitude * math.cos(self.yaw)
-        self.odomY += magnitude * math.sin(self.yaw)
-        return
+        dYaw = magnitude*math.tan(-steering_angle*math.pi/180)/self.wheelbase
+        dx = magnitude * math.cos(yaw)
+        dy = magnitude * math.sin(yaw)
+        return dx, dy, dYaw
     def object_index(self, obj_id):
         """
         return index of object with id obj_id if it is detected, otherwise return -1
@@ -378,55 +508,7 @@ class Utility:
         if self.numObj == 1:
             return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1]
         return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1, index]
-    # def object_distance(self, obj_id):
-    #     """
-    #     return distance to object with id obj_id if it is detected, otherwise return -1
-    #     """
-    #     # print("num: ", self.numObj)
-    #     if self.numObj < 1:
-    #         return -1
-    #     if self.numObj == 1:
-    #         # print("id: ", self.detected_objects[self.SIGN_VALUES["id"]])
-    #         if self.detected_objects[self.SIGN_VALUES["id"]]==obj_id:
-    #             # print("distance: ", self.detected_objects[self.SIGN_VALUES["distance"]])
-    #             return self.detected_objects[self.SIGN_VALUES["distance"]]
-    #         return -1
-    #     id_array = self.detected_objects[self.SIGN_VALUES["id"]]
-    #     # print("id_array: ", id_array)
-    #     if obj_id in id_array:
-    #         obj_index = np.where(id_array == obj_id)[0][0] # if multiple objects with same id, return the first one
-    #         # print("obj_index: ", obj_index)
-    #         # print("distance: ", self.detected_objects[self.SIGN_VALUES["distance"], obj_index])
-    #         return self.detected_objects[self.SIGN_VALUES["distance"], obj_index]
-    #     return -1
-    # def object_box(self, obj_id):
-    #     """
-    #     return box of object with id obj_id if it is detected, otherwise return None
-    #     """
-    #     if self.numObj < 1:
-    #         return None
-    #     if self.numObj == 1:
-    #         if self.detected_objects[self.SIGN_VALUES["id"]]==obj_id:
-    #             return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1]
-    #         return None
-    #     id_array = self.detected_objects[self.SIGN_VALUES["id"]]
-    #     if obj_id in id_array:
-    #         obj_index = np.where(id_array == obj_id)[0][0]
-    #         return self.detected_objects[self.SIGN_VALUES["x1"]:self.SIGN_VALUES["y2"]+1, obj_index]
     
-    def check_size(self, obj_id, index):
-        #checks whether a detected object is within a certain min and max sizes defined by the obj type
-        #box[0] is x, box[1] is y, box[2] is width, box[3] is height
-        box = self.box1 if index==0 else self.box2
-        conf = self.confidence[index]
-        size = max(box[2], box[3]) #width or height
-        if obj_id==12:
-            size = min(box[2], box[3])
-        if obj_id==10:
-            conf_thresh = 0.35
-        else:
-            conf_thresh = 0.8
-        return size >= self.min_sizes[obj_id] and size <= self.max_sizes[obj_id] and conf >= conf_thresh #check this
     def get_current_orientation(self):
         hsy = 0
         while self.yaw > 2 * np.pi:
@@ -522,3 +604,10 @@ class Utility:
         t_camera.transform.rotation.z = qtn[2]
         t_camera.transform.rotation.w = qtn[3]
         static_transforms.append(t_camera)
+
+if __name__ == "__main__":
+    import threading
+    lock = threading.Lock()
+    rospy.init_node("utility", anonymous=True)
+    utility = Utility(lock)
+    rospy.spin()
