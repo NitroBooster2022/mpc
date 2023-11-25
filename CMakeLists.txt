@@ -15,19 +15,19 @@ include_directories($ENV{ACADOS_SOURCE_DIR}/include)
 include_directories($ENV{ACADOS_SOURCE_DIR}/include/blasfeo/include)
 include_directories($ENV{ACADOS_SOURCE_DIR}/include/hpipm/include)
 include_directories($ENV{ACADOS_SOURCE_DIR}/include/acados)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code)
 link_directories($ENV{ACADOS_SOURCE_DIR}/lib)
 file(GLOB ocp_solver
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/acados_solver_mobile_robot.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_solver_mobile_robot.c
         )
 
 file(GLOB casadi_fun
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_ode_fun.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_forw.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_ode_fun.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_forw.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c)
 
 file(GLOB sim_solver
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/c_generated_code/acados_sim_solver_mobile_robot.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_sim_solver_mobile_robot.c
         )
 
 find_package(catkin REQUIRED COMPONENTS
@@ -41,6 +41,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf
   message_generation
+  utils
 )
 
 
@@ -78,8 +79,15 @@ target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
 add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun})
 target_link_libraries(sim_shared_lib acados hpipm blasfeo)
 
+add_executable(path_planner src/path_planner.cpp)
+target_link_libraries(path_planner
+alglib
+)
 
-add_executable(opt src/optimizer.cpp)
+add_executable(opt
+src/optimizer_main.cpp
+src/optimizer.cpp
+)
 target_link_libraries(opt 
 ocp_shared_lib 
 sim_shared_lib
@@ -87,8 +95,23 @@ alglib
 ${catkin_LIBRARIES}
 )
 
-add_executable(path_planner src/path_planner.cpp)
-target_link_libraries(path_planner
+add_executable(utility 
+src/utility_main.cpp
+src/utility.cpp
+)
+target_link_libraries(utility
+${catkin_LIBRARIES}
+)
+
+add_executable(controller 
+src/controller.cpp
+src/optimizer.cpp
+src/utility.cpp
+)
+target_link_libraries(controller
 alglib
+ocp_shared_lib 
+sim_shared_lib
+${catkin_LIBRARIES}
 )
 

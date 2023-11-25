@@ -1,6 +1,7 @@
 #include <iostream>
 #include <eigen3/Eigen/Dense>
 #include <interpolation.h> // Alglib header for spline interpolation
+#include <alglibinternal.h> 
 #include <cmath>
 #include <vector>
 #include <optional>
@@ -9,8 +10,9 @@
 #include <string>
 #include <limits>
 
-Eigen::MatrixXd load(std::string& file_path) {
-        std::ifstream file(filename);
+Eigen::MatrixXd load(const std::string& file_path) {
+        std::cout << "Loading file: " << file_path << std::endl;
+        std::ifstream file(file_path);
         if (!file.is_open()) {
             throw std::runtime_error("Unable to open file");
         }
@@ -58,19 +60,23 @@ std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd> compute_smooth_cur
     }
 
     spline1dinterpolant spline_x, spline_y;
-    spline1dbuildcubic(t, x, spline_x);
-    spline1dbuildcubic(t, y, spline_y);
+    alglib::spline1dbuildcubic(t, x, spline_x);
+    alglib::spline1dbuildcubic(t, y, spline_y);
 
     // Step 2: Get smoothed derivatives of the path
     Eigen::VectorXd dx_dt(n_points), dy_dt(n_points);
     Eigen::VectorXd ddx_dt(n_points), ddy_dt(n_points);
-
+    double v, dv, ddv;
     for (int i = 0; i < n_points; ++i) {
         double ti = static_cast<double>(i) / (n_points - 1);
-        dx_dt[i] = spline1dderivative(spline_x, ti);
-        dy_dt[i] = spline1dderivative(spline_y, ti);
-        ddx_dt[i] = spline1dsecond_derivative(spline_x, ti);
-        ddy_dt[i] = spline1dsecond_derivative(spline_y, ti);
+        
+        alglib::spline1ddiff(spline_x, ti, v, dv, ddv);
+        dx_dt[i] = dv;
+        ddx_dt[i] = ddv;
+
+        alglib::spline1ddiff(spline_y, ti, v, dv, ddv);
+        dy_dt[i] = dv;
+        ddy_dt[i] = ddv;
     }
 
     // Step 3: Compute curvature
@@ -97,7 +103,8 @@ std::tuple<Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd> compute_smooth_cur
     return std::make_tuple(curvature, tangent_angles, normals);
 }
 
-Eigen::MatrixXd interpolateWaypoints(Eigen::MatrixXd& waypoints, int numPoints) {
+Eigen::MatrixXd interpolate_waypoints(Eigen::MatrixXd& waypoints, int numPoints) {
+    std::cout << "Interpolating waypoints from " << waypoints.rows() << " to " << numPoints << std::endl;
     using namespace alglib;
 
     // Extract x and y coordinates
@@ -106,15 +113,20 @@ Eigen::MatrixXd interpolateWaypoints(Eigen::MatrixXd& waypoints, int numPoints) 
         x[i] = waypoints(i, 0);
         y[i] = waypoints(i, 1);
     }
+    std::cout << "x: " << x.size() << ", y: " << y.size() << std::endl;
 
     alglib::real_1d_array alglib_x, alglib_y;
     alglib_x.setcontent(x.size(), x.data());
     alglib_y.setcontent(y.size(), y.data());
 
+    std::cout << "alglib_x: " << alglib_x.length() << ", alglib_y: " << alglib_y.length() << std::endl;
+
     alglib::spline1dinterpolant s;
     // Now call the function with the correct alglib types
     alglib::spline1dbuildcubic(alglib_x, alglib_y, s);
     // spline1dbuildcubic(x.data(), y.data(), waypoints.rows(), 0, 0.0, 0, 0.0, s);
+
+    std::cout << "created spline" << std::endl;
 
     // Generate new waypoints
     Eigen::MatrixXd newWaypoints(numPoints, 2);
@@ -124,6 +136,8 @@ Eigen::MatrixXd interpolateWaypoints(Eigen::MatrixXd& waypoints, int numPoints) 
         newWaypoints(i, 0) = spline1dcalc(s, u);
         newWaypoints(i, 1) = spline1dcalc(s, u);
     }
+
+    std::cout << "Generated new waypoints" << std::endl;
 
     return newWaypoints;
 }
@@ -172,7 +186,8 @@ Eigen::VectorXd smooth_yaw_angles(Eigen::VectorXd& yaw_angles) {
 
 class Path {
 public:
-    double v_ref, density, region_of_acceptance;
+    double v_ref, density, region_of_acceptance, T;
+    std::string name;
     int N, num_waypoints;
     Eigen::MatrixXd waypoints;
     bool x0_initialized;
@@ -183,11 +198,12 @@ public:
     Path(double v_ref, int N, double T, const std::optional<Eigen::Vector3d>& x0 = std::nullopt, const std::string& name = "speedrun")
         : v_ref(v_ref), N(N), T(T), name(name), x0_initialized(false)
     {
-        std::string path = "mpc/scripts";
+        std::string path = "/home/simonli/Simulator/src/mpc/scripts/";
         // Load runs from files
         std::vector<Eigen::MatrixXd> runs = {load(path+"run1.txt"), load(path+"run2.txt"), load(path+"run3.txt"), load(path+"run4.txt"), load(path+"run5.txt")};
         
         if(x0) {
+            std::cout << "x0: " << x0.value() << std::endl;
             this->x0 = x0.value(); 
             x0_initialized = true;
             runs = findAndModifyClosestRun(runs, x0.value());
@@ -195,6 +211,7 @@ public:
 
         density = 1.0 / std::abs(v_ref) / T; // wp/m
         region_of_acceptance = 0.05 / 10 * density;
+        std::cout << "Density: " << density << ", region_of_acceptance: " << region_of_acceptance << std::endl;
         // Calculate path lengths and interpolate waypoints
         for (size_t i = 0; i < runs.size(); ++i) {
             double length = calculatePathLength(runs[i]);
@@ -240,6 +257,7 @@ private:
             length += (run.row(i) - run.row(i - 1)).norm();
         }
 
+        std::cout << "Path length: " << length << std::endl;
         return length;
     }
 

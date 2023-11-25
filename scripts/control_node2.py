@@ -104,8 +104,8 @@ class StateMachine:
             self.rate.sleep()
     def run(self):
         # stop when last waypoint is reached
-        length = len(self.mpc.waypoints_x)
-        print("length: ", length)
+        # length = len(self.mpc.waypoints_x)
+        # print("length: ", length)
         timer = rospy.Time.now()
         while True:
             if self.mpc.target_waypoint_index >= self.mpc.num_waypoints-1:

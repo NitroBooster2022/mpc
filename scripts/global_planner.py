@@ -8,6 +8,7 @@ class GlobalPlanner:
     def __init__(self):
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.G = nx.read_graphml(self.current_dir + '/maps/Competition_track_graph_mod.graphml')
+        # self.G = nx.read_graphml(self.current_dir + '/maps/Competition_track_graph.graphml')
         self.pos = {}
         self.intersection = {}
         for node, data in self.G.nodes(data=True):
@@ -52,6 +53,7 @@ class GlobalPlanner:
     def illustrate_path(self, start, end):
         _, path_edges = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/map.png')
+        # img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         print("img: ", img.shape)
         # Create the plot
         fig, ax = plt.subplots()
