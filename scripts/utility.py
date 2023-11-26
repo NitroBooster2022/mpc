@@ -17,13 +17,7 @@ from utils.msg import IMU, Lane, Sign, localisation
 from sensor_msgs.msg import Imu
 from std_srvs.srv import Trigger
 from std_msgs.msg import Float32MultiArray, Float64MultiArray, Header, String
-import queue
 
-class gps_data:
-    def __init__(self, x=None, y=None, stamp=None):
-        self.x = x
-        self.y = y
-        self.stamp = stamp
 class Utility:
     def __init__(self, lock, useIMU=True, subLane=False, subSign=False, subModel=False, subImu=False, pubOdom=False, useEkf=False):
         self.command_msg = Float64MultiArray()
@@ -144,16 +138,6 @@ class Utility:
             self.timerpid = rospy.Time.now()
             self.last = 0
         if subSign:
-            # self.numObj = -1
-            # self.detected_objects = []
-            # self.box1 = []
-            # self.box2 = []
-            # self.box3 = []
-            # self.confidence = []
-            # self.distances = []
-            # self.min_sizes = [25,25,60,50,45,35,30,25,25,130,75,72,70]
-            # self.max_sizes = [100,75,125,100,120,125,70,75,100,350,170,250,320]
-            # self.sign_sub = rospy.Subscriber("/sign", Sign, self.sign_callback, queue_size=3)
             self.detected_objects = np.array([])
             self.numObj = -1
             self.sign_sub = rospy.Subscriber("/sign", Float32MultiArray, self.sign_callback, queue_size=3)
@@ -321,9 +305,7 @@ class Utility:
                 self.i = self.model.name.index("automobile") # index of the car
             except ValueError:
                 pass
-        # set yaw
-        # yaw2 = tf.transformations.euler_from_quaternion([self.ekf.pose.pose.orientation.x, self.ekf.pose.pose.orientation.y, self.ekf.pose.pose.orientation.z, self.ekf.pose.pose.orientation.w])[2]
-        # print(f"yaw: {self.yaw:.2f}, yaw2: {yaw2:.2f}")
+
         self.process_yaw(self.imu)
         self.yaw = np.fmod(self.yaw, 2*math.pi)
         # print(f"yaw: {self.yaw:.2f}")
@@ -349,13 +331,8 @@ class Utility:
             # if self.useEkf:
             #     self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
             return
-        # dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
-        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.current_steer)
-        # if rospy.Time.now() > self.reset_timer:
-        #     print("resetting odom")
-        #     self.reset_timer = rospy.Time.now() + rospy.Duration(10)
-        #     self.odomX = self.gps_x
-        #     self.odomY = self.gps_y
+        # dx, dy, dyaw = self.update_states_rk4(self.velocity, self.current_steer)
+        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer)
         self.odomX += dx
         self.odomY += dy
 
@@ -572,21 +549,20 @@ class Utility:
         static_transforms.append(t_laser)
 
         # chassis -> imu
-        t_laser = TransformStamped()
-        t_laser.header.stamp = rospy.Time.now()
-        t_laser.header.frame_id = "chassis"
-        t_laser.child_frame_id = "imu0"
+        t_imu0 = TransformStamped()
+        t_imu0.header.stamp = rospy.Time.now()
+        t_imu0.header.frame_id = "chassis"
+        t_imu0.child_frame_id = "imu0"
         joint_x, joint_y, joint_z = 0, 0, 0
         link_x, link_y, link_z = 0, 0, 0.0
-        t_laser.transform.translation.x = joint_x + link_x
-        t_laser.transform.translation.y = joint_y + link_y
-        t_laser.transform.translation.z = joint_z + link_z
-        t_laser.transform.rotation.x = 0
-        t_laser.transform.rotation.y = 0
-        t_laser.transform.rotation.z = 0
-        t_laser.transform.rotation.w = 1
-        static_transforms.append(t_laser)
-        self.static_broadcaster.sendTransform(static_transforms)
+        t_imu0.transform.translation.x = joint_x + link_x
+        t_imu0.transform.translation.y = joint_y + link_y
+        t_imu0.transform.translation.z = joint_z + link_z
+        t_imu0.transform.rotation.x = 0
+        t_imu0.transform.rotation.y = 0
+        t_imu0.transform.rotation.z = 0
+        t_imu0.transform.rotation.w = 1
+        static_transforms.append(t_imu0)
 
         t_camera = TransformStamped()
         t_camera.header.stamp = rospy.Time.now()
@@ -604,6 +580,7 @@ class Utility:
         t_camera.transform.rotation.z = qtn[2]
         t_camera.transform.rotation.w = qtn[3]
         static_transforms.append(t_camera)
+        self.static_broadcaster.sendTransform(static_transforms)
 
 if __name__ == "__main__":
     import threading

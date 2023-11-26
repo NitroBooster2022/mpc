@@ -185,6 +185,10 @@ if __name__ == '__main__':
     ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs.txt'))
     current_path = current_path.replace('scripts', 'src')
     robot_states = np.loadtxt(os.path.join(current_path, 'simX.txt'))
+    if len(wpts_x) > len(robot_states):
+        wpts_x = wpts_x[:len(robot_states)]
+        wpts_y = wpts_y[:len(robot_states)]
+        ref_states = ref_states[:len(robot_states)]
     u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
     print(robot_states.shape, u.shape)
     Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')

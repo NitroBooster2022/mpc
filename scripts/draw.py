@@ -125,9 +125,10 @@ class Draw_MPC_tracking(object):
         return self.robot_arr, self.robot_body
     
     def interpolate_trajectories(self):        
-        print("ref state shape: ", self.ref_states.shape)
+        print("ref state shape1: ", self.ref_states.shape)
         print("robot state shape: ", self.robot_states.shape)
         if len(self.ref_states) == 0:
+            print("No reference states provided. Using robot states as reference.")
             self.ref_states = self.robot_states
         if len(self.ref_states) < len(self.robot_states):
             # extend ref state with extra values in robot state
@@ -136,7 +137,7 @@ class Draw_MPC_tracking(object):
             ref_states = self.ref_states
 
         t = np.linspace(0, 1, len(ref_states))  
-        print("ref state shape: ", ref_states.shape)
+        print("ref state shape2: ", ref_states.shape)
         self.ref_traj_interp_x = interp1d(t, ref_states[:, 0], kind='cubic')
         self.ref_traj_interp_y = interp1d(t, ref_states[:, 1], kind='cubic')
         

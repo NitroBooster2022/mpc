@@ -1,3 +1,4 @@
+#include "optimizer.hpp"
 #include <chrono>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,105 +15,7 @@
 #include "acados_sim_solver_mobile_robot.h"
 #include "acados_solver_mobile_robot.h"
 
-// Helper functions
-std::string getSourceDirectory() {
-    std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
-    size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
-    if (last_dir_sep == std::string::npos) {
-        last_dir_sep = file_path.rfind('\\');  // For Windows path
-    }
-    if (last_dir_sep != std::string::npos) {
-        return file_path.substr(0, last_dir_sep);  // Extract directory path
-    }
-    return "";  // Return empty string if path not found
-}
-template <typename EigenType>
-void saveToFile(const EigenType &data, const std::string &filename) {
-    std::string dir = getSourceDirectory();
-    std::string file_path = dir + "/" + filename;
-    std::ofstream file(file_path);
-    if (file.is_open()) {
-        file << data << "\n";
-    } else {
-        std::cerr << "Unable to open file: " << filename << std::endl;
-    }
-    file.close();
-    std::cout << "Saved to " << file_path << std::endl;
-}
-Eigen::MatrixXd loadTxt(const std::string &filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        throw std::runtime_error("Unable to open file");
-    }
-
-    std::string line;
-    std::vector<double> matrixEntries;
-    int numRows = 0;
-    int numCols = -1;
-
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        double num;
-        std::vector<double> lineEntries;
-
-        while (iss >> num) {
-            lineEntries.push_back(num);
-        }
-
-        if (numCols == -1) {
-            numCols = lineEntries.size();
-        } else if (lineEntries.size() != numCols) {
-            throw std::runtime_error("Inconsistent number of columns");
-        }
-
-        matrixEntries.insert(matrixEntries.end(), lineEntries.begin(), lineEntries.end());
-        numRows++;
-    }
-
-    // Use Eigen::Map with row-major layout
-    return Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(matrixEntries.data(), numRows, numCols);
-}
-
-class MobileRobotController {
-private:
-    int status; // acados operation state
-    int idxbx0[3];
-    double min_time;
-    double elapsed_time;
-    double x_state[5];
-    double x_current[3];
-    double u_current[2];
-    int N, nx, nu;
-    int target_waypoint_index, last_waypoint_index, num_waypoints;
-    double region_of_acceptance, t0, T;
-    Eigen::Vector3d current_state;
-    Eigen::MatrixXd state_refs, input_refs;
-    Eigen::VectorXd distances;
-
-    mobile_robot_solver_capsule *acados_ocp_capsule;
-    mobile_robot_sim_solver_capsule *sim_capsule;
-    sim_config *mobile_robot_sim_config;
-    void *mobile_robot_sim_dims;
-    sim_in *mobile_robot_sim_in;
-    sim_out *mobile_robot_sim_out;
-    ocp_nlp_config *nlp_config;
-    ocp_nlp_dims *nlp_dims;
-    ocp_nlp_in *nlp_in;
-    ocp_nlp_out *nlp_out;
-
-    Eigen::MatrixXd simX, simU;
-    Eigen::VectorXd time_record, x_errors, y_errors, yaw_errors;
-
-public:
-    MobileRobotController();
-    int run(); 
-    int update_and_solve();
-    void integrate_next_states();
-    int find_next_waypoint();
-    Eigen::VectorXd computeStats();
-};
-
-MobileRobotController::MobileRobotController() {
+Optimizer::Optimizer(double x_init, double y_init, double yaw_init) {
     // Initialize member variables
     min_time = 1e12;
     status = 0; // Assuming 0 is a default 'no error' state
@@ -154,13 +57,13 @@ MobileRobotController::MobileRobotController() {
     printf("N = %d, nx = %d, nu = %d\n", N, nx, nu);
 
     // Initialize target, current state and state variables
-    x_current[0] = 0.83;
-    x_current[1] = 0.33;
-    x_current[2] = 1.65756;
-    //14.17        0.33        1.48402932
-    x_current[0] = 14.17;
-    x_current[1] = 0.33;
-    x_current[2] = 1.48402932;
+    x_current[0] = x_init;
+    x_current[1] = y_init;
+    x_current[2] = yaw_init;
+
+    // x_current[0] = 14.17;
+    // x_current[1] = 0.33;
+    // x_current[2] = 1.48402932;
 
     x_state[0] = 0.0;
     x_state[1] = 0.0;
@@ -186,7 +89,7 @@ MobileRobotController::MobileRobotController() {
     time_record = Eigen::VectorXd::Zero(len, nu);
 }
 
-int MobileRobotController::run() {
+int Optimizer::run() {
     std::cout.precision(3);
     int hsy = 0;
     Eigen::VectorXd x_final = state_refs.row(state_refs.rows() - 1);
@@ -227,7 +130,7 @@ int MobileRobotController::run() {
     return status;
 }
 
-int MobileRobotController::update_and_solve() {
+int Optimizer::update_and_solve() {
     target_waypoint_index = find_next_waypoint();
     int idx = target_waypoint_index;
 
@@ -270,10 +173,13 @@ int MobileRobotController::update_and_solve() {
 
     // Get the optimal control for the next step
     ocp_nlp_out_get(nlp_config, nlp_dims, nlp_out, 0, "u", &u_current);
+
+    //debug
+    std::cout << "x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
     return 0;
 }
 
-void MobileRobotController::integrate_next_states() {
+void Optimizer::integrate_next_states() {
     // Set the current state and control input for the simulation
     sim_in_set(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_in, "x", x_current);
     sim_in_set(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_in, "u", u_current);
@@ -290,7 +196,7 @@ void MobileRobotController::integrate_next_states() {
     t0 += T;
 }
 
-int MobileRobotController::find_next_waypoint() {
+int Optimizer::find_next_waypoint() {
     // auto start = std::chrono::high_resolution_clock::now();
 
     // Calculate distances to each waypoint
@@ -346,8 +252,35 @@ int MobileRobotController::find_next_waypoint() {
     // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
     return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
-
-Eigen::VectorXd MobileRobotController::computeStats() {
+void Optimizer::update_current_states(double x, double y, double yaw) {
+    if(target_waypoint_index < state_refs.rows()) {
+        double ref_yaw = state_refs(target_waypoint_index, 2);
+        while (ref_yaw - yaw > M_PI) {
+            yaw += 2 * M_PI;
+        }
+        while (ref_yaw - yaw < -M_PI) {
+            yaw -= 2 * M_PI;
+        }
+    }
+    x_current[0] = x;
+    x_current[1] = y;
+    x_current[2] = yaw;
+}
+void Optimizer::update_real_states(double x, double y, double yaw) {
+    if(target_waypoint_index < state_refs.rows()) {
+        double ref_yaw = state_refs(target_waypoint_index, 2);
+        while (ref_yaw - yaw > M_PI) {
+            yaw += 2 * M_PI;
+        }
+        while (ref_yaw - yaw < -M_PI) {
+            yaw -= 2 * M_PI;
+        }
+    }
+    x_current[0] = x;
+    x_current[1] = y;
+    x_current[2] = yaw;
+}
+Eigen::VectorXd Optimizer::computeStats() {
     // Calculate averages for speed and steer
     double average_speed = simU.col(0).mean();
     double average_steer = simU.col(1).mean();
@@ -380,7 +313,67 @@ Eigen::VectorXd MobileRobotController::computeStats() {
                 average_x_error, average_y_error, average_yaw_error;
     return stats;
 }
-int main() {
-    MobileRobotController controller;
-    return controller.run();
+
+// Helper functions
+std::string Optimizer::getSourceDirectory() {
+    std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
+    size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
+    if (last_dir_sep == std::string::npos) {
+        last_dir_sep = file_path.rfind('\\');  // For Windows path
+    }
+    if (last_dir_sep != std::string::npos) {
+        return file_path.substr(0, last_dir_sep);  // Extract directory path
+    }
+    return "";  // Return empty string if path not found
 }
+template <typename EigenType>
+void Optimizer::saveToFile(const EigenType &data, const std::string &filename) {
+    std::string dir = getSourceDirectory();
+    std::string file_path = dir + "/" + filename;
+    std::ofstream file(file_path);
+    if (file.is_open()) {
+        file << data << "\n";
+    } else {
+        std::cerr << "Unable to open file: " << filename << std::endl;
+    }
+    file.close();
+    std::cout << "Saved to " << file_path << std::endl;
+}
+Eigen::MatrixXd Optimizer::loadTxt(const std::string &filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Unable to open file");
+    }
+
+    std::string line;
+    std::vector<double> matrixEntries;
+    int numRows = 0;
+    int numCols = -1;
+
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        double num;
+        std::vector<double> lineEntries;
+
+        while (iss >> num) {
+            lineEntries.push_back(num);
+        }
+
+        if (numCols == -1) {
+            numCols = lineEntries.size();
+        } else if (lineEntries.size() != numCols) {
+            throw std::runtime_error("Inconsistent number of columns");
+        }
+
+        matrixEntries.insert(matrixEntries.end(), lineEntries.begin(), lineEntries.end());
+        numRows++;
+    }
+
+    // Use Eigen::Map with row-major layout
+    return Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(matrixEntries.data(), numRows, numCols);
+}
+// int main() {
+//     Optimizer controller;
+//     controller.run();
+//     return 0;
+// }
