@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <cmath>
+// #include <math.h>
 // #include <interpolation.h> // Alglib header for spline interpolation
 
 #include <Eigen/Dense>
@@ -15,7 +16,9 @@
 #include "acados_sim_solver_mobile_robot.h"
 #include "acados_solver_mobile_robot.h"
 
-Optimizer::Optimizer(double x_init, double y_init, double yaw_init) {
+Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init):
+    T(T), N(N), v_ref(v_ref)
+ {
     // Initialize member variables
     min_time = 1e12;
     status = 0; // Assuming 0 is a default 'no error' state
@@ -115,22 +118,19 @@ int Optimizer::run() {
             simX(hsy, ii) = x_current[ii];
         }
         hsy++;
-    } 
-    simX.conservativeResize(hsy, Eigen::NoChange);
-    simU.conservativeResize(hsy, Eigen::NoChange);
-    time_record.conservativeResize(hsy, Eigen::NoChange);
-    printf("average estimation time %f ms \n", time_record.mean());
-    printf("max estimation time %f ms \n", time_record.maxCoeff());
-    printf("min estimation time %f ms \n", time_record.minCoeff());
-    Eigen::VectorXd stats = computeStats();
-    saveToFile(simX, "simX.txt");
-    saveToFile(simU, "simU.txt");
-    // saveToFile(time_record, "time_record.txt"); 
-    saveToFile(stats, "stats.txt");
+    }
+    Eigen::VectorXd stats = computeStats(hsy);
     return status;
 }
 
 int Optimizer::update_and_solve() {
+    auto t_start = std::chrono::high_resolution_clock::now();
+    if(debug) {
+        x_errors(iter) = state_refs(target_waypoint_index, 0) - x_current[0];
+        y_errors(iter) = state_refs(target_waypoint_index, 1) - x_current[1];
+        yaw_errors(iter) = state_refs(target_waypoint_index, 2) - x_current[2];
+        // auto t_start = std::chrono::high_resolution_clock::now();
+    }
     target_waypoint_index = find_next_waypoint();
     int idx = target_waypoint_index;
 
@@ -175,7 +175,21 @@ int Optimizer::update_and_solve() {
     ocp_nlp_out_get(nlp_config, nlp_dims, nlp_out, 0, "u", &u_current);
 
     //debug
-    std::cout << "x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
+    double error = (x_current[0] - state_refs(idx, 0)) * (x_current[0] - state_refs(idx, 0)) + (x_current[1] - state_refs(idx, 1)) * (x_current[1] - state_refs(idx, 1));
+    if (debug) {
+        auto t_end = std::chrono::high_resolution_clock::now();
+        double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+        // std::cout << "elapsed time: " << elapsed_time_ms << " ms" << std::endl;
+        time_record(iter) = elapsed_time_ms;
+        for(int i=0; i<nu; i++) {
+            simU(iter, i) = u_current[i];
+        }
+        for(int ii=0; ii<nx; ii++) {
+            simX(iter, ii) = x_current[ii];
+        }
+        // std::cout << iter<< ") x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
+        iter++;
+    }
     return 0;
 }
 
@@ -201,14 +215,14 @@ int Optimizer::find_next_waypoint() {
 
     // Calculate distances to each waypoint
     // current_state << x_current[0], x_current[1], x_current[2];
-    // for (int i = 0; i < waypoints_x.size(); ++i) {
+    // distances = Eigen::VectorXd::Zero(state_refs.rows());
+    // for (int i = 0; i < state_refs.rows(); ++i) {
     //     distances(i) = (Eigen::Vector2d(state_refs(i,0), state_refs(i,1)) - current_state.head(2)).norm();
     // }
-
     // // Find the index of the closest waypoint
     // Eigen::VectorXd::Index closest_idx;
-    // double min_distance = distances.minCoeff(&closest_idx);
-
+    // double min_distance_sq = pow(distances.minCoeff(&closest_idx), 2);
+    
     // Update current state only once
     current_state << x_current[0], x_current[1] , x_current[2];
 
@@ -219,8 +233,12 @@ int Optimizer::find_next_waypoint() {
     Eigen::VectorXd::Index closest_idx;
     double min_distance_sq = std::numeric_limits<double>::max();
 
-    int min_index = std::max(last_waypoint_index - 37, 0); //0;
-    int max_index = std::min(last_waypoint_index + 37, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
+
+    int min_index = std::max(last_waypoint_index - limit, 0); //0;
+    int max_index = std::min(last_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    // int min_index = 0;
+    // int max_index = state_refs.rows() - 1;
     for (int i = min_index; i < max_index; ++i) {
         double distance_sq = (state_refs.row(i).head(2).squaredNorm() 
                            - 2 * state_refs.row(i).head(2).dot(current_state.head(2))
@@ -231,26 +249,53 @@ int Optimizer::find_next_waypoint() {
             closest_idx = i;
         }
     }
-    // Determine the next waypoint
-    if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
-        if (closest_idx - last_waypoint_index < 15) {
-            last_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_idx) + 1);
-        } else {
-            closest_idx = last_waypoint_index;
-        }
-    } else {
-        if (closest_idx - last_waypoint_index > 15) {
-            closest_idx = last_waypoint_index + 1;
-        }
-        last_waypoint_index++;
-    }
 
-    // print current state, closest point, closest index
-    int target_idx = std::max(last_waypoint_index, static_cast<int>(closest_idx));
-    auto finish = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> elapsed = finish - start;
-    // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
-    return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
+    //1
+    // last_waypoint_index = target_waypoint_index;
+    // target_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_idx));
+    // return std::min(target_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
+
+    //2
+    last_waypoint_index = target_waypoint_index;
+    if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
+        std::cout << "min_distance_sq: " << min_distance_sq << std::endl;
+        target_waypoint_index ++;
+    }
+    if (closest_idx > target_waypoint_index) {
+        target_waypoint_index = closest_idx;
+    } else if (closest_idx + limit/3 < target_waypoint_index) {
+        std::cout << "discontinuity" << std::endl;
+        target_waypoint_index = closest_idx + 1;
+    }
+    double dist = sqrt(min_distance_sq);
+    // std::cout << "cur:" << current_state[0] << "," << current_state[1] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
+    std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
+    return std::min(target_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
+
+    // Determine the next waypoint
+    // if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
+    //     if (closest_idx - last_waypoint_index < 15) {
+    //         last_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_idx) + 1);
+    //     } else {
+    //         closest_idx = last_waypoint_index;
+    //     }
+    // } else {
+    //     if (closest_idx > last_waypoint_index + 15) {
+    //         // closest_idx = last_waypoint_index + 1;
+    //         closest_idx = last_waypoint_index;
+    //     }
+    //     last_waypoint_index++;
+    // }
+
+    // // print current state, closest point, closest index, target index
+    // int target_idx = std::max(last_waypoint_index, static_cast<int>(closest_idx));
+    // double dist = sqrt(min_distance_sq);
+    // // std::cout << "dist: " << dist<< ", cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", closest_idx:" << closest_idx << ", target_idx:" << target_waypoint_index << std::endl;
+    // std::cout << "cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
+    // // auto finish = std::chrono::high_resolution_clock::now();
+    // // std::chrono::duration<double> elapsed = finish - start;
+    // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
+    // return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
 void Optimizer::update_current_states(double x, double y, double yaw) {
     if(target_waypoint_index < state_refs.rows()) {
@@ -280,7 +325,14 @@ void Optimizer::update_real_states(double x, double y, double yaw) {
     x_current[1] = y;
     x_current[2] = yaw;
 }
-Eigen::VectorXd Optimizer::computeStats() {
+Eigen::VectorXd Optimizer::computeStats(int hsy) {
+    simX.conservativeResize(iter, Eigen::NoChange);
+    simU.conservativeResize(iter, Eigen::NoChange);
+    time_record.conservativeResize(iter, Eigen::NoChange);
+    printf("average estimation time %f ms \n", time_record.mean());
+    printf("max estimation time %f ms \n", time_record.maxCoeff());
+    printf("min estimation time %f ms \n", time_record.minCoeff());
+
     // Calculate averages for speed and steer
     double average_speed = simU.col(0).mean();
     double average_steer = simU.col(1).mean();
@@ -311,6 +363,12 @@ Eigen::VectorXd Optimizer::computeStats() {
     Eigen::VectorXd stats(7);
     stats << average_speed, average_steer, average_delta_speed, average_delta_steer,
                 average_x_error, average_y_error, average_yaw_error;
+    
+    // Eigen::VectorXd stats = computeStats();
+    saveToFile(simX, "simX.txt");
+    saveToFile(simU, "simU.txt");
+    // saveToFile(time_record, "time_record.txt"); 
+    saveToFile(stats, "stats.txt");
     return stats;
 }
 

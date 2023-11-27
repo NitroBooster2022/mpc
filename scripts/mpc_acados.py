@@ -65,6 +65,7 @@ class Optimizer(object):
         self.waypoints_x = self.state_refs[:,0]
         self.waypoints_y = self.state_refs[:,1]
 
+        self.counter = 0
         self.target_waypoint_index = 0
         self.last_waypoint_index = 0
         density = 1/abs(self.v_ref)/self.T
@@ -238,6 +239,19 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
+        # cur_path = os.path.dirname(os.path.realpath(__file__))
+        # path = os.path.join(cur_path, 'paths')
+        # os.makedirs(path, exist_ok=True)
+        # name1 = os.path.join(path, 'waypoints_x.txt')
+        # np.savetxt(name1, self.waypoints_x, fmt='%.8f')
+        # print("saved to ", name1)
+        # np.savetxt(os.path.join(path,'waypoints_y.txt'), self.waypoints_y, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'state_refs.txt'), self.state_refs, fmt='%.8f')
+        # print("stateref shape: ", self.state_refs.shape)
+        # np.savetxt(os.path.join(path,'input_refs.txt'), self.input_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'kappa.txt'), self.kappa, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_normals.txt'), self.wp_normals, fmt='%.8f')
+        # exit()
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index
         self.next_trajectories = self.state_refs[idx:idx + self.N + 1]
@@ -260,6 +274,10 @@ class Optimizer(object):
             return None
         # 得到下个时刻最优控制
         next_u = self.solver.get(0, 'u')
+        # std::cout << "x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
+        # print x_cur, ref, u_cur, error
+        self.counter += 1
+        print(self.counter, ") cur: ", np.around(self.current_state, 2), ", ref: ", np.around(self.next_trajectories[0, :], 2), ", ctrl: ", np.around(next_u, 2), ", idx: ", self.target_waypoint_index)
         return next_u
     def integrate_next_states(self, u_res=None):
         # 以下纯粹为了仿真
@@ -405,10 +423,12 @@ class Optimizer(object):
             if closest_idx - self.last_waypoint_index > 15:
                 # print("here2: ", closest_idx, self.last_waypoint_index, closest_idx - self.last_waypoint_index)
                 closest_idx = self.last_waypoint_index + 1
+                # closest_idx = self.last_waypoint_index 
             # If not within the region of acceptance, take smaller steps forward in the waypoint list
             self.last_waypoint_index += 1
-        # print("dist_to_waypoint: ", dist_to_waypoint, ", closest_idx: ", closest_idx, ", last_waypoint_index: ", self.last_waypoint_index)
         target_idx = max(self.last_waypoint_index, closest_idx)
+        # print this: std::cout << "cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
+        print("cur:", self.current_state, ", closest_idx: ", closest_idx, ", closest: ", self.state_refs[closest_idx], "dist_to_waypoint: ", dist_to_waypoint,  ", last_waypoint_index: ", self.last_waypoint_index, ", target_idx: ", target_idx)
         # print("find_next_waypoint time: ", timeit.default_timer() - start)
         return min(target_idx, len(self.waypoints_x) - 1)
     def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None, objects=None, car_states=None):

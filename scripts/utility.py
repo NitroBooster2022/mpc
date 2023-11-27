@@ -255,6 +255,13 @@ class Utility:
         with self.lock:
             self.center = lane.center
     def imu_callback(self, imu):
+        # if self.timerpid is None:
+        #     self.timerpid = rospy.Time.now()
+        # now = rospy.Time.now()
+        # dt = (now-self.timerpid).to_sec()
+        # rate = 1/dt if dt != 0 else "inf"
+        # print("imu: ",dt, ", rate: ", rate)
+        # self.timerpid = now
         with self.lock:
             self.imu = imu
         if self.pubOdom: #if true publish odom in imu callback
@@ -265,6 +272,13 @@ class Utility:
             self.ekf_x = ekf.pose.pose.position.x
             self.ekf_y = ekf.pose.pose.position.y
     def model_callback(self, model):
+        # if self.timerpid is None:
+        #     self.timerpid = rospy.Time.now()
+        # now = rospy.Time.now()
+        # dt = (now-self.timerpid).to_sec()
+        # rate = 1/dt if dt != 0 else "inf"
+        # print("model: ",dt, ", rate: ", rate)
+        # self.timerpid = now
         with self.lock:
             self.model = model
     def stop_car(self):
@@ -332,7 +346,7 @@ class Utility:
             #     self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
             return
         # dx, dy, dyaw = self.update_states_rk4(self.velocity, self.current_steer)
-        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer)
+        dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
         self.odomX += dx
         self.odomY += dy
 
@@ -383,16 +397,7 @@ class Utility:
             steering_angle = np.clip(steering_angle, -23, 23)
         self.msg.data = '{"action":"1","speed":'+str(velocity)+'}'
         self.msg2.data = '{"action":"2","steerAngle":'+str(float(steering_angle))+'}'
-        # with self.lock:
-        #     self.prev_steer = self.steer_commands[self.steer_pointer]
-        #     self.prev_speed = self.v_history[self.steer_pointer]
-        #     self.prev_yaw = self.yaw_history[self.steer_pointer]
-        #     self.steer_commands[self.steer_pointer] = steering_angle
-        #     self.v_history[self.steer_pointer] = self.velocity
-        #     self.yaw_history[self.steer_pointer] = self.yaw
-        #     self.steer_commands_time[self.steer_pointer] = rospy.Time.now().to_sec()
-        #     self.steer_pointer = (self.steer_pointer + 1) % self.history_size
-        # self.command_msg.data = [steering_angle, self.velocity, self.yaw, rospy.Time.now().to_sec()]
+
         self.command_msg.data = [steering_angle, velocity, self.yaw, rospy.Time.now().to_sec()]
         self.commands_pub.publish(self.command_msg)
         self.cmd_vel_pub.publish(self.msg)
