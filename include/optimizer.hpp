@@ -7,14 +7,16 @@
 
 class Optimizer {
 public:
-    Optimizer(double x_init = 0.83, double y_init = 0.33, double yaw_init = 1.65756);
+    Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init);
+    Optimizer(double T, int N, double v_ref): Optimizer(T, N, v_ref, 0.83, 0.33, 1.65756) {}
+    Optimizer(): Optimizer(0.125, 40, 1.0, 0.83, 0.33, 1.65756) {}
     int run(); 
     int update_and_solve();
     void integrate_next_states();
     int find_next_waypoint();
     void update_real_states(double x, double y, double yaw);
     void update_current_states(double x, double y, double yaw);
-    Eigen::VectorXd computeStats();
+    Eigen::VectorXd computeStats(int hsy);
     std::string getSourceDirectory();
     template <typename EigenType>
     void saveToFile(const EigenType &data, const std::string &filename);
@@ -28,10 +30,10 @@ public:
     double x_state[5];
     double x_current[3];
     double u_current[2];
-    int N, nx, nu;
+    int N, nx, nu, iter = 0;
     int target_waypoint_index, last_waypoint_index, num_waypoints;
-    double region_of_acceptance, t0;
-    double T = 0.125;
+    double region_of_acceptance, v_ref, t0, T, rdb_circumference = 4.15;
+    bool debug = true;
     Eigen::Vector3d current_state;
     Eigen::MatrixXd state_refs, input_refs;
     Eigen::VectorXd distances;

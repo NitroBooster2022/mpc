@@ -10,13 +10,14 @@
 
 class StateMachine {
 public:
-    StateMachine(ros::NodeHandle& nh_) : nh(nh_), utils(nh), cooldown_timer(ros::Time::now())
+    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref) : nh(nh_), utils(nh), mpc(T,N,v_ref), cooldown_timer(ros::Time::now())
     {
         double rateVal = 1/mpc.T;
         rate = new ros::Rate(rateVal);
         std::cout << "rate: " << rateVal << std::endl;
         x0 = {0, 0, 0};
         state = STATE::INIT;
+        destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
     }
     ~StateMachine() {
         // utils.stop_car();
@@ -77,6 +78,7 @@ public:
     static constexpr double SIGN_COOLDOWN = 1.0;
     
     double detected_dist = 0;
+    Eigen::Vector2d destination;
     int state = 0;
     bool debug = true;
     std::string gaz_bool = "_gazebo_";
@@ -102,10 +104,15 @@ void StateMachine::run() {
             update_mpc_state();
             solve();
             rate->sleep();
+            continue;
         } else if (state == STATE::INIT) {
             change_state(STATE::MOVING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;
+            utils.stop_car();
+            if (debug) {
+                mpc.computeStats(357);
+            }
             break;
         }
     }
@@ -117,6 +124,8 @@ void StateMachine::update_mpc_state() {
     }
 }
 void StateMachine::solve() {
+    // auto start = std::chrono::high_resolution_clock::now();
+
     int status = mpc.update_and_solve();
     double steer = -mpc.u_current[1] * 180 / M_PI; // convert to degrees
     double speed = mpc.u_current[0];
@@ -126,6 +135,9 @@ void StateMachine::solve() {
     if (debug) {
         ;
     }
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop-start);
+    // ROS_INFO("Solve time: %f ms", duration.count()/1000.0);
 }
 void StateMachine::change_state(STATE new_state) {
     std::cout << "Changing from " << state << " to " << new_state << std::endl;
@@ -137,22 +149,37 @@ void signalHandler(int signum) {
     if (globalStateMachinePtr) {
         globalStateMachinePtr->utils.stop_car();
     }
-
     ros::shutdown();
     exit(signum);
 }
+
 int main(int argc, char **argv) {
+    std::cout.precision(3);
     ros::init(argc, argv, "mpc_node", ros::init_options::NoSigintHandler);
     ros::NodeHandle nh;
-    std::cout.precision(3);
-    StateMachine sm(nh);
+    double T, v_ref;
+    int N;
+    bool success = nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    if (!success) {
+        std::cout << "Failed to get parameters" << std::endl;
+        T = 0.125;
+        N = 40;
+        v_ref = 1.0;
+    }
+    StateMachine sm(nh, T, N, v_ref);
 
     globalStateMachinePtr = &sm;
     signal(SIGINT, signalHandler);
 
-    std::thread t(&StateMachine::run, &sm);
+    // std::thread t(&StateMachine::run, &sm);
     std::thread t2(&Utility::spin, &sm.utils);
-    t.join();
+    while(!sm.utils.initializationFlag) {
+        ros::Duration(0.1).sleep();
+    }
+    
+    sm.run();
+
+    // t.join();
     t2.join();
     std::cout << "threads joined" << std::endl;
     return 0;

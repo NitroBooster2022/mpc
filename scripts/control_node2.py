@@ -7,6 +7,7 @@ import argparse
 from utility import Utility
 from mpc_acados import Optimizer
 from sign_pose import estimate_object_pose2d, draw_scene
+import timeit
 
 class StateMachine:
     def __init__(self, args):
@@ -79,9 +80,10 @@ class StateMachine:
             self.mpc.x_refs.append(self.mpc.next_trajectories[0, :])
             self.mpc.yaw_errors.append(self.mpc.current_state[2] - self.mpc.next_trajectories[0, 2])
     def solve(self):
-        t_ = time.time()
+        t_ = timeit.default_timer()
         u_res = self.mpc.update_and_solve()
-        t2 = time.time()- t_
+        t2 = timeit.default_timer() - t_
+        print("solvetime1: ", t2)
         self.utils.steer_command = -float(u_res[1]*180/np.pi)
         self.utils.velocity_command = float(u_res[0])
         self.utils.publish_cmd_vel(steering_angle=self.utils.steer_command, velocity=self.utils.velocity_command)
@@ -94,6 +96,7 @@ class StateMachine:
             self.mpc.mpciter = self.mpc.mpciter + 1
             # print("i) ", self.mpc.mpciter, "cur:", np.around(self.mpc.current_state, decimals=2), "ctrl:", 
             #     np.around(u_res, decimals=2), "idx:", self.mpc.target_waypoint_index, "time:", round(t2, 4))
+        rospy.loginfo("Solve time: %f ms", (timeit.default_timer() - t_) * 1000)
     def change_state(self, state):
         print(f"changing state from {self.INVERSE_STATE_DICT[self.state]} to {self.INVERSE_STATE_DICT[state]}")
         self.state = state

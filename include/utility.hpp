@@ -40,7 +40,7 @@ public:
     ros::Rate* rate;
 
     double wheelbase, odomRatio, maxspeed, center, image_center, p, d, last;
-    double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, gps_x, gps_y, steer_command, velocity_command;
+    double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
     std::optional<size_t> car_idx;
 
     ros::Time timerodom;
