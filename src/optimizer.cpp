@@ -1,23 +1,7 @@
 #include "optimizer.hpp"
-#include <chrono>
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <fstream>
-#include <unistd.h>
-#include <limits.h>
-#include <cmath>
-// #include <math.h>
-// #include <interpolation.h> // Alglib header for spline interpolation
-
-#include <Eigen/Dense>
-#include "acados/utils/math.h"
-#include "acados_c/ocp_nlp_interface.h"
-#include "acados_sim_solver_mobile_robot.h"
-#include "acados_solver_mobile_robot.h"
 
 Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init):
-    T(T), N(N), v_ref(v_ref)
+    T(T), N(N), v_ref(v_ref), density(1/T/v_ref)
  {
     // Initialize member variables
     min_time = 1e12;
@@ -25,6 +9,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
 
     // Create a capsule according to the pre-defined model
     acados_ocp_capsule = mobile_robot_acados_create_capsule();
+    acados_ocp_capsule_park = park_acados_create_capsule();
 
     // Initialize the optimizer
     status = mobile_robot_acados_create(acados_ocp_capsule);
@@ -33,17 +18,36 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
         exit(1);
     }
 
+    int status2 = park_acados_create(acados_ocp_capsule_park);
+    if (status2) {
+        printf("park_acados_create() returned status %d. Exiting.\n", status2);
+        exit(1);
+    }
+
     // Create and initialize simulator capsule
     sim_capsule = mobile_robot_acados_sim_solver_create_capsule();
     status = mobile_robot_acados_sim_create(sim_capsule);
+
+    sim_capsule_park = park_acados_sim_solver_create_capsule();
+    status2 = park_acados_sim_create(sim_capsule_park);
 
     mobile_robot_sim_config = mobile_robot_acados_get_sim_config(sim_capsule);
     mobile_robot_sim_dims = mobile_robot_acados_get_sim_dims(sim_capsule);
     mobile_robot_sim_in = mobile_robot_acados_get_sim_in(sim_capsule);
     mobile_robot_sim_out = mobile_robot_acados_get_sim_out(sim_capsule);
 
+    park_sim_config = park_acados_get_sim_config(sim_capsule_park);
+    park_sim_dims = park_acados_get_sim_dims(sim_capsule_park);
+    park_sim_in = park_acados_get_sim_in(sim_capsule_park);
+    park_sim_out = park_acados_get_sim_out(sim_capsule_park);
+
     if (status) {
         printf("acados_create() simulator returned status %d. Exiting.\n", status);
+        exit(1);
+    }
+
+    if (status2) {
+        printf("acados_create() simulator returned status %d. Exiting.\n", status2);
         exit(1);
     }
 
@@ -53,11 +57,21 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     nlp_in = mobile_robot_acados_get_nlp_in(acados_ocp_capsule);
     nlp_out = mobile_robot_acados_get_nlp_out(acados_ocp_capsule);
 
+    nlp_config_park = park_acados_get_nlp_config(acados_ocp_capsule_park);
+    nlp_dims_park = park_acados_get_nlp_dims(acados_ocp_capsule_park);
+    nlp_in_park = park_acados_get_nlp_in(acados_ocp_capsule_park);
+    nlp_out_park = park_acados_get_nlp_out(acados_ocp_capsule_park);
+
     // Setting problem dimensions
     N = nlp_dims->N;
     nx = *nlp_dims->nx;
     nu = *nlp_dims->nu;
     printf("N = %d, nx = %d, nu = %d\n", N, nx, nu);
+
+    N_park = nlp_dims_park->N;
+    nx_park = *nlp_dims_park->nx;
+    nu_park = *nlp_dims_park->nu;
+    printf("N_park = %d, nx_park = %d, nu_park = %d\n", N_park, nx_park, nu_park);
 
     // Initialize target, current state and state variables
     x_current[0] = x_init;
@@ -74,16 +88,20 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     x_state[3] = 0.0;
     x_state[4] = 0.0;
 
-    current_state << x_current[0], x_current[1], x_current[2];
+    // x_current << x_current[0], x_current[1], x_current[2];
     target_waypoint_index = 0;
     last_waypoint_index = 0;
-    region_of_acceptance = 0.03076923;
+    region_of_acceptance = 0.03076923*2*1.5;
     state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs.txt");
     input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs.txt");
+    state_refs_hw = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs_hw.txt"); // sparse pts for highway area
+    state_refs_cw = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs_cw.txt"); // dense pts for crosswalk area
+    state_refs_ptr = &state_refs;
+    normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals.txt");
     num_waypoints = state_refs.rows();
     std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
 
-    int len = static_cast<int>(num_waypoints * 1.5);
+    int len = static_cast<int>(num_waypoints * 2);
     simX = Eigen::MatrixXd::Zero(len, nx); 
     simU = Eigen::MatrixXd::Zero(len, nu);
     x_errors = Eigen::VectorXd::Zero(len, 1);
@@ -97,45 +115,55 @@ int Optimizer::run() {
     int hsy = 0;
     Eigen::VectorXd x_final = state_refs.row(state_refs.rows() - 1);
     while(1) {
-        double error_norm = (x_final - current_state).norm();
+        double error_norm = (x_final - x_current).norm();
         if(target_waypoint_index > num_waypoints || hsy > 500 || error_norm < 0.1) {
             break;
         }
         std::cout << "target_waypoint_index: " << target_waypoint_index << ", hsy: " << hsy << ", norm: " << error_norm << std::endl;
-        x_errors(hsy) = state_refs(target_waypoint_index, 0) - x_current[0];
-        y_errors(hsy) = state_refs(target_waypoint_index, 1) - x_current[1];
-        yaw_errors(hsy) = state_refs(target_waypoint_index, 2) - x_current[2];
-        auto t_start = std::chrono::high_resolution_clock::now();
+        // x_errors(hsy) = state_refs(target_waypoint_index, 0) - x_current[0];
+        // y_errors(hsy) = state_refs(target_waypoint_index, 1) - x_current[1];
+        // yaw_errors(hsy) = state_refs(target_waypoint_index, 2) - x_current[2];
+        // auto t_start = std::chrono::high_resolution_clock::now();
         update_and_solve();
-        auto t_end = std::chrono::high_resolution_clock::now();
-        double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-        time_record(hsy) = elapsed_time_ms;
+        // auto t_end = std::chrono::high_resolution_clock::now();
+        // double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+        // time_record(hsy) = elapsed_time_ms;
         integrate_next_states();
-        for(int i=0; i<nu; i++) {
-            simU(hsy, i) = u_current[i];
-        }
-        for(int ii=0; ii<nx; ii++) {
-            simX(hsy, ii) = x_current[ii];
-        }
+        // for(int i=0; i<nu; i++) {
+        //     simU(hsy, i) = u_current[i];
+        // }
+        // for(int ii=0; ii<nx; ii++) {
+        //     simX(hsy, ii) = x_current[ii];
+        // }
         hsy++;
     }
-    Eigen::VectorXd stats = computeStats(hsy);
-    return status;
+    // Eigen::VectorXd stats = computeStats(hsy);
+    return 0;
 }
 
 int Optimizer::update_and_solve() {
     auto t_start = std::chrono::high_resolution_clock::now();
+
+    state_refs_ptr = &state_refs;
+    // declare a pointer or reference to state_refs
+    // if (cond1) {
+    //     use state_refs
+    // } else if (cond2) {
+    //     use state_refs_hw
+    // } else {
+    //     use state_refs_cw
+    // }
     if(debug) {
-        x_errors(iter) = state_refs(target_waypoint_index, 0) - x_current[0];
-        y_errors(iter) = state_refs(target_waypoint_index, 1) - x_current[1];
-        yaw_errors(iter) = state_refs(target_waypoint_index, 2) - x_current[2];
+        x_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 0) - x_current[0];
+        y_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 1) - x_current[1];
+        yaw_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 2) - x_current[2];
         // auto t_start = std::chrono::high_resolution_clock::now();
     }
     target_waypoint_index = find_next_waypoint();
     int idx = target_waypoint_index;
 
     for(int i=0; i<3; i++) {
-        x_state[i] = state_refs(target_waypoint_index, i);
+        x_state[i] = (*state_refs_ptr)(target_waypoint_index, i);
     }
     x_state[3] = 0.0;
     x_state[4] = 0.0;
@@ -143,26 +171,30 @@ int Optimizer::update_and_solve() {
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "yref", x_state);
 
     for (int j = 0; j < N; ++j) {
-        if (target_waypoint_index + j >= state_refs.rows()) {
+        if (target_waypoint_index + j >= (*state_refs_ptr).rows()) {
             for(int i=0; i<3; i++) {
-                x_state[i] = state_refs(state_refs.rows() - 1, i);
+                x_state[i] = (*state_refs_ptr)((*state_refs_ptr).rows() - 1, i);
             }
             x_state[3] = 0.0;
             x_state[4] = 0.0;
         } else {
             for (int i = 0; i < 3; ++i) {
-                x_state[i] = state_refs(idx + j, i);
+                x_state[i] = (*state_refs_ptr)(idx + j, i);
             }
             for (int i = 0; i < 2; ++i) {
                 x_state[i + 3] = input_refs(idx + j, i);
+                // x_state[i + 3] = input_refs(idx + j, i)*1.5;
             }
         }
+        x_state[4] = 0.0;
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, j, "yref", x_state);
+        // double u_max[2] = {2, 0.4};
+        // ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, j, "ubu", u_max);
     }
 
     // Set the constraints for the current state
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", x_current);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "ubx", x_current);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", x_current.data());
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "ubx", x_current.data());
 
     // Solve the optimization problem
     status = mobile_robot_acados_solve(acados_ocp_capsule);
@@ -175,12 +207,15 @@ int Optimizer::update_and_solve() {
     ocp_nlp_out_get(nlp_config, nlp_dims, nlp_out, 0, "u", &u_current);
 
     //debug
-    double error = (x_current[0] - state_refs(idx, 0)) * (x_current[0] - state_refs(idx, 0)) + (x_current[1] - state_refs(idx, 1)) * (x_current[1] - state_refs(idx, 1));
+    double error = (x_current[0] - (*state_refs_ptr)(idx, 0)) * (x_current[0] - (*state_refs_ptr)(idx, 0)) + (x_current[1] - (*state_refs_ptr)(idx, 1)) * (x_current[1] - (*state_refs_ptr)(idx, 1));
     if (debug) {
         auto t_end = std::chrono::high_resolution_clock::now();
         double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
         // std::cout << "elapsed time: " << elapsed_time_ms << " ms" << std::endl;
         time_record(iter) = elapsed_time_ms;
+        x_errors(iter) = state_refs(target_waypoint_index, 0) - x_current[0];
+        y_errors(iter) = state_refs(target_waypoint_index, 1) - x_current[1];
+        yaw_errors(iter) = state_refs(target_waypoint_index, 2) - x_current[2];
         for(int i=0; i<nu; i++) {
             simU(iter, i) = u_current[i];
         }
@@ -195,7 +230,7 @@ int Optimizer::update_and_solve() {
 
 void Optimizer::integrate_next_states() {
     // Set the current state and control input for the simulation
-    sim_in_set(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_in, "x", x_current);
+    sim_in_set(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_in, "x", x_current.data());
     sim_in_set(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_in, "u", u_current);
 
     // Run the simulation
@@ -205,7 +240,7 @@ void Optimizer::integrate_next_states() {
     }
 
     // Get the result and update the current state
-    sim_out_get(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_out, "x", x_current);
+    sim_out_get(mobile_robot_sim_config, mobile_robot_sim_dims, mobile_robot_sim_out, "x", x_current.data());
 
     t0 += T;
 }
@@ -214,20 +249,20 @@ int Optimizer::find_next_waypoint() {
     // auto start = std::chrono::high_resolution_clock::now();
 
     // Calculate distances to each waypoint
-    // current_state << x_current[0], x_current[1], x_current[2];
+    // x_current << x_current[0], x_current[1], x_current[2];
     // distances = Eigen::VectorXd::Zero(state_refs.rows());
     // for (int i = 0; i < state_refs.rows(); ++i) {
-    //     distances(i) = (Eigen::Vector2d(state_refs(i,0), state_refs(i,1)) - current_state.head(2)).norm();
+    //     distances(i) = (Eigen::Vector2d(state_refs(i,0), state_refs(i,1)) - x_current.head(2)).norm();
     // }
     // // Find the index of the closest waypoint
     // Eigen::VectorXd::Index closest_idx;
     // double min_distance_sq = pow(distances.minCoeff(&closest_idx), 2);
     
     // Update current state only once
-    current_state << x_current[0], x_current[1] , x_current[2];
+    // x_current << x_current[0], x_current[1] , x_current[2];
 
     // Precompute squared norm for efficiency
-    double current_norm = current_state.head(2).squaredNorm();
+    double current_norm = x_current.head(2).squaredNorm();
 
     // Initialize variables for finding the minimum distance
     Eigen::VectorXd::Index closest_idx;
@@ -236,12 +271,12 @@ int Optimizer::find_next_waypoint() {
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
     int min_index = std::max(last_waypoint_index - limit, 0); //0;
-    int max_index = std::min(last_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    int max_index = std::min(last_waypoint_index + limit, static_cast<int>((*state_refs_ptr).rows()) - 1); //state_refs.rows() - 1;
     // int min_index = 0;
     // int max_index = state_refs.rows() - 1;
     for (int i = min_index; i < max_index; ++i) {
-        double distance_sq = (state_refs.row(i).head(2).squaredNorm() 
-                           - 2 * state_refs.row(i).head(2).dot(current_state.head(2))
+        double distance_sq = ((*state_refs_ptr).row(i).head(2).squaredNorm() 
+                           - 2 * (*state_refs_ptr).row(i).head(2).dot(x_current.head(2))
                            + current_norm); 
 
         if (distance_sq < min_distance_sq) {
@@ -268,9 +303,9 @@ int Optimizer::find_next_waypoint() {
         target_waypoint_index = closest_idx + 1;
     }
     double dist = sqrt(min_distance_sq);
-    // std::cout << "cur:" << current_state[0] << "," << current_state[1] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
-    std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
-    return std::min(target_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
+    // std::cout << "cur:" << x_current[0] << "," << x_current[1] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
+    std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
+    return std::min(target_waypoint_index, static_cast<int>((*state_refs_ptr).rows()) - 1);
 
     // Determine the next waypoint
     // if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
@@ -290,8 +325,8 @@ int Optimizer::find_next_waypoint() {
     // // print current state, closest point, closest index, target index
     // int target_idx = std::max(last_waypoint_index, static_cast<int>(closest_idx));
     // double dist = sqrt(min_distance_sq);
-    // // std::cout << "dist: " << dist<< ", cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", closest_idx:" << closest_idx << ", target_idx:" << target_waypoint_index << std::endl;
-    // std::cout << "cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
+    // // std::cout << "dist: " << dist<< ", cur:" << x_current[0] << "," << x_current[1] << "," << x_current[2] << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", closest_idx:" << closest_idx << ", target_idx:" << target_waypoint_index << std::endl;
+    // std::cout << "cur:" << x_current[0] << "," << x_current[1] << "," << x_current[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
     // // auto finish = std::chrono::high_resolution_clock::now();
     // // std::chrono::duration<double> elapsed = finish - start;
     // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;

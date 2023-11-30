@@ -4,6 +4,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Header.h>
 #include <sensor_msgs/Imu.h>
@@ -23,7 +24,7 @@
 
 class Utility {
 public:
-    Utility(ros::NodeHandle& nh_, bool subLane = false, bool subSign = false, bool subModel = true, bool subImu = true, bool pubOdom = true, bool useEkf = false);
+    Utility(ros::NodeHandle& nh_, bool subSign = true, bool useEkf = false, bool subLane = false,  bool subModel = true, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
 // private:
@@ -40,7 +41,7 @@ public:
     ros::Rate* rate;
 
     double wheelbase, odomRatio, maxspeed, center, image_center, p, d, last;
-    double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
+    double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, ekf_yaw, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
     std::optional<size_t> car_idx;
 
     ros::Time timerodom;
@@ -68,7 +69,7 @@ public:
     std_msgs::String msg2;
 
     gazebo_msgs::ModelStates model;
-    std_msgs::Float64MultiArray sign;
+    std_msgs::Float32MultiArray sign;
     utils::Lane lane;
     sensor_msgs::Imu imu;
     tf2::Quaternion q;
@@ -87,7 +88,7 @@ public:
 
     // Callbacks
     void lane_callback(const utils::Lane::ConstPtr& msg);
-    void sign_callback(const std_msgs::Float64MultiArray::ConstPtr& msg);
+    void sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg);
     void model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg);
     void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
     void ekf_callback(const nav_msgs::Odometry::ConstPtr& msg);
@@ -99,6 +100,7 @@ public:
     void process_yaw();
     void publish_odom();
     int object_index(int obj_id);
+    double object_distance(int index);
     std::array<float, 4> object_box(int index);
     void set_initial_pose(double x, double y, double yaw);
     void update_states_rk4(double velocity, double steer, double dt=-1);

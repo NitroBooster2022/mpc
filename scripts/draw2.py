@@ -192,5 +192,7 @@ if __name__ == '__main__':
     u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
     print(robot_states.shape, u.shape)
     Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
+    #park
+    # Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test', xmin=0, xmax=2, ymin=-1, ymax=1)
 
     

@@ -19,15 +19,20 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code)
 link_directories($ENV{ACADOS_SOURCE_DIR}/lib)
 file(GLOB ocp_solver
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_solver_mobile_robot.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_solver_park.c
         )
 
 file(GLOB casadi_fun
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_ode_fun.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_forw.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_ode_fun.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_vde_forw.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_vde_adj.c)
 
 file(GLOB sim_solver
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_sim_solver_mobile_robot.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_sim_solver_park.c
         )
 
 find_package(catkin REQUIRED COMPONENTS
