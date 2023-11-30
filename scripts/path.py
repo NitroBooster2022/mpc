@@ -123,16 +123,24 @@ class Path:
         self.density = 1/abs(self.v_ref)/T # wp/m
         self.region_of_acceptance = 0.05/10*self.density
         print("density: ", self.density, ", region_of_acceptance: ", self.region_of_acceptance)
+        runs_hw = []
+        runs_cw = []
         for i, length in enumerate(path_lengths):
             print(i, ") path length: ", length)
+            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/1.5))))
+            runs_cw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density*1.5))))
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
         # for run,i in zip(runs, range(len(runs))):
         #     np.savetxt(f"run{i+1}.txt", run, fmt="%.8f")
         # exit()
         # Combine all runs into a single set of waypoints
         self.waypoints = np.vstack(runs)
+        self.waypoints_hw = np.vstack(runs_hw)
+        self.waypoints_cw = np.vstack(runs_cw)
         print("waypoints: ", self.waypoints.shape)
         self.waypoints = filter_waypoints(self.waypoints, 0.01).T
+        self.waypoints_hw = filter_waypoints(self.waypoints_hw, 0.01).T
+        self.waypoints_cw = filter_waypoints(self.waypoints_cw, 0.01).T
         # Calculate the total path length of the waypoints
         total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
         print("total path length: ", total_path_length)
@@ -142,6 +150,10 @@ class Path:
         # self.waypoints[1] = 15-self.waypoints[1] # flip y
         self.waypoints_x = self.waypoints[0, :]
         self.waypoints_y = self.waypoints[1, :]
+        self.waypoints_x_hw = self.waypoints_hw[0, :]
+        self.waypoints_y_hw = self.waypoints_hw[1, :]
+        self.waypoints_x_cw = self.waypoints_cw[0, :]
+        self.waypoints_y_cw = self.waypoints_cw[1, :]
         # filepath = os.path.dirname(os.path.abspath(__file__))
         # wpts = np.load(os.path.join(filepath, 'waypoints/parallel_park.npy'))
         # self.waypoints_x = wpts[:, 0]+5
@@ -150,6 +162,8 @@ class Path:
         self.num_waypoints = len(self.waypoints_x)
         print("num_waypoints: ", self.num_waypoints)
         self.kappa, self.wp_theta, self.wp_normals = compute_smooth_curvature(self.waypoints_x, self.waypoints_y)
+        self.kappa_hw, self.wp_theta_hw, self.wp_normals_hw = compute_smooth_curvature(self.waypoints_x_hw, self.waypoints_y_hw)
+        self.kappa_cw, self.wp_theta_cw, self.wp_normals_cw = compute_smooth_curvature(self.waypoints_x_cw, self.waypoints_y_cw)
         # linear speed profile
         self.v_refs  = self.v_ref / (1 + np.abs(self.kappa))*(1 + np.abs(self.kappa))
         #nonlinear speed profile
@@ -177,6 +191,25 @@ class Path:
         self.input_refs = np.vstack((self.v_refs, self.steer_ref)).T
         self.waypoints = np.vstack((self.waypoints_x, self.waypoints_y)).T
         self.state_refs[:,2] = smooth_yaw_angles(self.state_refs[:,2])
+
+        self.waypoints_hw_x = np.pad(self.waypoints_x_hw, (0,self.N+4), 'edge')
+        self.waypoints_hw_y = np.pad(self.waypoints_y_hw, (0,self.N+4), 'edge')
+        self.kappa_hw = np.pad(self.kappa_hw, (0,self.N+5), 'edge')
+        self.wp_theta_hw = np.pad(self.wp_theta_hw, (0,self.N+5), 'edge')
+        self.wp_normals_hw = np.pad(self.wp_normals_hw, ((0,self.N+5),(0,0)), 'edge')
+        self.waypoints_hw = np.vstack((self.waypoints_hw_x, self.waypoints_hw_y)).T
+        self.state_refs_hw = np.vstack((self.waypoints_hw_x, self.waypoints_hw_y, self.wp_theta_hw[1:])).T
+        self.state_refs_hw[:,2] = smooth_yaw_angles(self.state_refs_hw[:,2])
+
+        self.waypoints_cw_x = np.pad(self.waypoints_x_cw, (0,self.N+4), 'edge')
+        self.waypoints_cw_y = np.pad(self.waypoints_y_cw, (0,self.N+4), 'edge')
+        self.kappa_cw = np.pad(self.kappa_cw, (0,self.N+5), 'edge')
+        self.wp_theta_cw = np.pad(self.wp_theta_cw, (0,self.N+5), 'edge')
+        self.wp_normals_cw = np.pad(self.wp_normals_cw, ((0,self.N+5),(0,0)), 'edge')
+        self.waypoints_cw = np.vstack((self.waypoints_cw_x, self.waypoints_cw_y)).T
+        self.state_refs_cw = np.vstack((self.waypoints_cw_x, self.waypoints_cw_y, self.wp_theta_cw[1:])).T
+        self.state_refs_cw[:,2] = smooth_yaw_angles(self.state_refs_cw[:,2])
+
         # for i in range(len(self.state_refs)):
         #     print(i, self.state_refs[i,2])
         # exit()

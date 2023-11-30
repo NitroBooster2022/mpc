@@ -21,7 +21,7 @@
 #include <mutex>
 #include <cmath>
 
-Utility::Utility(ros::NodeHandle& nh_, bool subLane, bool subSign, bool subModel, bool subImu, bool pubOdom, bool useEkf) 
+Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf)
 {
     rateVal = 50;
@@ -83,6 +83,12 @@ Utility::Utility(ros::NodeHandle& nh_, bool subLane, bool subSign, bool subModel
     ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
 
+    if (useEkf) {
+        ekf_sub = nh.subscribe("/odometry_filtered", 3, &Utility::ekf_callback, this);
+        std::cout << "waiting for ekf message" << std::endl;
+        ros::topic::waitForMessage<nav_msgs::Odometry>("/ekf");
+        std::cout << "received message from ekf" << std::endl;
+    } 
     if (subModel) {
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
     }
@@ -100,7 +106,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subLane, bool subSign, bool subModel
     if (subSign) {
         sign_sub = nh.subscribe("/sign", 3, &Utility::sign_callback, this);
         std::cout << "waiting for sign message" << std::endl;
-        ros::topic::waitForMessage<std_msgs::Float64MultiArray>("/sign");
+        ros::topic::waitForMessage<std_msgs::Float32MultiArray>("/sign");
         std::cout << "received message from sign" << std::endl;
     }
     if (pubOdom) {
@@ -116,7 +122,7 @@ Utility::~Utility() {
 void Utility::odom_pub_timer_callback(const ros::TimerEvent&) {
     publish_odom();
 }
-void Utility::sign_callback(const std_msgs::Float64MultiArray::ConstPtr& msg) {
+void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
     lock.lock();
     if (msg->data.size()) {
         num_obj = msg->data.size() / NUM_VALUES_PER_OBJECT;
@@ -149,6 +155,7 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     lock.lock();
     ekf_x = msg->pose.pose.position.x;
     ekf_y = msg->pose.pose.position.y;
+    ekf_yaw = tf2::getYaw(msg->pose.pose.orientation);
     lock.unlock();
     // ROS_INFO("ekf callback rate: %f", 1 / (now - general_timer).toSec());
     // general_timer = now;
@@ -217,10 +224,10 @@ void Utility::set_pose_using_service(double x, double y, double yaw) {
     ros_quaternion.y = q.y();
     ros_quaternion.z = q.z();
     ros_quaternion.w = q.w();
-    if (useEkf) {
-        std::cout << "waiting for set_pose service" << std::endl;
-        ros::service::waitForService("/set_pose");
-    }
+    // if (useEkf) {
+    //     std::cout << "waiting for set_pose service" << std::endl;
+    //     ros::service::waitForService("/set_pose");
+    // }
     try {
         ros::ServiceClient client = nh.serviceClient<std_srvs::Trigger>("/set_pose");
         std_srvs::Trigger srv;
@@ -339,6 +346,14 @@ int Utility::object_index(int obj_id) {
     return -1;
 }
 
+double Utility::object_distance(int index) {
+    if (num_obj == 1) {
+        return detected_objects[distance];
+    } else if (index >= 0 && index < num_obj) {
+        return detected_objects[index * NUM_VALUES_PER_OBJECT + distance];
+    }
+    return -1;
+}
 std::array<float, 4> Utility::object_box(int index) {
     std::array<float, 4> box;
 
