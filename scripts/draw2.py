@@ -182,7 +182,7 @@ if __name__ == '__main__':
     current_path = os.path.dirname(os.path.realpath(__file__))
     wpts_x = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_x.txt'))
     wpts_y = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_y.txt'))
-    ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs.txt'))
+    ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs2.txt'))
     current_path = current_path.replace('scripts', 'src')
     robot_states = np.loadtxt(os.path.join(current_path, 'simX.txt'))
     if len(wpts_x) > len(robot_states):
@@ -191,7 +191,8 @@ if __name__ == '__main__':
         ref_states = ref_states[:len(robot_states)]
     u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
     print(robot_states.shape, u.shape)
-    Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
+    # Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
+    Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], xmax=21, export_fig='test')
     #park
     # Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test', xmin=0, xmax=2, ymin=-1, ymax=1)
 

@@ -12,3 +12,12 @@ speedrun:
   - speedrun3
   - speedrun4
   - speedrun5
+
+# new track
+path2:
+  - start
+  - roundabout_entrance_south
+  - highway_entrance_east
+  - speed_entrance_west
+  - parallel_parking
+  - end

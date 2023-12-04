@@ -25,9 +25,9 @@ public:
     int run(); 
     int update_and_solve();
     void integrate_next_states();
-    int find_next_waypoint();
-    void update_real_states(double x, double y, double yaw);
+    int find_next_waypoint(int min_index = -1, int max_index = -1);
     void update_current_states(double x, double y, double yaw);
+    void update_current_states(double* state);
     Eigen::VectorXd computeStats(int hsy);
     std::string getSourceDirectory();
     template <typename EigenType>
@@ -46,10 +46,14 @@ public:
     int N, nx, nu, iter = 0;
     int N_park, nx_park, nu_park;
     int target_waypoint_index, last_waypoint_index, num_waypoints;
-    double region_of_acceptance, v_ref, t0, T, density, rdb_circumference = 4.15;
+    double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
     bool debug = true;
     Eigen::Vector3d current_state;
-    Eigen::MatrixXd state_refs, input_refs, normals, state_refs_hw, state_refs_cw;
+    Eigen::MatrixXd state_refs, input_refs, normals;
+    Eigen::VectorXd state_attributes;
+    enum ATTRIBUTE {
+        NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT
+    };
     Eigen::MatrixXd *state_refs_ptr;
     Eigen::VectorXd distances;
 
@@ -117,6 +121,7 @@ public:
         frame1[2] = NearestDirection(x_current[2]);
         frame2 << 0.0, 0.0, M_PI;
         std::cout << "frame1: " << frame1[0] << ", " << frame1[1] << ", " << frame1[2] << std::endl;
+        std::cout << "frame2: " << frame2[0] << ", " << frame2[1] << ", " << frame2[2] << std::endl;
     }
     Eigen::Vector3d frame2;
     Eigen::Vector3d frame1;
@@ -125,9 +130,19 @@ public:
         auto t_start = std::chrono::high_resolution_clock::now();
         
         transform_point(x_current, x_current_transformed, frame1, frame2);
+        double yaw_frame2 = frame2[2];
+        while (x_current_transformed[2] - yaw_frame2 > M_PI) {
+            x_current_transformed[2] -= 2 * M_PI;
+        }
+        while (x_current_transformed[2] - yaw_frame2 < -M_PI) {
+            x_current_transformed[2] += 2 * M_PI;
+        }
         double error_sq = (x_current_transformed - xs.head(3)).squaredNorm();
-        std::cout << "error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << std::endl;
+        static int count = 0;
+        std::cout << count << ")error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << ", xs: " << xs[0] << ", " << xs[1] << ", " << xs[2] << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
+        count ++;
         if (error_sq < thresh) {
+            count = 0;
             return 2;
         }
         ocp_nlp_constraints_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, 0, "lbx", x_current_transformed.data());
@@ -191,7 +206,8 @@ public:
 
     int park() {
         Eigen::VectorXd xs(5);
-        xs << 0.63, 0.32, M_PI, 0, 0;
+        xs << -1.31, 0, M_PI, 0, 0;
+        // xs << 0.63, 0.32, M_PI, 0, 0;
         set_up_park(xs);
         int i = 0;
         while(1) {

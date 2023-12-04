@@ -70,7 +70,11 @@ class Optimizer(object):
         self.last_waypoint_index = 0
         density = 1/abs(self.v_ref)/self.T
         # self.region_of_acceptance = 0.05
-        self.region_of_acceptance = 0.05/10*density
+        self.region_of_acceptance = 0.05/10*density * 2*1.5
+        print("region_of_acceptance: ", self.region_of_acceptance)
+        self.rdb_circumference = 4.15
+        import math
+        self.limit = math.floor(self.rdb_circumference/(self.v_ref * self.T))
 
         self.t0 = 0
         self.init_state = x0 if x0 is not None else self.state_refs[0]
@@ -411,13 +415,25 @@ class Optimizer(object):
                 yaw += 2 * np.pi
         self.real_state = np.array([x, y, yaw])
     def find_closest_waypoint(self):
+        # min_index = max(0, self.last_waypoint_index - self.limit)
+        # max_index = min(self.num_waypoints - 1, self.last_waypoint_index + self.limit)
+        # distances = np.linalg.norm(np.vstack((self.waypoints_x[min_index:max_index], self.waypoints_y[min_index:max_index])).T - self.current_state[:2], axis=1)
         distances = np.linalg.norm(np.vstack((self.waypoints_x, self.waypoints_y)).T - self.current_state[:2], axis=1)
         index = np.argmin(distances)
         return index, distances[index]
     def find_next_waypoint(self):
         # start = timeit.default_timer()
         closest_idx, dist_to_waypoint = self.find_closest_waypoint()
-        # ensure we're moving forward in the waypoint list, but not jumping too far ahead
+
+        # self.last_waypoint_index = self.target_waypoint_index
+        # if dist_to_waypoint < self.region_of_acceptance:
+        #     self.target_waypoint_index += 1
+        # if closest_idx > self.target_waypoint_index:
+        #     self.target_waypoint_index = closest_idx + 1
+        # elif closest_idx + self.limit/3 < self.target_waypoint_index:
+        #     self.target_waypoint_index = closest_idx + 1
+        # return min(self.target_waypoint_index, len(self.waypoints_x) - 1)
+
         if dist_to_waypoint < self.region_of_acceptance:
             if closest_idx - self.last_waypoint_index < 15:
                 self.last_waypoint_index = max(self.last_waypoint_index, closest_idx+1)

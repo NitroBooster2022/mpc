@@ -499,7 +499,7 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     double* ubu = lubu + NBU;
     
     lbu[0] = -1;
-    ubu[0] = 1.5;
+    ubu[0] = 2;
     lbu[1] = -0.4;
     ubu[1] = 0.4;
 
@@ -529,7 +529,7 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     double* ubx = lubx + NBX;
     
     lbx[0] = -1;
-    ubx[0] = 16;
+    ubx[0] = 22;
     lbx[1] = -1;
     ubx[1] = 16;
 

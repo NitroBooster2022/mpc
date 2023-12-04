@@ -74,6 +74,8 @@ class Utility:
         self.ekf_y = 0.0
         self.gps_x = 0.0
         self.gps_y = 0.0
+        self.x_speed = 0.0
+        self.y_speed = 0.0
         self.steer_command = 0.0
         self.velocity_command = 0.0
         self.i = None
@@ -149,6 +151,8 @@ class Utility:
             rospy.wait_for_service('/set_pose')
             self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
             self.ekf_msg = Odometry()
+        self.pub_odom_timer = rospy.Timer(rospy.Duration(1.0/self.rateVal), self.publish_odom_timer_callback)
+
         self.max_noise = 0.2
         self.delay = 1.0
         self.gps_rate = 4.0
@@ -164,6 +168,8 @@ class Utility:
         # self.feedback_sub = rospy.Subscriber('/automobile/feedback', String, self.feedback_callback)
 
     # Callbacks
+    def publish_odom_timer_callback(self, event):
+        self.publish_odom()
     def localisation_callback(self, localisation):
         t1 = timeit.default_timer()
         time_now = rospy.Time.now()
@@ -264,8 +270,8 @@ class Utility:
         # self.timerpid = now
         with self.lock:
             self.imu = imu
-        if self.pubOdom: #if true publish odom in imu callback
-            self.publish_odom()
+        # if self.pubOdom: #if true publish odom in imu callback
+        #     self.publish_odom()
     def ekf_callback(self, ekf):
         with self.lock:
             # self.ekf = ekf
@@ -280,7 +286,27 @@ class Utility:
         # print("model: ",dt, ", rate: ", rate)
         # self.timerpid = now
         with self.lock:
-            self.model = model
+            if self.i is None:
+                try:
+                    self.i = model.name.index("automobile") # index of the car
+                except ValueError:
+                    print("automobile not found in model states")
+                    return
+            self.car_inertial = model.twist[self.i]
+            self.x_speed = self.car_inertial.linear.x
+            self.y_speed = self.car_inertial.linear.y
+            self.gps_x = model.pose[self.i].position.x
+            self.gps_y = 15+model.pose[self.i].position.y
+            if not self.initializationFlag:
+                self.initializationFlag = True
+                print(f"intializing... gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}")
+                self.set_initial_pose(self.gps_x, self.gps_y, self.yaw)
+                print(f"odomX: {self.odomX:.2f}, odomY: {self.odomY:.2f}")
+                self.timerodom = rospy.Time.now()
+                if self.useEkf:
+                    self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
+                return
+            # self.model = model
     def stop_car(self):
         pub = rospy.Publisher("/automobile/command", String, queue_size=3)
         msg = String()
@@ -314,17 +340,17 @@ class Utility:
     def process_Imu(self, imu):
         self.yaw = tf.transformations.euler_from_quaternion([imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w])[2]
     def publish_odom(self):
-        if self.i is None:
-            try:
-                self.i = self.model.name.index("automobile") # index of the car
-            except ValueError:
-                pass
+        # if self.i is None:
+        #     try:
+        #         self.i = self.model.name.index("automobile") # index of the car
+        #     except ValueError:
+        #         pass
 
         self.process_yaw(self.imu)
         self.yaw = np.fmod(self.yaw, 2*math.pi)
         # print(f"yaw: {self.yaw:.2f}")
         # set velocity
-        self.car_inertial = self.model.twist[self.i]
+        # self.car_inertial = self.model.twist[self.i]
         x_speed = self.car_inertial.linear.x
         y_speed = self.car_inertial.linear.y
         speedYaw = math.atan2(y_speed, x_speed)
@@ -334,16 +360,16 @@ class Utility:
             speed *= -1
         self.velocity = speed
         # set gps
-        self.gps_x = self.model.pose[self.i].position.x
-        self.gps_y = 15+self.model.pose[self.i].position.y
+        # self.gps_x = self.model.pose[self.i].position.x
+        # self.gps_y = 15+self.model.pose[self.i].position.y
         # initialize
         if not self.initializationFlag:
-            self.initializationFlag = True
-            print(f"intializing... gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}")
-            self.set_initial_pose(self.gps_x, self.gps_y, self.yaw)
-            print(f"odomX: {self.odomX:.2f}, odomY: {self.odomY:.2f}")
-            # if self.useEkf:
-            #     self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
+            # self.initializationFlag = True
+            # print(f"intializing... gps_x: {self.gps_x:.2f}, gps_y: {self.gps_y:.2f}")
+            # self.set_initial_pose(self.gps_x, self.gps_y, self.yaw)
+            # print(f"odomX: {self.odomX:.2f}, odomY: {self.odomY:.2f}")
+            # # if self.useEkf:
+            # #     self.set_pose_using_service(self.odomX, self.odomY, self.yaw)
             return
         # dx, dy, dyaw = self.update_states_rk4(self.velocity, self.current_steer)
         dx, dy, dyaw = self.update_states_rk4(self.velocity, self.steer_command)
