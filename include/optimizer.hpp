@@ -22,12 +22,38 @@ public:
     Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init);
     Optimizer(double T, int N, double v_ref): Optimizer(T, N, v_ref, 0.83, 0.33, 1.65756) {}
     Optimizer(): Optimizer(0.125, 40, 1.0, 0.83, 0.33, 1.65756) {}
+    ~Optimizer() {
+        free(acados_ocp_capsule);
+        free(sim_capsule);
+        free(mobile_robot_sim_config);
+        free(mobile_robot_sim_dims);
+        free(mobile_robot_sim_in);
+        free(mobile_robot_sim_out);
+        free(nlp_config);
+        free(nlp_dims);
+        free(nlp_in);
+        free(nlp_out);
+
+        free(acados_ocp_capsule_park);
+        free(sim_capsule_park);
+        free(park_sim_config);
+        free(park_sim_dims);
+        free(park_sim_in);
+        free(park_sim_out);
+        free(nlp_config_park);
+        free(nlp_dims_park);
+        free(nlp_in_park);
+        free(nlp_out_park);
+    }
     int run(); 
     int update_and_solve();
     void integrate_next_states();
     int find_next_waypoint(int min_index = -1, int max_index = -1);
-    void update_current_states(double x, double y, double yaw);
-    void update_current_states(double* state);
+    void update_current_states(double x, double y, double yaw, Eigen::Vector3d& state);
+    void update_current_states(double x, double y, double yaw) {
+        update_current_states(x, y, yaw, x_current);
+    }
+    // void update_current_states(double* state);
     Eigen::VectorXd computeStats(int hsy);
     std::string getSourceDirectory();
     template <typename EigenType>

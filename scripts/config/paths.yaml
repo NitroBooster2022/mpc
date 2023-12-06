@@ -21,3 +21,12 @@ path2:
   - speed_entrance_west
   - parallel_parking
   - end
+
+path3:
+  - start
+  - roundabout_entrance_south
+  - bus_lane_entrance
+  - speed_entrance_south
+  - 2021_north
+  - 2023_north
+  - end

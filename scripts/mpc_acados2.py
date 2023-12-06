@@ -52,7 +52,7 @@ class Optimizer(object):
         self.gazebo = gazebo
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
-        name = 'path2'
+        name = 'path3'
         self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=x0)
         self.waypoints_x = self.path.waypoints_x
         self.waypoints_y = self.path.waypoints_y
@@ -243,16 +243,16 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        # cur_path = os.path.dirname(os.path.realpath(__file__))
-        # path = os.path.join(cur_path, 'paths')
-        # os.makedirs(path, exist_ok=True)
-        # np.savetxt(os.path.join(path,'state_refs2.txt'), self.state_refs, fmt='%.8f')
-        # print("stateref shape: ", self.state_refs.shape)
-        # np.savetxt(os.path.join(path,'input_refs2.txt'), self.input_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_normals2.txt'), self.wp_normals, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_attributes2.txt'), self.path.attributes, fmt='%.8f')
-        # exit()
+        cur_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(cur_path, 'paths')
+        os.makedirs(path, exist_ok=True)
+        np.savetxt(os.path.join(path,'state_refs2.txt'), self.state_refs, fmt='%.8f')
+        print("stateref shape: ", self.state_refs.shape)
+        np.savetxt(os.path.join(path,'input_refs2.txt'), self.input_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_normals2.txt'), self.wp_normals, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_attributes2.txt'), self.path.attributes, fmt='%.8f')
+        exit()
 
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index

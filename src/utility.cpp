@@ -25,6 +25,8 @@
 Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf)
 {
+    nh.getParam("/x_offset", x_offset);
+    nh.getParam("/y_offset", y_offset);
     rateVal = 10;
     rate = new ros::Rate(rateVal);
     wheelbase = 0.27;
@@ -146,6 +148,10 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     m = tf2::Matrix3x3(q);
     double roll, pitch;
     m.getRPY(roll, pitch, yaw);
+    if (!imuInitialized) {
+        imuInitialized = true;
+        std::cout << "imu initialized" << std::endl;
+    }
     lock.unlock();
     // ROS_INFO("imu time: %f", (now - ros::Time::now()).toSec());
     // ROS_INFO("imu callback rate: %3f", 1 / (now - general_timer).toSec());
@@ -186,15 +192,15 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
     auto& car_inertial = msg->twist[*car_idx];
     x_speed = msg->twist[*car_idx].linear.x;
     y_speed = msg->twist[*car_idx].linear.y;
-    gps_x = msg->pose[*car_idx].position.x; 
-    gps_y = 15.0 + msg->pose[*car_idx].position.y;
-    if (!initializationFlag) {
+    gps_x = msg->pose[*car_idx].position.x + x_offset;
+    gps_y = msg->pose[*car_idx].position.y + y_offset;
+    if (!initializationFlag && imuInitialized) {
         initializationFlag = true;
         std::cout << "Initializing... gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
         set_initial_pose(gps_x, gps_y, yaw);
         std::cout << "odomX: " << odomX << ", odomY: " << odomY << std::endl;
         timerodom = ros::Time::now();
-        set_pose_using_service(gps_x, gps_y, yaw);
+        // if (useEkf) set_pose_using_service(gps_x, gps_y, yaw);
         lock.unlock();
         return;
     }

@@ -113,7 +113,7 @@ int Optimizer::run() {
     Eigen::VectorXd x_final = state_refs.row(state_refs.rows() - 1);
     while(1) {
         double error_norm = (x_final - x_current).norm();
-        if(target_waypoint_index > num_waypoints || hsy > 500 || error_norm < 0.1) {
+        if(target_waypoint_index > num_waypoints || error_norm < 0.1) {
             break;
         }
         std::cout << "target_waypoint_index: " << target_waypoint_index << ", hsy: " << hsy << ", norm: " << error_norm << std::endl;
@@ -319,7 +319,7 @@ int Optimizer::find_next_waypoint(int min_index, int max_index) {
     // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
     // return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
-void Optimizer::update_current_states(double x, double y, double yaw) {
+void Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state) {
     if(target_waypoint_index < state_refs.rows()) {
         double ref_yaw = state_refs(target_waypoint_index, 2);
         while (ref_yaw - yaw > M_PI) {
@@ -329,25 +329,25 @@ void Optimizer::update_current_states(double x, double y, double yaw) {
             yaw -= 2 * M_PI;
         }
     }
-    x_current[0] = x;
-    x_current[1] = y;
-    x_current[2] = yaw;
+    state[0] = x;
+    state[1] = y;
+    state[2] = yaw;
 }
-void Optimizer::update_current_states(double* state) {
-    double yaw = state[2];
-    if(target_waypoint_index < state_refs.rows()) {
-        double ref_yaw = state_refs(target_waypoint_index, 2);
-        while (ref_yaw - yaw > M_PI) {
-            yaw += 2 * M_PI;
-        }
-        while (ref_yaw - yaw < -M_PI) {
-            yaw -= 2 * M_PI;
-        }
-    }
-    x_current[0] = state[0];
-    x_current[1] = state[1];
-    x_current[2] = yaw;
-}
+// void Optimizer::update_current_states(double* state) {
+//     double yaw = state[2];
+//     if(target_waypoint_index < state_refs.rows()) {
+//         double ref_yaw = state_refs(target_waypoint_index, 2);
+//         while (ref_yaw - yaw > M_PI) {
+//             yaw += 2 * M_PI;
+//         }
+//         while (ref_yaw - yaw < -M_PI) {
+//             yaw -= 2 * M_PI;
+//         }
+//     }
+//     x_current[0] = state[0];
+//     x_current[1] = state[1];
+//     x_current[2] = yaw;
+// }
 
 Eigen::VectorXd Optimizer::computeStats(int hsy) {
     simX.conservativeResize(iter, Eigen::NoChange);

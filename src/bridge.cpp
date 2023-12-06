@@ -13,6 +13,8 @@ class LocalizationBridge {
         LocalizationBridge(ros::NodeHandle& nh_):
             nh(nh_)
         {
+            nh.getParam("/x_offset", x_offset);
+            nh.getParam("/y_offset", y_offset);
             nh.getParam("/max_noise", max_noise);
             nh.getParam("/cov", cov);
             nh.getParam("/manual_integration", manual);
@@ -46,7 +48,7 @@ class LocalizationBridge {
         ros::Subscriber commands_sub;
         ros::Subscriber imu_sub;
         double max_noise, wheelbase, cov;
-        double prev_time, prev_yaw, prev_v, prev_steering, dx, dy, imu_yaw;
+        double prev_time, prev_yaw, prev_v, prev_steering, dx, dy, imu_yaw, x_offset, y_offset;
         bool manual;
         // Create a PoseWithCovarianceStamped message
         geometry_msgs::PoseWithCovarianceStamped msg;
@@ -58,8 +60,8 @@ class LocalizationBridge {
             msg.header.stamp = msg_in->header.stamp; // localisation msg is delayed by 1s
             msg.header.frame_id = "odom";
 
-            double x0 = msg_in->posA;
-            double y0 = 15.0-msg_in->posB;
+            double x0 = msg_in->posA + x_offset;
+            double y0 = msg_in->posB + y_offset;
             double time0 = msg_in->header.stamp.toSec();
             prev_time = time0;
             

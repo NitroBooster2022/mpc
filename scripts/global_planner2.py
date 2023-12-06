@@ -13,7 +13,7 @@ class GlobalPlanner:
         self.attribute = {}
         for node, data in self.G.nodes(data=True):
             # print("node: ", node)
-            self.pos[node] = (data['x'], 15-data['y'])
+            self.pos[node] = (data['x'], 13.786-data['y'])
             self.attribute[node] = data['new_attribute']
         self.wp_x = []
         self.wp_y = []
@@ -38,6 +38,16 @@ class GlobalPlanner:
             "bus_lane_entrance": 427,
             "start": 472,
             "end": 467,
+            "2019_north": 115,
+            "2019_east": 108,
+            "2020_north": 97,
+            "2020_south": 94,
+            "2023_south": 100,
+            "2023_north": 103,
+            "2022_north": 128,
+            "2022_south": 124,
+            "2021_north": 134,
+            "2021_south": 131,
         }
         max_x = float('-inf')
         max_y = float('-inf')
@@ -58,14 +68,19 @@ class GlobalPlanner:
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
+        print("path: ", path)
         wp_x = []
         wp_y = []
         wp_attributes = []
         for node in path:
-            x, y = self.pos[node]
-            wp_x.append(x)
-            wp_y.append(y)
-            wp_attributes.append(self.attribute.get(node, 0))
+            attribute = self.attribute.get(node, 0)
+            if attribute != 2:
+                x, y = self.pos[node]
+                wp_x.append(x)
+                wp_y.append(y)
+                wp_attributes.append(self.attribute.get(node, 0))
+            else:
+                print("intersection: ", node)
         return alex.array([wp_x, wp_y]), path_edges, wp_attributes
     def illustrate_path(self, start, end):
         _, path_edges, _ = self.plan_path(start, end)
@@ -98,5 +113,5 @@ class GlobalPlanner:
   
 if __name__ == "__main__":
     planner = GlobalPlanner()
+    # planner.plan_path(58, 59)
     planner.illustrate_path(86, 467)
-    

@@ -75,7 +75,8 @@ class Odom():
         self.car_pose = data.pose[self.car_idx]
         self.car_inertial = data.twist[self.car_idx]
         self.gpsState[0] = self.car_pose.position.x
-        self.gpsState[1] = 15+self.car_pose.position.y
+        # self.gpsState[1] = 15+self.car_pose.position.y
+        self.gpsState[1] = self.car_pose.position.y
         self.groundTwist[0] = self.car_inertial.linear.x
         self.groundTwist[1] = self.car_inertial.linear.y
     def ekf_callback(self, data):

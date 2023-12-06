@@ -2,7 +2,8 @@
 # N: 50
 # T: 0.05
 # N: 100
-T: 0.125
+T: 0.1
+# T: 0.125
 N: 40
 # T: 0.25
 # N: 100
@@ -10,7 +11,8 @@ constraints:
   # sim
   v_max: 2.0
   v_min: -1
-  v_ref: 1.3
+  v_ref: 1.0
+  # v_ref: 1.3
 
   # gazebo
   # v_max: 0.7

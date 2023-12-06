@@ -32,6 +32,8 @@ for i in range(480, 490):
 roundabout = []
 for i in range(358, 369):
     roundabout.append(i)
+
+intersection = [400, 424, 70, 71, 72, 43, 44, 10, 45, 12, 11, 9, 88, 89, 90, 22, 23, 24, 21, 35, 33, 34, 36, 54, 53, 52, 63, 62]
 # Add an attribute to every node with a default value of 0
 for node in graph.nodes:
     if int(node) in crosswalk:
@@ -44,6 +46,8 @@ for node in graph.nodes:
         graph.nodes[node]['new_attribute'] = 3
     elif int(node) in roundabout:
         graph.nodes[node]['new_attribute'] = 6
+    elif int(node) in intersection:
+        graph.nodes[node]['new_attribute'] = 2
     else:
         graph.nodes[node]['new_attribute'] = 0
 

@@ -32,7 +32,8 @@ public:
             x = utils.gps_x;
             y = utils.gps_y;
         }
-        std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << std::endl;
+        std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
+        if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
         mpc.update_current_states(x, y, utils.yaw);
         mpc.target_waypoint_index = mpc.find_next_waypoint(0, static_cast<int>(mpc.state_refs.rows() - 1));
     }
@@ -266,8 +267,8 @@ void StateMachine::run() {
             move_to(xs);
             change_state(STATE::MOVING);
         } else if (state == STATE::INIT) {
-            // change_state(STATE::MOVING);
-            change_state(STATE::PARKING);
+            change_state(STATE::MOVING);
+            // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;
             utils.stop_car();
@@ -320,6 +321,7 @@ StateMachine *globalStateMachinePtr = nullptr;
 void signalHandler(int signum) {
     if (globalStateMachinePtr) {
         globalStateMachinePtr->utils.stop_car();
+        globalStateMachinePtr->mpc.computeStats(357);
     }
     ros::shutdown();
     exit(signum);

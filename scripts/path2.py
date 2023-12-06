@@ -159,7 +159,7 @@ def interpolate_waypoints2(waypoints, num_points):
     return new_waypoints
 
 class Path:
-    def __init__(self, v_ref, N, T, x0=None, name="path2"):
+    def __init__(self, v_ref, N, T, x0=None, name="path3"):
         self.v_ref = v_ref
         self.N = N
         self.global_planner = GlobalPlanner()
@@ -265,7 +265,7 @@ class Path:
             self.waypoints_hw, 
             self.attributes, 
             self.attributes_hw,
-            density_factor= 1/1.5,
+            density_factor= 1/1.33,
             values = [4,5]
         )
         # self.waypoints = filter_waypoints(self.waypoints, 0.01).T
@@ -288,8 +288,8 @@ class Path:
         mask_hw1 = (self.attributes == 4)
         mask_hw2 = (self.attributes == 5)
         self.v_refs[mask_cw] *= 1/1.5
-        self.v_refs[mask_hw1] *= 1.5
-        self.v_refs[mask_hw2] *= 1.5
+        self.v_refs[mask_hw1] *= 1.33
+        self.v_refs[mask_hw2] *= 1.33
         # print("v_refs: \n", self.v_refs, ", wpts: ", self.waypoints.shape, ", attributes: ", self.attributes.shape)
         
         #nonlinear speed profile
