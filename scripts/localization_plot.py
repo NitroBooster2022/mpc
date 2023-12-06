@@ -75,7 +75,8 @@ class Odom():
         self.car_pose = data.pose[self.car_idx]
         self.car_inertial = data.twist[self.car_idx]
         self.gpsState[0] = self.car_pose.position.x
-        self.gpsState[1] = 15+self.car_pose.position.y
+        # self.gpsState[1] = 15+self.car_pose.position.y
+        self.gpsState[1] = self.car_pose.position.y
         self.groundTwist[0] = self.car_inertial.linear.x
         self.groundTwist[1] = self.car_inertial.linear.y
     def ekf_callback(self, data):
@@ -165,7 +166,7 @@ class Odom():
         # Plot the ground, EKF, and Odom values
         for i, label in enumerate(labels):
             # Ignore first 10% of the data to allow for the system to settle
-            start_index = int(len(groundValues) * 0.1)
+            start_index = math.ceil(len(groundValues) * 0.005)
             end_index = int(len(groundValues) * 0.9)
 
             if label == 'Yaw':
@@ -282,10 +283,10 @@ class Odom():
                 axs[0, i].set_ylabel("Y")
                 axs[0, i].legend(loc='upper right')
                 axs[0, i].axis('equal')  # Ensuring equal scaling on both axes
-
+                
                 axs[1, i].plot(groundYaw[start_index:end_index], label='Ground Truth Yaw')
                 axs[1, i].plot(measuredYaw[start_index:end_index], label='Measured Yaw')
-                axs[1, i].set_title(f"{label} Over Time")
+                axs[1, i].set_title("Yaw")
                 axs[1, i].legend(loc='lower right')
 
                 # min_error_yaw = np.min(yaw_errors[start_index:end_index])

@@ -11,14 +11,31 @@
 class StateMachine {
 public:
     StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf): 
-    nh(nh_), utils(nh, sign, ekf), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5)
+    nh(nh_), utils(nh, sign, ekf), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
+    state(STATE::INIT), sign(sign), ekf(ekf)
     {
         double rateVal = 1/mpc.T;
         rate = new ros::Rate(rateVal);
         std::cout << "rate: " << rateVal << std::endl;
         x0 = {0, 0, 0};
-        state = STATE::INIT;
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
+        ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
+        while(!utils.initializationFlag) {
+            ros::spinOnce();
+            rate->sleep();
+        }
+        double x, y;
+        if (ekf) {
+            x = utils.ekf_x;
+            y = utils.ekf_y;
+        } else {
+            x = utils.gps_x;
+            y = utils.gps_y;
+        }
+        std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
+        if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
+        mpc.update_current_states(x, y, utils.yaw);
+        mpc.target_waypoint_index = mpc.find_next_waypoint(0, static_cast<int>(mpc.state_refs.rows() - 1));
     }
     ~StateMachine() {
         // utils.stop_car();
@@ -88,7 +105,7 @@ public:
     Eigen::Vector2d destination;
     Eigen::VectorXd xs;
     int state = 0;
-    bool debug = true;
+    bool debug = true, sign, ekf;
     std::string gaz_bool = "_gazebo_";
 
     ros::Time cooldown_timer;
@@ -133,56 +150,57 @@ void StateMachine::run() {
     while (ros::ok()) {
         if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
-            double dist;
-            int stopsign_index = utils.object_index(OBJECT::STOPSIGN);
-            if(stopsign_index >= 0) {
-                dist = utils.object_distance(stopsign_index);
-                if (ros::Time::now() > cooldown_timer && dist > 0) {
-                    std::cout << "stop sign detected at a distance of: " << dist << std::endl;
-                    // auto box = utils.object_box(stopsign_index);
-                    // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
-                    // std::cout << "world pose: " << world_pose << std::endl;
-                    // utils.add_object("stopsign", world_pose);
-                    // detected_dist = dist;
-                    change_state(STATE::APPROACHING_INTERSECTION);
-                    continue;
+            if (sign) {
+                double dist;
+                int stopsign_index = utils.object_index(OBJECT::STOPSIGN);
+                if(stopsign_index >= 0) {
+                    dist = utils.object_distance(stopsign_index);
+                    if (ros::Time::now() > cooldown_timer && dist > 0) {
+                        std::cout << "stop sign detected at a distance of: " << dist << std::endl;
+                        // auto box = utils.object_box(stopsign_index);
+                        // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
+                        // std::cout << "world pose: " << world_pose << std::endl;
+                        // utils.add_object("stopsign", world_pose);
+                        // detected_dist = dist;
+                        change_state(STATE::APPROACHING_INTERSECTION);
+                        continue;
+                    }
                 }
-            }
-            int light_index = utils.object_index(OBJECT::LIGHTS);
-            if(light_index >= 0) {
-                dist = utils.object_distance(light_index);
-                if (ros::Time::now() > cooldown_timer && dist > 0) {
-                    std::cout << "traffic light detected at a distance of: " << dist << std::endl;
-                    // auto box = utils.object_box(stopsign_index);
-                    // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
-                    // std::cout << "world pose: " << world_pose << std::endl;
-                    // utils.add_object("light", world_pose);
-                    // detected_dist = dist;
-                    change_state(STATE::WAITING_FOR_LIGHT);
-                    continue;
+                int light_index = utils.object_index(OBJECT::LIGHTS);
+                if(light_index >= 0) {
+                    dist = utils.object_distance(light_index);
+                    if (ros::Time::now() > cooldown_timer && dist > 0) {
+                        std::cout << "traffic light detected at a distance of: " << dist << std::endl;
+                        // auto box = utils.object_box(stopsign_index);
+                        // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
+                        // std::cout << "world pose: " << world_pose << std::endl;
+                        // utils.add_object("light", world_pose);
+                        // detected_dist = dist;
+                        change_state(STATE::WAITING_FOR_LIGHT);
+                        continue;
+                    }
                 }
-            }
-            int park_index = utils.object_index(OBJECT::PARK);
-            if(park_index >= 0) {
-                dist = utils.object_distance(park_index);
-                if (dist < MAX_PARK_DIST && dist > 0) {
-                    std::cout << "parking sign detected at a distance of: " << dist << std::endl;
-                    change_state(STATE::PARKING);
-                    continue;
+                int park_index = utils.object_index(OBJECT::PARK);
+                if(park_index >= 0) {
+                    dist = utils.object_distance(park_index);
+                    if (dist < MAX_PARK_DIST && dist > 0) {
+                        std::cout << "parking sign detected at a distance of: " << dist << std::endl;
+                        change_state(STATE::PARKING);
+                        continue;
+                    }
                 }
-            }
-            int car_index = utils.object_index(OBJECT::CAR);
-            std::cout << "car index: " << car_index << std::endl;
-            if(car_index >= 0) {
-                dist = utils.object_distance(car_index);
-                std::cout << "car dist: " << dist << std::endl;
-                if (dist < MAX_CAR_DIST && mpc.target_waypoint_index >= detected_index * 1.2 && park_index < 0 && dist > 0) {
-                    dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
-                    std::cout << "car detected at a distance of: " << dist << std::endl;
-                    int offset = static_cast<int>(dist * mpc.density);
-                    detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * mpc.density);
-                    mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, LANE_OFFSET);
-                    continue;
+                int car_index = utils.object_index(OBJECT::CAR);
+                if(car_index >= 0) {
+                    dist = utils.object_distance(car_index);
+                    std::cout << "car dist: " << dist << std::endl;
+                    if (dist < MAX_CAR_DIST && mpc.target_waypoint_index >= detected_index * 1.2 && park_index < 0 && dist > 0) {
+                        dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
+                        std::cout << "car detected at a distance of: " << dist << std::endl;
+                        int offset = static_cast<int>(dist * mpc.density);
+                        detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * mpc.density);
+                        mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, LANE_OFFSET);
+                        continue;
+                    }
                 }
             }
             update_mpc_state();
@@ -234,9 +252,11 @@ void StateMachine::run() {
                 }
             }
             ROS_INFO("parking offset is: %3f", offset);
-            xs << offset, 0., M_PI, 0., 0.;
-            move_to(xs);
+            // xs << -offset, 0., M_PI, 0., 0.;
+            // ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
+            // move_to(xs);
             xs << 0.63, 0.32, M_PI, 0., 0.;
+            ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
             move_to(xs);
             change_state(STATE::PARKED);
         } else if (state == STATE::PARKED) {
@@ -248,6 +268,7 @@ void StateMachine::run() {
             change_state(STATE::MOVING);
         } else if (state == STATE::INIT) {
             change_state(STATE::MOVING);
+            // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;
             utils.stop_car();
@@ -259,7 +280,15 @@ void StateMachine::run() {
     }
 }
 void StateMachine::update_mpc_state() {
-    mpc.update_current_states(utils.gps_x, utils.gps_y, utils.yaw);
+    double x, y;
+    if (ekf) {
+        x = utils.ekf_x;
+        y = utils.ekf_y;
+    } else {
+        x = utils.gps_x;
+        y = utils.gps_y;
+    }
+    mpc.update_current_states(x, y, utils.yaw);
     if(debug) {
         ;
     }
@@ -292,6 +321,7 @@ StateMachine *globalStateMachinePtr = nullptr;
 void signalHandler(int signum) {
     if (globalStateMachinePtr) {
         globalStateMachinePtr->utils.stop_car();
+        globalStateMachinePtr->mpc.computeStats(357);
     }
     ros::shutdown();
     exit(signum);
@@ -304,7 +334,7 @@ int main(int argc, char **argv) {
     double T, v_ref;
     int N;
     bool sign, ekf;
-    bool success = nh.getParam("ekf", ekf) && nh.getParam("sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    bool success = nh.getParam("/mpc_controller/ekf", ekf) && nh.getParam("/mpc_controller/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
         T = 0.125;
@@ -312,7 +342,9 @@ int main(int argc, char **argv) {
         v_ref = 1.3;
         sign = false;
         ekf = false;
+        exit(1);
     }
+    std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", v_ref: " << v_ref << std::endl;
     StateMachine sm(nh, T, N, v_ref, sign, ekf);
 
     globalStateMachinePtr = &sm;

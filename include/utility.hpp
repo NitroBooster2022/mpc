@@ -42,6 +42,9 @@ public:
 
     double wheelbase, odomRatio, maxspeed, center, image_center, p, d, last;
     double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, ekf_yaw, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
+    double x_offset, y_offset;
+    double gps_state[3];
+    double ekf_state[3];
     std::optional<size_t> car_idx;
 
     ros::Time timerodom;
@@ -51,7 +54,7 @@ public:
 
     double covariance_value;
 
-    bool initializationFlag;
+    bool initializationFlag, imuInitialized = false;
 
     tf2_ros::StaticTransformBroadcaster static_broadcaster;
     geometry_msgs::PoseWithCovarianceStamped pose_to_set;
@@ -74,6 +77,7 @@ public:
     sensor_msgs::Imu imu;
     tf2::Quaternion q;
     tf2::Matrix3x3 m;
+    tf2::Quaternion tf2_quat;
 
     // subscribers
     ros::Subscriber lane_sub;

@@ -1,7 +1,8 @@
 #include "optimizer.hpp"
 
 Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init):
-    T(T), N(N), v_ref(v_ref), density(1/T/v_ref)
+    T(T), N(N), v_ref(v_ref), density(1/T/v_ref), region_of_acceptance(0.03076923*3 * (0.125*1.3) / density), 
+    region_of_acceptance_cw(region_of_acceptance * 1.0/1.5), region_of_acceptance_hw(region_of_acceptance * 1.5), t0(0.0)
  {
     // Initialize member variables
     min_time = 1e12;
@@ -78,28 +79,24 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     x_current[1] = y_init;
     x_current[2] = yaw_init;
 
-    // x_current[0] = 14.17;
-    // x_current[1] = 0.33;
-    // x_current[2] = 1.48402932;
-
     x_state[0] = 0.0;
     x_state[1] = 0.0;
     x_state[2] = 0.0;
     x_state[3] = 0.0;
     x_state[4] = 0.0;
 
-    // x_current << x_current[0], x_current[1], x_current[2];
-    target_waypoint_index = 0;
-    last_waypoint_index = 0;
-    region_of_acceptance = 0.03076923*2*1.5;
-    state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs.txt");
-    input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs.txt");
-    state_refs_hw = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs_hw.txt"); // sparse pts for highway area
-    state_refs_cw = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs_cw.txt"); // dense pts for crosswalk area
+    // region_of_acceptance = 0.03076923*3.0 * (0.125*1.3) / density;
+    state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
+    input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
+    state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
     state_refs_ptr = &state_refs;
-    normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals.txt");
+    normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
     num_waypoints = state_refs.rows();
     std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
+
+    target_waypoint_index = 0;
+    last_waypoint_index = target_waypoint_index;
+    // region_of_acceptance = 0.03076923*2*1.5;
 
     int len = static_cast<int>(num_waypoints * 2);
     simX = Eigen::MatrixXd::Zero(len, nx); 
@@ -116,7 +113,7 @@ int Optimizer::run() {
     Eigen::VectorXd x_final = state_refs.row(state_refs.rows() - 1);
     while(1) {
         double error_norm = (x_final - x_current).norm();
-        if(target_waypoint_index > num_waypoints || hsy > 500 || error_norm < 0.1) {
+        if(target_waypoint_index > num_waypoints || error_norm < 0.1) {
             break;
         }
         std::cout << "target_waypoint_index: " << target_waypoint_index << ", hsy: " << hsy << ", norm: " << error_norm << std::endl;
@@ -145,14 +142,6 @@ int Optimizer::update_and_solve() {
     auto t_start = std::chrono::high_resolution_clock::now();
 
     state_refs_ptr = &state_refs;
-    // declare a pointer or reference to state_refs
-    // if (cond1) {
-    //     use state_refs
-    // } else if (cond2) {
-    //     use state_refs_hw
-    // } else {
-    //     use state_refs_cw
-    // }
     if(debug) {
         x_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 0) - x_current[0];
         y_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 1) - x_current[1];
@@ -245,23 +234,9 @@ void Optimizer::integrate_next_states() {
     t0 += T;
 }
 
-int Optimizer::find_next_waypoint() {
+int Optimizer::find_next_waypoint(int min_index, int max_index) {
     // auto start = std::chrono::high_resolution_clock::now();
 
-    // Calculate distances to each waypoint
-    // x_current << x_current[0], x_current[1], x_current[2];
-    // distances = Eigen::VectorXd::Zero(state_refs.rows());
-    // for (int i = 0; i < state_refs.rows(); ++i) {
-    //     distances(i) = (Eigen::Vector2d(state_refs(i,0), state_refs(i,1)) - x_current.head(2)).norm();
-    // }
-    // // Find the index of the closest waypoint
-    // Eigen::VectorXd::Index closest_idx;
-    // double min_distance_sq = pow(distances.minCoeff(&closest_idx), 2);
-    
-    // Update current state only once
-    // x_current << x_current[0], x_current[1] , x_current[2];
-
-    // Precompute squared norm for efficiency
     double current_norm = x_current.head(2).squaredNorm();
 
     // Initialize variables for finding the minimum distance
@@ -270,8 +245,8 @@ int Optimizer::find_next_waypoint() {
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
-    int min_index = std::max(last_waypoint_index - limit, 0); //0;
-    int max_index = std::min(last_waypoint_index + limit, static_cast<int>((*state_refs_ptr).rows()) - 1); //state_refs.rows() - 1;
+    if (min_index < 0) min_index = std::max(last_waypoint_index - limit, 0); //0;
+    if (max_index < 0) max_index = std::min(last_waypoint_index + limit, static_cast<int>((*state_refs_ptr).rows()) - 1); //state_refs.rows() - 1;
     // int min_index = 0;
     // int max_index = state_refs.rows() - 1;
     for (int i = min_index; i < max_index; ++i) {
@@ -291,20 +266,32 @@ int Optimizer::find_next_waypoint() {
     // return std::min(target_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
 
     //2
+    double roa_sq;
+    if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
+        roa_sq = region_of_acceptance_cw * region_of_acceptance_cw;
+    } else if (state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYLEFT || state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYRIGHT) {
+        roa_sq = region_of_acceptance_hw * region_of_acceptance_hw;
+    } else {
+        roa_sq = region_of_acceptance * region_of_acceptance;
+    }
     last_waypoint_index = target_waypoint_index;
-    if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
-        std::cout << "min_distance_sq: " << min_distance_sq << std::endl;
+    if (min_distance_sq < roa_sq) {
+        // std::cout << "min_distance_sq: " << min_distance_sq << std::endl;
         target_waypoint_index ++;
     }
     if (closest_idx > target_waypoint_index) {
         target_waypoint_index = closest_idx;
     } else if (closest_idx + limit/3 < target_waypoint_index) {
-        std::cout << "discontinuity" << std::endl;
-        target_waypoint_index = closest_idx + 1;
+        double yaw_at_closest = (*state_refs_ptr)(closest_idx, 2);
+        double yaw_diff = std::abs(x_current[2] - yaw_at_closest);
+        std::cout << "discontinuity, yaw diff = " << yaw_diff << std::endl;
+        if (yaw_diff < M_PI/2) {
+            target_waypoint_index = closest_idx + 1;
+        }
     }
-    double dist = sqrt(min_distance_sq);
+    // double dist = sqrt(min_distance_sq);
     // std::cout << "cur:" << x_current[0] << "," << x_current[1] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
-    std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
+    // std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
     return std::min(target_waypoint_index, static_cast<int>((*state_refs_ptr).rows()) - 1);
 
     // Determine the next waypoint
@@ -332,7 +319,7 @@ int Optimizer::find_next_waypoint() {
     // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
     // return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
-void Optimizer::update_current_states(double x, double y, double yaw) {
+void Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state) {
     if(target_waypoint_index < state_refs.rows()) {
         double ref_yaw = state_refs(target_waypoint_index, 2);
         while (ref_yaw - yaw > M_PI) {
@@ -342,24 +329,26 @@ void Optimizer::update_current_states(double x, double y, double yaw) {
             yaw -= 2 * M_PI;
         }
     }
-    x_current[0] = x;
-    x_current[1] = y;
-    x_current[2] = yaw;
+    state[0] = x;
+    state[1] = y;
+    state[2] = yaw;
 }
-void Optimizer::update_real_states(double x, double y, double yaw) {
-    if(target_waypoint_index < state_refs.rows()) {
-        double ref_yaw = state_refs(target_waypoint_index, 2);
-        while (ref_yaw - yaw > M_PI) {
-            yaw += 2 * M_PI;
-        }
-        while (ref_yaw - yaw < -M_PI) {
-            yaw -= 2 * M_PI;
-        }
-    }
-    x_current[0] = x;
-    x_current[1] = y;
-    x_current[2] = yaw;
-}
+// void Optimizer::update_current_states(double* state) {
+//     double yaw = state[2];
+//     if(target_waypoint_index < state_refs.rows()) {
+//         double ref_yaw = state_refs(target_waypoint_index, 2);
+//         while (ref_yaw - yaw > M_PI) {
+//             yaw += 2 * M_PI;
+//         }
+//         while (ref_yaw - yaw < -M_PI) {
+//             yaw -= 2 * M_PI;
+//         }
+//     }
+//     x_current[0] = state[0];
+//     x_current[1] = state[1];
+//     x_current[2] = yaw;
+// }
+
 Eigen::VectorXd Optimizer::computeStats(int hsy) {
     simX.conservativeResize(iter, Eigen::NoChange);
     simU.conservativeResize(iter, Eigen::NoChange);

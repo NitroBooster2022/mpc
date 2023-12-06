@@ -120,3 +120,9 @@ sim_shared_lib
 ${catkin_LIBRARIES}
 )
 
+add_executable(bridge1
+  src/bridge.cpp
+)
+target_link_libraries(bridge1
+  ${catkin_LIBRARIES}
+)

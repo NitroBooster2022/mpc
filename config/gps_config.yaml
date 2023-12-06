@@ -1,0 +1,11 @@
+# Description: GPS configuration file
+rate: 4
+max_noise: 0.2
+gps_delay: 1.0
+cov: 0.02
+manual_integration: false
+x_offset: 0
+y_offset: 0
+# y_offset: -14.96
+width: 20.696
+height: 13.786

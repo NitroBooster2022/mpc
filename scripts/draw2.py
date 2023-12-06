@@ -131,9 +131,11 @@ class Draw_MPC_tracking(object):
             print("No reference states provided. Using robot states as reference.")
             self.ref_states = self.robot_states
         if len(self.ref_states) < len(self.robot_states):
+            print("Robot states are longer than reference states. Using reference states as reference.")
             # extend ref state with extra values in robot state
             ref_states = np.concatenate((self.ref_states, np.tile(self.ref_states[-1], (len(self.robot_states) - len(self.ref_states), 1))))
         else:
+            print("Reference states are longer than robot states. Using robot states as reference.")
             ref_states = self.ref_states
 
         t = np.linspace(0, 1, len(ref_states))  
@@ -182,16 +184,17 @@ if __name__ == '__main__':
     current_path = os.path.dirname(os.path.realpath(__file__))
     wpts_x = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_x.txt'))
     wpts_y = np.loadtxt(os.path.join(current_path, 'paths', 'waypoints_y.txt'))
-    ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs.txt'))
+    ref_states = np.loadtxt(os.path.join(current_path, 'paths', 'state_refs2.txt'))
     current_path = current_path.replace('scripts', 'src')
     robot_states = np.loadtxt(os.path.join(current_path, 'simX.txt'))
-    if len(wpts_x) > len(robot_states):
+    if len(ref_states) > len(robot_states):
         wpts_x = wpts_x[:len(robot_states)]
         wpts_y = wpts_y[:len(robot_states)]
         ref_states = ref_states[:len(robot_states)]
     u = np.loadtxt(os.path.join(current_path, 'simU.txt'))
     print(robot_states.shape, u.shape)
-    Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
+    # Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test')
+    Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], xmax=21, export_fig='test')
     #park
     # Draw_MPC_tracking(u, robot_states, ref_states, robot_states[0], waypoints_x=wpts_x, waypoints_y=wpts_y, export_fig='test', xmin=0, xmax=2, ymin=-1, ymax=1)
 
