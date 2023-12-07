@@ -116,4 +116,14 @@ public:
     void set_rate(double rateVal);
     double get_current_orientation();
     std::array<double, 3> get_real_states() const;
+    void get_gps_states(double &x, double &y, double &yaw) {
+        x = gps_x;
+        y = gps_y;
+        yaw = yaw;
+    }
+    void get_ekf_states(double &x, double &y, double &yaw) {
+        x = ekf_x;
+        y = ekf_y;
+        yaw = ekf_yaw;
+    }
 };

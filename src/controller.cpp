@@ -24,13 +24,11 @@ public:
             ros::spinOnce();
             rate->sleep();
         }
-        double x, y;
+        double x, y, yaw;
         if (ekf) {
-            x = utils.ekf_x;
-            y = utils.ekf_y;
+            utils.get_ekf_states(x, y, yaw);
         } else {
-            x = utils.gps_x;
-            y = utils.gps_y;
+            utils.get_gps_states(x, y, yaw);
         }
         std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
         if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
@@ -161,7 +159,7 @@ void StateMachine::run() {
                         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
                         // std::cout << "world pose: " << world_pose << std::endl;
                         // utils.add_object("stopsign", world_pose);
-                        // detected_dist = dist;
+                        detected_dist = dist;
                         change_state(STATE::APPROACHING_INTERSECTION);
                         continue;
                     }
@@ -175,7 +173,7 @@ void StateMachine::run() {
                         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
                         // std::cout << "world pose: " << world_pose << std::endl;
                         // utils.add_object("light", world_pose);
-                        // detected_dist = dist;
+                        detected_dist = dist;
                         change_state(STATE::WAITING_FOR_LIGHT);
                         continue;
                     }
@@ -214,9 +212,20 @@ void StateMachine::run() {
         } else if (state == STATE::APPROACHING_INTERSECTION) {
             double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST);
             ROS_INFO("stop sign detected at a distance of: %3f, offset: %3f", detected_dist, offset);
-            double x = utils.gps_x, y = utils.gps_y;
+            double x0, y0, yaw0;
+            if (ekf) {
+                utils.get_ekf_states(x0, y0, yaw0);
+            } else {
+                utils.get_gps_states(x0, y0, yaw0);
+            }
             while(1) {
-                double norm = std::sqrt((x - utils.gps_x)*(x - utils.gps_x) + (y - utils.gps_y)*(y - utils.gps_y));
+                double x, y, yaw;
+                if (ekf) {
+                    utils.get_ekf_states(x, y, yaw);
+                } else {
+                    utils.get_gps_states(x, y, yaw);
+                }
+                double norm = std::sqrt((x0 - x)*(x0 - x) + (y0 - y)*(y0 - y));
                 ROS_INFO("norm: %3f", norm);
                 if (norm >= offset)
                 {
@@ -244,7 +253,7 @@ void StateMachine::run() {
             if (car_index >= 0) {
                 double car_dist = utils.object_distance(car_index);
                 double dist_to_first_spot = detected_dist + PARKSIGN_TO_CAR - CAR_LENGTH/2;
-                if (car_dist - dist_to_first_spot > (PARKING_SPOT_LENGTH + CAR_LENGTH)/2 * 1.1) {
+                if (car_dist - dist_to_first_spot > (PARKING_SPOT_LENGTH + CAR_LENGTH)/2 * 1.1) { // 1.1 is a safety factor
                     ROS_INFO("car parked in second spot, proceed to park in first spot");
                 } else {
                     ROS_INFO("car parked in first spot, proceed to park in second spot");
@@ -280,15 +289,14 @@ void StateMachine::run() {
     }
 }
 void StateMachine::update_mpc_state() {
-    double x, y;
+    double x, y, yaw;
     if (ekf) {
-        x = utils.ekf_x;
-        y = utils.ekf_y;
+        utils.get_ekf_states(x, y, yaw);
+        mpc.update_current_states(utils.gps_x, utils.gps_y, utils.yaw, mpc.x_real); // update real states as well
     } else {
-        x = utils.gps_x;
-        y = utils.gps_y;
+        utils.get_gps_states(x, y, yaw);
     }
-    mpc.update_current_states(x, y, utils.yaw);
+    mpc.update_current_states(x, y, yaw); // no argument means use current states
     if(debug) {
         ;
     }
