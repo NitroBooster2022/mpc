@@ -148,6 +148,7 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     m = tf2::Matrix3x3(q);
     double roll, pitch;
     m.getRPY(roll, pitch, yaw);
+    // ROS_INFO("yaw: %3f", yaw);
     if (!imuInitialized) {
         imuInitialized = true;
         std::cout << "imu initialized" << std::endl;

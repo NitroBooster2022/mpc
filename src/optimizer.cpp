@@ -202,9 +202,9 @@ int Optimizer::update_and_solve() {
         double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
         // std::cout << "elapsed time: " << elapsed_time_ms << " ms" << std::endl;
         time_record(iter) = elapsed_time_ms;
-        x_errors(iter) = state_refs(target_waypoint_index, 0) - x_current[0];
-        y_errors(iter) = state_refs(target_waypoint_index, 1) - x_current[1];
-        yaw_errors(iter) = state_refs(target_waypoint_index, 2) - x_current[2];
+        x_errors(iter) = state_refs(target_waypoint_index, 0) - x_real[0];
+        y_errors(iter) = state_refs(target_waypoint_index, 1) - x_real[1];
+        yaw_errors(iter) = state_refs(target_waypoint_index, 2) - x_real[2];
         for(int i=0; i<nu; i++) {
             simU(iter, i) = u_current[i];
         }

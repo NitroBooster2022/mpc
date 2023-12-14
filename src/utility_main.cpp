@@ -4,7 +4,7 @@
 int main(int argc, char **argv) {
     ros::init(argc, argv, "utility_node");
     ros::NodeHandle nh;
-    Utility utility(nh);
+    Utility utility(nh, false, false);
     ros::spin();
     return 0;
 }

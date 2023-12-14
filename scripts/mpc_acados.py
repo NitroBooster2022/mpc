@@ -376,7 +376,8 @@ class Optimizer(object):
         self.park_yaw = cur_frame[2]
         # ref_frame = np.array([offset, 0, np.pi])
         # xs = np.array([0, 0, np.pi])
-        thresh = self.park_thresh if self.park_thresh is not None else 0.05
+        # thresh = self.park_thresh if self.park_thresh is not None else 0.05
+        thresh = 0.0025
         # self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom)
         # self.solver.reset()
         # cur_frame = self.current_state.copy()
@@ -390,7 +391,8 @@ class Optimizer(object):
         cur_frame[2] = self.park_yaw
         ref_frame = np.array([0.63, 0.32, np.pi])
         xs = np.array([0.0, 0.0, np.pi])
-        thresh = self.exit_thresh if self.exit_thresh is not None else 0.08
+        # thresh = self.exit_thresh if self.exit_thresh is not None else 0.08
+        thresh = 0.01
         self.move_to(xs, cur_frame, ref_frame, thresh = thresh, utils=utils, odom=odom, u_ref = np.array([0.0, 0.0]))
         del self.solver, self.integrator
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
@@ -534,38 +536,36 @@ if __name__ == '__main__':
     # stop when last waypoint is reached
 
     mpc.target_waypoint_index = 0
-    while True:
-        if mpc.target_waypoint_index >= mpc.num_waypoints-1:
-        # if mpc.target_waypoint_index >= 375:
-            break
-        t = time.time()
-        mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
-        mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
-        mpc.x_refs.append(mpc.next_trajectories[0, :])
-        mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
-        # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
-        t_ = time.time()
-        u_res = mpc.update_and_solve()
-        t2 = time.time()- t_
-        if u_res is None:
-            break
-        mpc.index_t.append(t2)
-        mpc.t_c.append(mpc.t0)
-        mpc.u_c.append(u_res)
-        mpc.integrate_next_states(u_res)
-        # u_res = u_res[0]
-        # print("time: ", t2, "u_res: ", u_res)
-        mpc.xx.append(mpc.current_state)
-        mpc.mpciter = mpc.mpciter + 1
+    # while True:
+    #     if mpc.target_waypoint_index >= mpc.num_waypoints-1:
+    #     # if mpc.target_waypoint_index >= 375:
+    #         break
+    #     t = time.time()
+    #     mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
+    #     mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
+    #     mpc.x_refs.append(mpc.next_trajectories[0, :])
+    #     mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
+    #     # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
+    #     t_ = time.time()
+    #     u_res = mpc.update_and_solve()
+    #     t2 = time.time()- t_
+    #     if u_res is None:
+    #         break
+    #     mpc.index_t.append(t2)
+    #     mpc.t_c.append(mpc.t0)
+    #     mpc.u_c.append(u_res)
+    #     mpc.integrate_next_states(u_res)
+    #     # u_res = u_res[0]
+    #     # print("time: ", t2, "u_res: ", u_res)
+    #     mpc.xx.append(mpc.current_state)
+    #     mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
     # save current states and controls as txt
-    np.savetxt('x.txt', mpc.xx, fmt='%.8f')
-    np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
-    # park_offset = 0.#95
-    # mpc.current_state = np.array([park_offset, 0, np.pi])
+    park_offset = 0.#95
+    mpc.current_state = np.array([park_offset, 0, np.pi])
     # mpc.go_straight(park_offset)
-    # mpc.park()
-    # mpc.exit_park()
+    mpc.park()
+    mpc.exit_park()
     print("done")
-    mpc.draw_result(stats, 0, 15, 0, 15)
-    # mpc.draw_result(stats, -1, 5, -1, 2)
+    # mpc.draw_result(stats, 0, 15, 0, 15)
+    mpc.draw_result(stats, -1, 5, -1, 2)

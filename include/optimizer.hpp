@@ -68,9 +68,11 @@ public:
     double x_state[5];
     // double x_current[3];
     Eigen::Vector3d x_current;
+    Eigen::Vector3d x_real;
     double u_current[2];
     int N, nx, nu, iter = 0;
     int N_park, nx_park, nu_park;
+    double T_park;
     int target_waypoint_index, last_waypoint_index, num_waypoints;
     double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
     bool debug = true;
@@ -145,14 +147,16 @@ public:
         }
         frame1.head(2) = x_current.head(2);
         frame1[2] = NearestDirection(x_current[2]);
+        std::cout << "yaw: " << x_current[2] << ", nearest: " << frame1[2] << std::endl;
         frame2 << 0.0, 0.0, M_PI;
+        frame2 << 0.0, 0.0, 0.0;
         std::cout << "frame1: " << frame1[0] << ", " << frame1[1] << ", " << frame1[2] << std::endl;
         std::cout << "frame2: " << frame2[0] << ", " << frame2[1] << ", " << frame2[2] << std::endl;
     }
     Eigen::Vector3d frame2;
     Eigen::Vector3d frame1;
     Eigen::Vector3d x_current_transformed;
-    int update_and_solve_park(Eigen::VectorXd& xs, double thresh = 0.0025) {
+    int update_and_solve_park(Eigen::VectorXd& xs, double thresh_sq = 0.0025) {
         auto t_start = std::chrono::high_resolution_clock::now();
         
         transform_point(x_current, x_current_transformed, frame1, frame2);
@@ -167,8 +171,9 @@ public:
         static int count = 0;
         std::cout << count << ")error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << ", xs: " << xs[0] << ", " << xs[1] << ", " << xs[2] << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
         count ++;
-        if (error_sq < thresh) {
+        if (error_sq < thresh_sq) {
             count = 0;
+            printf("threshold reached, error: %4f\n", sqrt(error_sq));
             return 2;
         }
         ocp_nlp_constraints_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, 0, "lbx", x_current_transformed.data());
@@ -201,62 +206,79 @@ public:
     }
 
     double NearestDirection(double yaw) {
-        // Normalize the yaw value
-        yaw = fmod(yaw, 2 * M_PI);
-        if (yaw < 0) {
+        while(yaw > 2 * M_PI) {
+            yaw -= 2 * M_PI;
+        }
+        while(yaw < 0) {
             yaw += 2 * M_PI;
         }
 
-        // Define the directions
-        static const double directions[4] = {0, M_PI / 2, M_PI, 3 * M_PI / 2};
+        static const double directions[5] = {0, M_PI / 2, M_PI, 3 * M_PI / 2, 2 * M_PI};
 
-        // Find the nearest direction
         double minDifference = std::abs(yaw - directions[0]);
         double nearestDirection = directions[0];
 
-        for (int i = 1; i < 4; ++i) {
+        for (int i = 1; i < 5; ++i) {
             double difference = std::abs(yaw - directions[i]);
             if (difference < minDifference) {
                 minDifference = difference;
                 nearestDirection = directions[i];
             }
         }
-        // while (nearestDirection - yaw > M_PI) {
-        //     nearestDirection -= 2 * M_PI;
-        // }
-        // while (nearestDirection - yaw < -M_PI) {
-        //     nearestDirection += 2 * M_PI;
-        // }
+        while (nearestDirection - yaw > M_PI) {
+            nearestDirection -= 2 * M_PI;
+        }
+        while (nearestDirection - yaw < -M_PI) {
+            nearestDirection += 2 * M_PI;
+        }
         return nearestDirection;
     }
 
     int park() {
+        std::cout.precision(3);
+        //print T, N, nx, nu
+        std::cout << "T: " << T_park << ", N: " << N_park << ", nx: " << nx_park << ", nu: " << nu_park << std::endl;
         Eigen::VectorXd xs(5);
-        xs << -1.31, 0, M_PI, 0, 0;
-        // xs << 0.63, 0.32, M_PI, 0, 0;
+        // xs << -1.31, 0, M_PI, 0, 0;
+        xs << 0.63, 0.32, M_PI, 0, 0;
+        xs << -0.63, -0.32, 0.0, 0, 0;
         set_up_park(xs);
         int i = 0;
         while(1) {
             status = update_and_solve_park(xs);
-            if (status == 2 || i>200) {
+            if (status == 2 || i>100) {
                 break;
             }
-            std::cout << i << ") u: " << u_current[0] << ", " << u_current[1] << std::endl;
             x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); // v * cos(psi) * dt
             x_current[1] += 0.05 * u_current[0] * sin(x_current[2]); // v * sin(psi) * dt
             x_current[2] += 0.05 * u_current[0]/0.27 * tan(u_current[1]); // v * tan(delta) * dt / L
             i++;
         }
+        std::cout << "done1" << std::endl;
+        xs << 0, 0, M_PI, 0, 0;
+        xs << 0.63, 0.32, 0, 0, 0;
+        set_up_park(xs);
+        i = 0;
+        while(1) {
+            status = update_and_solve_park(xs);
+            if (status == 2 || i>100) {
+                break;
+            }
+            x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); // v * cos(psi) * dt
+            x_current[1] += 0.05 * u_current[0] * sin(x_current[2]); // v * sin(psi) * dt
+            x_current[2] += 0.05 * u_current[0]/0.27 * tan(u_current[1]); // v * tan(delta) * dt / L
+            i++;
+        }
+        std::cout << "done2" << std::endl;
         return 0;
     }
 
-    void change_lane(int start_index, int end_index, double shift_distance = 0.36-0.1) {
-        // for (int i = start_index; i < end_index; ++i) {
-        //     state_refs(i, 0) += normals(i, 0) * shift_distance;
-        //     state_refs(i, 1) += normals(i, 1) * shift_distance;
-        // }
-        // use vectorization
+    void change_lane(int start_index, int end_index, bool shift_right = false, double shift_distance = 0.36-0.1) {
+        if (shift_right) shift_distance *= -1;
         state_refs.block(start_index, 0, end_index-start_index, 1) += normals.block(start_index, 0, end_index-start_index, 1) * shift_distance;
+    }
+    int get_current_attribute() {
+        return state_attributes(target_waypoint_index);
     }
 };
 
