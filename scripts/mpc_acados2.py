@@ -141,28 +141,36 @@ class Optimizer(object):
         if "park" in config_path:
             self.park_thresh = config['park_thresh']
             self.exit_thresh = config['exit_thresh']
-        T = config['T']
-        N = config['N']
+        if config_path == 'config/mpc_config2.yaml':
+            T = config['T']
+            N = config['N']
+            constraint_name = 'constraints'
+            cost_name = 'costs'
+        else:
+            T = config['T_park']
+            N = config['N_park']
+            constraint_name = 'constraints_park'
+            cost_name = 'costs_park'
         t_horizon = T * N
 
         # constraints
-        self.v_max = config['constraints']['v_max']
-        self.v_min = config['constraints']['v_min']
-        self.delta_max = config['constraints']['delta_max']
-        self.delta_min = config['constraints']['delta_min']
-        self.x_min = config['constraints']['x_min']
-        self.x_max = config['constraints']['x_max']
-        self.y_min = config['constraints']['y_min']
-        self.y_max = config['constraints']['y_max']
-        self.v_ref = config['constraints']['v_ref']
+        self.v_max = config[constraint_name]['v_max']
+        self.v_min = config[constraint_name]['v_min']
+        self.delta_max = config[constraint_name]['delta_max']
+        self.delta_min = config[constraint_name]['delta_min']
+        self.x_min = config[constraint_name]['x_min']
+        self.x_max = config[constraint_name]['x_max']
+        self.y_min = config[constraint_name]['y_min']
+        self.y_max = config[constraint_name]['y_max']
+        self.v_ref = config[constraint_name]['v_ref']
         # costs
-        self.x_cost = config['costs']['x_cost']
-        self.y_cost = config['costs']['y_cost']
-        self.yaw_cost = config['costs']['yaw_cost']
-        self.v_cost = config['costs']['v_cost']
-        self.steer_cost = config['costs']['steer_cost']
-        self.delta_v_cost = config['costs']['delta_v_cost']
-        self.delta_steer_cost = config['costs']['delta_steer_cost']
+        self.x_cost = config[cost_name]['x_cost']
+        self.y_cost = config[cost_name]['y_cost']
+        self.yaw_cost = config[cost_name]['yaw_cost']
+        self.v_cost = config[cost_name]['v_cost']
+        self.steer_cost = config[cost_name]['steer_cost']
+        self.delta_v_cost = config[cost_name]['delta_v_cost']
+        self.delta_steer_cost = config[cost_name]['delta_steer_cost']
         self.costs = np.array([self.x_cost, self.yaw_cost, self.v_cost, self.steer_cost, self.delta_v_cost, self.delta_steer_cost])
         # 代价函数
         Q = np.array([[self.x_cost, 0.0, 0.0],[0.0, self.y_cost, 0.0],[0.0, 0.0, self.yaw_cost]])*1
@@ -243,16 +251,16 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        cur_path = os.path.dirname(os.path.realpath(__file__))
-        path = os.path.join(cur_path, 'paths')
-        os.makedirs(path, exist_ok=True)
-        np.savetxt(os.path.join(path,'state_refs2.txt'), self.state_refs, fmt='%.8f')
-        print("stateref shape: ", self.state_refs.shape)
-        np.savetxt(os.path.join(path,'input_refs2.txt'), self.input_refs, fmt='%.8f')
-        np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_normals2.txt'), self.wp_normals, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_attributes2.txt'), self.path.attributes, fmt='%.8f')
-        exit()
+        # cur_path = os.path.dirname(os.path.realpath(__file__))
+        # path = os.path.join(cur_path, 'paths')
+        # os.makedirs(path, exist_ok=True)
+        # np.savetxt(os.path.join(path,'state_refs2.txt'), self.state_refs, fmt='%.8f')
+        # print("stateref shape: ", self.state_refs.shape)
+        # np.savetxt(os.path.join(path,'input_refs2.txt'), self.input_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_normals2.txt'), self.wp_normals, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_attributes2.txt'), self.path.attributes, fmt='%.8f')
+        # exit()
 
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index

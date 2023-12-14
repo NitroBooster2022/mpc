@@ -147,6 +147,7 @@ public:
         }
         frame1.head(2) = x_current.head(2);
         frame1[2] = NearestDirection(x_current[2]);
+        std::cout << "yaw: " << x_current[2] << ", nearest: " << frame1[2] << std::endl;
         frame2 << 0.0, 0.0, M_PI;
         frame2 << 0.0, 0.0, 0.0;
         std::cout << "frame1: " << frame1[0] << ", " << frame1[1] << ", " << frame1[2] << std::endl;
@@ -155,7 +156,7 @@ public:
     Eigen::Vector3d frame2;
     Eigen::Vector3d frame1;
     Eigen::Vector3d x_current_transformed;
-    int update_and_solve_park(Eigen::VectorXd& xs, double thresh = 0.0025) {
+    int update_and_solve_park(Eigen::VectorXd& xs, double thresh_sq = 0.0025) {
         auto t_start = std::chrono::high_resolution_clock::now();
         
         transform_point(x_current, x_current_transformed, frame1, frame2);
@@ -170,8 +171,9 @@ public:
         static int count = 0;
         std::cout << count << ")error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << ", xs: " << xs[0] << ", " << xs[1] << ", " << xs[2] << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
         count ++;
-        if (error_sq < thresh) {
+        if (error_sq < thresh_sq) {
             count = 0;
+            printf("threshold reached, error: %4f\n", sqrt(error_sq));
             return 2;
         }
         ocp_nlp_constraints_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, 0, "lbx", x_current_transformed.data());
@@ -204,32 +206,31 @@ public:
     }
 
     double NearestDirection(double yaw) {
-        // Normalize the yaw value
-        yaw = fmod(yaw, 2 * M_PI);
-        if (yaw < 0) {
+        while(yaw > 2 * M_PI) {
+            yaw -= 2 * M_PI;
+        }
+        while(yaw < 0) {
             yaw += 2 * M_PI;
         }
 
-        // Define the directions
-        static const double directions[4] = {0, M_PI / 2, M_PI, 3 * M_PI / 2};
+        static const double directions[5] = {0, M_PI / 2, M_PI, 3 * M_PI / 2, 2 * M_PI};
 
-        // Find the nearest direction
         double minDifference = std::abs(yaw - directions[0]);
         double nearestDirection = directions[0];
 
-        for (int i = 1; i < 4; ++i) {
+        for (int i = 1; i < 5; ++i) {
             double difference = std::abs(yaw - directions[i]);
             if (difference < minDifference) {
                 minDifference = difference;
                 nearestDirection = directions[i];
             }
         }
-        // while (nearestDirection - yaw > M_PI) {
-        //     nearestDirection -= 2 * M_PI;
-        // }
-        // while (nearestDirection - yaw < -M_PI) {
-        //     nearestDirection += 2 * M_PI;
-        // }
+        while (nearestDirection - yaw > M_PI) {
+            nearestDirection -= 2 * M_PI;
+        }
+        while (nearestDirection - yaw < -M_PI) {
+            nearestDirection += 2 * M_PI;
+        }
         return nearestDirection;
     }
 
@@ -245,7 +246,7 @@ public:
         int i = 0;
         while(1) {
             status = update_and_solve_park(xs);
-            if (status == 2 || i>200) {
+            if (status == 2 || i>100) {
                 break;
             }
             x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); // v * cos(psi) * dt
@@ -260,7 +261,7 @@ public:
         i = 0;
         while(1) {
             status = update_and_solve_park(xs);
-            if (status == 2 || i>200) {
+            if (status == 2 || i>100) {
                 break;
             }
             x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); // v * cos(psi) * dt
@@ -275,6 +276,9 @@ public:
     void change_lane(int start_index, int end_index, bool shift_right = false, double shift_distance = 0.36-0.1) {
         if (shift_right) shift_distance *= -1;
         state_refs.block(start_index, 0, end_index-start_index, 1) += normals.block(start_index, 0, end_index-start_index, 1) * shift_distance;
+    }
+    int get_current_attribute() {
+        return state_attributes(target_waypoint_index);
     }
 };
 
