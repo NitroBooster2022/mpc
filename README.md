@@ -82,6 +82,12 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
     cargo build --verbose --release
     # Replace the file <acados_root_dir>/bin/t_renderer with the one compiled natively i.e. <tera_renderer_dir>/target/release/t_renderer
     ```
+
+### Other Stuff
+    ```bash
+    sudo apt install nlohmann-json3-dev
+    ```
+
 ## Running the Example
 
 ### Acados Simulation

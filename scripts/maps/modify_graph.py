@@ -3,7 +3,7 @@ import os
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
-attributes = ["normal", "crosswalk", "intersection", "oneway", "highwayLeft", "highwayRight", "roundabout"]
+attributes = ["normal", "crosswalk", "intersection", "oneway", "highwayLeft", "highwayRight", "roundabout", "stopline", "dotted", "dotted_crosswalk"]
 # Load the graphml file
 file_path = current_dir + '/Competition_track_graph.graphml'
 print('Loading graphml file from: ' + file_path)
@@ -33,11 +33,23 @@ roundabout = []
 for i in range(358, 369):
     roundabout.append(i)
 
-intersection = [400, 424, 70, 71, 72, 43, 44, 10, 45, 12, 11, 9, 88, 89, 90, 22, 23, 24, 21, 35, 33, 34, 36, 54, 53, 52, 63, 62]
-# Add an attribute to every node with a default value of 0
+intersection = [81, 400, 424, 70, 71, 72, 43, 44, 10, 45, 12, 11, 9, 88, 89, 90, 22, 23, 24, 21, 35, 33, 34, 36, 54, 53, 52, 63, 62]
+stopline = [470, 422, 407, 385, 445, 6, 30, 486, 447, 60, 47, 58, 28, 26, 18, 32, 4, 2, 42, 38, 76, 40, 20, 85, 14, 16, 49, 51, 83, 74, 87, 78, 65, 69]
 for node in graph.nodes:
-    if int(node) in crosswalk:
-        graph.nodes[node]['new_attribute'] = 1
+    graph.nodes[node]['new_attribute'] = 0
+# Change nodes that have 'dotted' edges to 'dotted' attribute
+for edge in graph.edges:
+    if graph.edges[edge]['dotted']:
+        graph.nodes[edge[0]]['new_attribute'] = 8
+        graph.nodes[edge[1]]['new_attribute'] = 8
+for node in graph.nodes:
+    if int(node) in stopline:
+        graph.nodes[node]['new_attribute'] = 7
+    elif int(node) in crosswalk:
+        if graph.nodes[node]['new_attribute'] == 8: # If dotted
+            graph.nodes[node]['new_attribute'] = 9
+        else:
+            graph.nodes[node]['new_attribute'] = 1
     elif int(node) in highwayLeft:
         graph.nodes[node]['new_attribute'] = 4
     elif int(node) in highwayRight:
@@ -48,8 +60,6 @@ for node in graph.nodes:
         graph.nodes[node]['new_attribute'] = 6
     elif int(node) in intersection:
         graph.nodes[node]['new_attribute'] = 2
-    else:
-        graph.nodes[node]['new_attribute'] = 0
 
 # Save the graphml file
 file_path = current_dir + '/Competition_track_graph_modified.graphml'

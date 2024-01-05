@@ -25,6 +25,9 @@
 Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf)
 {
+    detected_cars = std::vector<Eigen::Vector2d>();
+    detected_cars_counter = std::vector<int>();
+    recent_car_indices = std::list<int>();
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
     rateVal = 10;
@@ -111,6 +114,9 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
         std::cout << "waiting for sign message" << std::endl;
         ros::topic::waitForMessage<std_msgs::Float32MultiArray>("/sign");
         std::cout << "received message from sign" << std::endl;
+        car_pose_pub = nh.advertise<std_msgs::Float64MultiArray>("/car_locations", 10);
+        car_pose_msg.data.push_back(0.0); // self
+        car_pose_msg.data.push_back(0.0);
     }
     if (pubOdom) {
         double odom_publish_frequency = rateVal; 
@@ -134,6 +140,65 @@ void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
         num_obj = 0;
     }
     lock.unlock();
+    int car_id = 12;
+    double threshold = 0.5;
+    for(int i = 0; i < num_obj; i++) {
+        if(msg->data[i * NUM_VALUES_PER_OBJECT + id] == car_id) {
+            double dist = object_distance(i);
+            if(dist > 3.0 || dist < 0.6) continue;
+            double xmin = msg->data[i * NUM_VALUES_PER_OBJECT + x1];
+            double ymin = msg->data[i * NUM_VALUES_PER_OBJECT + y1];
+            double xmax = msg->data[i * NUM_VALUES_PER_OBJECT + x2];
+            double ymax = msg->data[i * NUM_VALUES_PER_OBJECT + y2];
+            double x, y, yaw;
+            get_states(x, y, yaw);
+            Eigen::Vector2d world_pose = estimate_object_pose2d(x, y, yaw, xmin, ymin, xmax, ymax, dist, CAMERA_PARAMS, true);
+            // std::cout << "world_pose: (" << world_pose[0] << ", " << world_pose[1] << "), self pose: (" << x << ", " << y << ")" << std::endl;
+            // check error norm between x, y of detected car and the ones in the detected_cars vector
+            // if error norm greater than threshold, add to detected_cars vector
+            // else, update the x, y of the detected car in the detected_cars vector by averaging 
+            if (detected_cars.size() == 0) {
+                detected_cars.push_back(world_pose);
+                detected_cars_counter.push_back(1);
+                car_pose_msg.data.push_back(world_pose[0]);
+                car_pose_msg.data.push_back(world_pose[1]);
+                // std::cout << "new car detected at (" << world_pose[0] << ", " << world_pose[1] << ")" << std::endl;
+                continue;
+            }
+            for(int j = 0; j < detected_cars.size(); j++) {
+                double error_norm_sq = (detected_cars[j] - world_pose).squaredNorm();
+                double score = msg->data[i * NUM_VALUES_PER_OBJECT + confidence];
+                if(error_norm_sq < threshold * threshold) {
+                    if (detected_cars_counter[j] < 15) {
+                        detected_cars[j] = (detected_cars[j] * detected_cars_counter[j] + world_pose) / (detected_cars_counter[j] + 1);
+                        car_pose_msg.data[(j+1) * 2] = detected_cars[j][0];
+                        car_pose_msg.data[(j+1) * 2 + 1] = detected_cars[j][1];
+                        // std::cout << "updated car detected at (" << detected_cars[j][0] << ", " << detected_cars[j][1] << ")" << std::endl;
+                        detected_cars_counter[j]++;
+                    }
+                    recent_car_indices.remove(j); // remove j if it exists
+                    recent_car_indices.push_front(j); // add j to the front
+                    break;
+                } else if(j == detected_cars.size() - 1) {
+                    detected_cars.push_back(world_pose);
+                    car_pose_msg.data.push_back(world_pose[0]);
+                    car_pose_msg.data.push_back(world_pose[1]);
+                    detected_cars_counter.push_back(1);
+                    recent_car_indices.push_front(detected_cars.size() - 1); // Add new car as most recent
+                    // std::cout << "new car detected at (" << world_pose[0] << ", " << world_pose[1] << "), num cars: " << detected_cars.size() << std::endl;
+                    break;
+                }
+            }
+            while (recent_car_indices.size() > 5) {
+                recent_car_indices.pop_back(); // keep only 4 most recent cars
+            }
+        }
+    }
+    // print car_pose_msg
+    // for (int i = 0; i < car_pose_msg.data.size(); i += 2) {
+    //     std::cout << "car " << i / 2 << ": (" << car_pose_msg.data[i] << ", " << car_pose_msg.data[i + 1] << ")" << std::endl;
+    // }
+    car_pose_pub.publish(car_pose_msg);
 }
 void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
     lock.lock();
@@ -165,6 +230,10 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     ekf_y = msg->pose.pose.position.y;
     tf2::fromMsg(msg->pose.pose.orientation, tf2_quat);
     ekf_yaw = tf2::impl::getYaw(tf2_quat);
+    if (subSign) {
+        car_pose_msg.data[0] = ekf_x;
+        car_pose_msg.data[1] = ekf_y;
+    }
     lock.unlock();
     // ROS_INFO("ekf callback rate: %f", 1 / (now - general_timer).toSec());
     // general_timer = now;
@@ -195,6 +264,10 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
     y_speed = msg->twist[*car_idx].linear.y;
     gps_x = msg->pose[*car_idx].position.x + x_offset;
     gps_y = msg->pose[*car_idx].position.y + y_offset;
+    if (subSign && !useEkf) {
+        car_pose_msg.data[0] = gps_x;
+        car_pose_msg.data[1] = gps_y;
+    }
     if (!initializationFlag && imuInitialized) {
         initializationFlag = true;
         std::cout << "Initializing... gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
@@ -355,6 +428,25 @@ int Utility::object_index(int obj_id) {
     return -1;
 }
 
+std::vector<int> Utility::object_indices(int obj_id) {
+    std::vector<int> indices;
+    if (num_obj < 1) {
+        return indices;
+    }
+    if (num_obj == 1) {
+        if (detected_objects[id] == obj_id) {
+            indices.push_back(0);
+        }
+        return indices;
+    }
+    for (int i = 0; i < num_obj; ++i) {
+        if (detected_objects[i * NUM_VALUES_PER_OBJECT + id] == obj_id) {
+            indices.push_back(i);
+        }
+    }
+    return indices;
+}
+
 double Utility::object_distance(int index) {
     if (num_obj == 1) {
         return detected_objects[distance];
@@ -363,8 +455,8 @@ double Utility::object_distance(int index) {
     }
     return -1;
 }
-std::array<float, 4> Utility::object_box(int index) {
-    std::array<float, 4> box;
+std::array<double, 4> Utility::object_box(int index) {
+    std::array<double, 4> box;
 
     if (num_obj == 1) {
         box[0] = detected_objects[x1];

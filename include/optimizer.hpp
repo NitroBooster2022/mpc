@@ -73,14 +73,14 @@ public:
     int N, nx, nu, iter = 0;
     int N_park, nx_park, nu_park;
     double T_park;
-    int target_waypoint_index, last_waypoint_index, num_waypoints;
+    int target_waypoint_index, last_waypoint_index, closest_waypoint_index, num_waypoints;
     double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
     bool debug = true;
     Eigen::Vector3d current_state;
     Eigen::MatrixXd state_refs, input_refs, normals;
     Eigen::VectorXd state_attributes;
     enum ATTRIBUTE {
-        NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT
+        NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT, STOPLINE, DOTTED, DOTTED_CROSSWALK
     };
     Eigen::MatrixXd *state_refs_ptr;
     Eigen::VectorXd distances;
@@ -169,7 +169,7 @@ public:
         }
         double error_sq = (x_current_transformed - xs.head(3)).squaredNorm();
         static int count = 0;
-        std::cout << count << ")error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << ", xs: " << xs[0] << ", " << xs[1] << ", " << xs[2] << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
+        // std::cout << count << ")error: "<< sqrt(error_sq) <<", x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", x_cur_trans: " << x_current_transformed[0] << ", " << x_current_transformed[1] << ", " << x_current_transformed[2] << ", xs: " << xs[0] << ", " << xs[1] << ", " << xs[2] << ", u: " << u_current[0] << ", " << u_current[1] << std::endl;
         count ++;
         if (error_sq < thresh_sq) {
             count = 0;
@@ -275,7 +275,55 @@ public:
 
     void change_lane(int start_index, int end_index, bool shift_right = false, double shift_distance = 0.36-0.1) {
         if (shift_right) shift_distance *= -1;
-        state_refs.block(start_index, 0, end_index-start_index, 1) += normals.block(start_index, 0, end_index-start_index, 1) * shift_distance;
+        state_refs.block(start_index, 0, end_index-start_index, 2) += normals.block(start_index, 0, end_index-start_index, 2) * shift_distance;
+        
+        // Calculate the vectors for the gaps
+        // Eigen::Vector2d start_gap_vector = state_refs.row(start_index) - state_refs.row(start_index - 1);
+        // Eigen::Vector2d end_gap_vector = state_refs.row(end_index + 1) - state_refs.row(end_index);
+        // double start_gap_yaw = std::atan2(start_gap_vector.y(), start_gap_vector.x());
+        // double end_gap_yaw = std::atan2(end_gap_vector.y(), end_gap_vector.x());
+
+        // // Calculate the number of points to interpolate based on the actual length of the gap
+        // int num_start_points = static_cast<int>(density * start_gap_vector.norm() / 2);
+        // int num_end_points = static_cast<int>(density * end_gap_vector.norm() / 2);
+
+        // // Create matrices to hold the new interpolated waypoints for the start and end gaps
+        // Eigen::MatrixXd start_gap_filler(num_start_points, 3);
+        // Eigen::MatrixXd end_gap_filler(num_end_points, 3);
+
+        // // Interpolate for the start gap
+        // for (int i = 0; i < num_start_points; ++i) {
+        //     double t = static_cast<double>(i + 1) / (num_start_points + 1);
+        //     Eigen::Vector2d interpolated_position = state_refs.row(start_index - 1).head(2) * (1 - t) + 
+        //                                             state_refs.row(start_index).head(2) * t;
+        //     start_gap_filler.row(i).head(2) = interpolated_position;
+        //     start_gap_filler(i, 2) = start_gap_yaw;
+        // }
+        // // Interpolate for the end gap
+        // for (int i = 0; i < num_end_points; ++i) {
+        //     double t = static_cast<double>(i + 1) / (num_end_points + 1);
+        //     Eigen::Vector2d interpolated_position = state_refs.row(end_index).head(2) * (1 - t) + 
+        //                                             state_refs.row(end_index + 1).head(2) * t;
+        //     end_gap_filler.row(i).head(2) = interpolated_position;
+        //     end_gap_filler(i, 2) = end_gap_yaw;
+        // }
+        // int original_size = state_refs.rows();
+        // int new_size = original_size + start_gap_filler.rows() + end_gap_filler.rows();
+        // state_refs.conservativeResize(new_size, Eigen::NoChange); 
+
+        // // Shift the end part of the matrix to make space for the 'end_gap_filler'
+        // state_refs.block(end_index + 1 + end_gap_filler.rows(), 0, original_size - end_index - 1, 3) =
+        //     state_refs.block(end_index + 1, 0, original_size - end_index - 1, 3);
+
+        // // Insert 'end_gap_filler' into 'state_refs'
+        // state_refs.block(end_index + 1, 0, end_gap_filler.rows(), 3) = end_gap_filler;
+
+        // // Shift the middle part of the matrix to make space for the 'start_gap_filler'
+        // state_refs.block(start_index + start_gap_filler.rows(), 0, new_size - start_index - start_gap_filler.rows(), 3) =
+        //     state_refs.block(start_index, 0, new_size - start_index - start_gap_filler.rows(), 3);
+
+        // // Insert 'start_gap_filler' into 'state_refs'
+        // state_refs.block(start_index, 0, start_gap_filler.rows(), 3) = start_gap_filler;
     }
     int get_current_attribute() {
         return state_attributes(target_waypoint_index);

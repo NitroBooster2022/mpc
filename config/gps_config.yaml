@@ -7,5 +7,7 @@ manual_integration: false
 x_offset: 0
 y_offset: 0
 # y_offset: -14.96
-width: 20.696
-height: 13.786
+# width: 20.696
+width: 20.541
+# height: 13.786
+height: 13.656

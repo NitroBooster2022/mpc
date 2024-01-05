@@ -78,13 +78,52 @@ class GlobalPlanner:
         wp_attributes = []
         for node in path:
             attribute = self.attribute.get(node, 0)
-            if attribute != 2:
+            if attribute != 2: #intersection
                 x, y = self.pos[node]
                 wp_x.append(x)
                 wp_y.append(y)
                 wp_attributes.append(self.attribute.get(node, 0))
             else:
-                print("intersection: ", node)
+                #get previous node
+                prev_node2 = path[path.index(node)-2]
+                prev_node = path[path.index(node)-1]
+                #get next node
+                next_node = path[path.index(node)+1]
+                try:
+                    next_node2 = path[path.index(node)+2]
+                except:
+                    print("end of path at node: ", node)
+                    continue
+                #calculate the vector from prev to current
+                prev_x2, prev_y2 = self.pos[prev_node2]
+                prev_x, prev_y = self.pos[prev_node]
+                next_x, next_y = self.pos[next_node]
+                next_x2, next_y2 = self.pos[next_node2]
+                vec1 = alex.array([prev_x-prev_x2, prev_y-prev_y2])
+                vec2 = alex.array([next_x2-next_x, next_y2-next_y])
+                #calculate the angle between the two vectors
+                mag1 = alex.linalg.norm(vec1)
+                # print("mag1: ", mag1)
+                mag2 = alex.linalg.norm(vec2)
+                cross_product = alex.cross(vec1, vec2)
+                normalized_cross = cross_product / (mag1 * mag2)
+                if normalized_cross > 0.75: #left
+                    # print(f"node {node} is a left turn, cross: ", normalized_cross)
+                    x, y = self.pos[node]
+                    wp_x.append(x)
+                    wp_y.append(y)
+                    wp_attributes.append(self.attribute.get(node, 0))
+                elif normalized_cross < -0.75:
+                    # print(f"node {node} is a right turn, cross: ", normalized_cross)
+                    x = prev_x + vec1[0] / mag1 * 0.15
+                    y = prev_y + vec1[1] / mag1 * 0.15
+                    wp_x.append(x)
+                    wp_y.append(y)
+                    # print("prev: ", prev_x, prev_y, "added: ", x, y)
+                    wp_attributes.append(self.attribute.get(node, 0))
+                else:
+                    # print(f"node {node} is a straight, cross: ", normalized_cross)
+                    pass
         return alex.array([wp_x, wp_y]), path_edges, wp_attributes
     def illustrate_path(self, start, end):
         _, path_edges, _ = self.plan_path(start, end)
@@ -99,9 +138,10 @@ class GlobalPlanner:
             1: 'yellow',   # crosswalk
             2: 'green',    # intersection
             3: 'red',      # oneway
-            4: 'purple',   # highwayLeft
+            4: 'black',   # highwayLeft
             5: 'orange',    # highwayRight
-            6: 'pink'      # roundabout
+            6: 'pink',      # roundabout
+            7: 'purple'     # stopline
         }
         node_colors = [color_map[self.attribute.get(node, 0)] for node in self.G.nodes()]
         # Display the image
@@ -118,4 +158,4 @@ class GlobalPlanner:
 if __name__ == "__main__":
     planner = GlobalPlanner()
     # planner.plan_path(58, 59)
-    planner.illustrate_path(86, 467)
+    planner.illustrate_path(134, 97)
