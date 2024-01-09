@@ -118,7 +118,7 @@ if __name__ == "__main__":
     height = ymax - ymin
     bounding_box = np.array([x_center, y_center, width, height])
     #541 229 97 235
-    bounding_box = np.array([542, 226, 639, 466])
+    bounding_box = np.array([542, 226, 639, 466]) # xmin, ymin, xmax, ymax
 
     object_distance = 3 # Distance to the object in meters
     object_distance = 0.521 # Distance to the object in meters

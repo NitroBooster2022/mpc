@@ -74,7 +74,7 @@ int mobile_robot_acados_sim_create(mobile_robot_sim_solver_capsule * capsule)
     bool tmp_bool;
 
     
-    double Tsim = 0.1;
+    double Tsim = 0.05;
 
     
     // explicit ode

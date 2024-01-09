@@ -89,6 +89,23 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
     input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
     state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
+    std::vector<int> indices;
+    for(int i=0; i<state_attributes.rows(); i++) {
+        if(state_attributes(i) == 7) {
+            indices.push_back(i);
+        }
+    }
+    // print indices if not empty
+    if(!indices.empty()) {
+        std::cout << "indices: ";
+        for(int i=0; i<indices.size(); i++) {
+            std::cout << indices[i] << ", ";
+        }
+        std::cout << std::endl;
+    } else {
+        std::cout << "indices is empty" << std::endl;
+    }
+    // exit(1);
     state_refs_ptr = &state_refs;
     normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
     num_waypoints = state_refs.rows();
@@ -259,7 +276,7 @@ int Optimizer::find_next_waypoint(int min_index, int max_index) {
             closest_idx = i;
         }
     }
-
+    closest_waypoint_index = closest_idx;
     //1
     // last_waypoint_index = target_waypoint_index;
     // target_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_idx));
@@ -289,8 +306,8 @@ int Optimizer::find_next_waypoint(int min_index, int max_index) {
             target_waypoint_index = closest_idx + 1;
         }
     }
-    // double dist = sqrt(min_distance_sq);
-    // std::cout << "cur:" << x_current[0] << "," << x_current[1] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
+    double dist = sqrt(min_distance_sq);
+    // std::cout << "cur:" << x_current[0] << "," << x_current[1] << "," << x_current[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
     // std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
     return std::min(target_waypoint_index, static_cast<int>((*state_refs_ptr).rows()) - 1);
 
@@ -393,6 +410,7 @@ Eigen::VectorXd Optimizer::computeStats(int hsy) {
     saveToFile(simU, "simU.txt");
     // saveToFile(time_record, "time_record.txt"); 
     saveToFile(stats, "stats.txt");
+    saveToFile(state_refs, "state_refs.txt");
     return stats;
 }
 

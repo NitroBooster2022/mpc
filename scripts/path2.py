@@ -11,6 +11,14 @@ import math
 def smooth_yaw_angles(yaw_angles):
     # Calculate the differences between adjacent angles
     diffs = np.diff(yaw_angles)
+
+    # Print indices and values of diffs where abs(diffs) > pi/2
+    # for i, diff in enumerate(diffs):
+    #     if abs(diff) > np.pi*0.75 and abs(diff) < np.pi*1.5:
+    #         # print(f"diffs[{i}]: {diff:.3f}, yaw_angles[{i}]: {yaw_angles[i]:.3f}, yaw_angles[{i+1}]: {yaw_angles[i+1]:.3f}")
+    #         yaw_angles[i+1] = (yaw_angles[i])
+    #         diffs = np.diff(yaw_angles)
+
     # Find where the difference is greater than pi and adjust
     diffs[diffs > np.pi] -= 2 * np.pi
     diffs[diffs < -np.pi] += 2 * np.pi
@@ -67,7 +75,7 @@ def filter_waypoints_and_attributes(waypoints, attributes, threshold):
     return np.array(filtered_waypoints), np.array(filtered_attributes)
 
 def interpolate_waypoints(waypoints, num_points):
-    print("num_points: ", num_points)
+    # print("num_points: ", num_points)
     x = waypoints[:, 0]
     y = waypoints[:, 1]
     tck, u = splprep([x, y], s=0) 
@@ -176,12 +184,12 @@ class Path:
             start = self.global_planner.place_names[destinations[i]]
             end = self.global_planner.place_names[destinations[i+1]]
             run, _, attribute = self.global_planner.plan_path(start, end)
-            print("run: ", run.shape)
+            # print("run: ", run.shape)
             runs.append(run)
-            print(i, ") attribute:\n", attribute)
+            # print(i, ") attribute:\n", attribute)
             attributes.append(attribute)
         runs1 = np.hstack(runs)
-        print("runs1: ", runs1.shape, "x0: ", x0)
+        # print("runs1: ", runs1.shape, "x0: ", x0)
         # runs1:  (2, 168) x0:  [3 2 0]
         #find closest index to x0
         if x0 is not None:
@@ -213,35 +221,35 @@ class Path:
                 runs = [modified_run] + runs[min_distance_run_index+1:]
 
             # Show the results
-            for i, run in enumerate(runs):
-                print(f"run{i+1}: shape is {run.shape}")
+            # for i, run in enumerate(runs):
+            #     print(f"run{i+1}: shape is {run.shape}")
                 
-        print("runs: ", len(runs))
+        # print("runs: ", len(runs))
         # Compute path lengths 
         path_lengths = [np.sum(np.linalg.norm(run[:, 1:] - run[:, :-1], axis=0)) for run in runs]
         self.density = 1/abs(self.v_ref)/T # wp/m
         self.region_of_acceptance = 0.05*10/self.density
-        print("density: ", self.density, ", region_of_acceptance: ", self.region_of_acceptance)
+        # print("density: ", self.density, ", region_of_acceptance: ", self.region_of_acceptance)
 
         runs_hw = []
         runs_cw = []
         attributes_hw = []
         attributes_cw = []
         for i, length in enumerate(path_lengths):
-            print(i, ") path length: ", length)
-            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/1.5))))
+            # print(i, ") path length: ", length)
+            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/1.33))))
             runs_cw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density*1.5))))
             old_run = runs[i].copy()
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
-            print("old shape: ", old_run.shape, ", new shape: ", runs[i].shape)
+            # print("old shape: ", old_run.shape, ", new shape: ", runs[i].shape)
             attributes_cw.append(interpolate_attributes(old_run.T, attributes[i], runs_cw[i]))
             attributes_hw.append(interpolate_attributes(old_run.T, attributes[i], runs_hw[i]))
             attributes[i] = interpolate_attributes(old_run.T, attributes[i], runs[i])
-        print("run1: \n", runs[0].shape)
-        print("attr1: \n", attributes[0].shape)
-        print("run_hw1: \n", runs_hw[0].shape)
-        print("attr_hw1: \n", attributes_hw[0].shape)
-        print("attr1: \n", attributes[0])
+        # print("run1: \n", runs[0].shape)
+        # print("attr1: \n", attributes[0].shape)
+        # print("run_hw1: \n", runs_hw[0].shape)
+        # print("attr_hw1: \n", attributes_hw[0].shape)
+        # print("attr1: \n", attributes[0])
 
         # for run,i in zip(runs, range(len(runs))):
         #     np.savetxt(f"run{i+1}.txt", run, fmt="%.8f")
@@ -274,13 +282,13 @@ class Path:
 
         # Calculate the total path length of the waypoints
         total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
-        print("total path length: ", total_path_length)
+        # print("total path length: ", total_path_length)
         
         self.waypoints_x = self.waypoints[0, :]
         self.waypoints_y = self.waypoints[1, :]
 
         self.num_waypoints = len(self.waypoints_x)
-        print("num_waypoints: ", self.num_waypoints)
+        # print("num_waypoints: ", self.num_waypoints)
         self.kappa, self.wp_theta, self.wp_normals = compute_smooth_curvature(self.waypoints_x, self.waypoints_y)
         # linear speed profile
         self.v_refs  = self.v_ref / (1 + np.abs(self.kappa))*(1 + np.abs(self.kappa))
@@ -317,12 +325,14 @@ class Path:
         self.input_refs = np.vstack((self.v_refs, self.steer_ref)).T
         self.waypoints = np.vstack((self.waypoints_x, self.waypoints_y)).T
         self.state_refs[:,2] = smooth_yaw_angles(self.state_refs[:,2])
+        
         self.attributes = np.pad(self.attributes, (0,self.N+5), 'edge')
+        # print(self.attributes.shape, self.attributes)
 
         # for i in range(len(self.state_refs)):
-        #     print(i, self.state_refs[i,2])
+        #     print(i, self.state_refs[i])
         # exit()
-        print("state_refs: ", self.state_refs.shape, ", input_refs: ", self.input_refs.shape)
+        # print("state_refs: ", self.state_refs.shape, ", input_refs: ", self.input_refs.shape)
 
     def change_lane(self, start_index, end_index, normals, shift_distance=0.36-0.1):
         self.state_refs[start_index:end_index,0] += normals[start_index:end_index, 0] * shift_distance

@@ -16,25 +16,27 @@ include_directories($ENV{ACADOS_SOURCE_DIR}/include/blasfeo/include)
 include_directories($ENV{ACADOS_SOURCE_DIR}/include/hpipm/include)
 include_directories($ENV{ACADOS_SOURCE_DIR}/include/acados)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park)
 link_directories($ENV{ACADOS_SOURCE_DIR}/lib)
 file(GLOB ocp_solver
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_solver_mobile_robot.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_solver_park.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park/acados_solver_park.c
         )
 
 file(GLOB casadi_fun
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_ode_fun.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_forw.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/mobile_robot_model/mobile_robot_expl_vde_adj.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_ode_fun.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_vde_forw.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/park_model/park_expl_vde_adj.c)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park/park_model/park_expl_ode_fun.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park/park_model/park_expl_vde_forw.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park/park_model/park_expl_vde_adj.c)
 
 file(GLOB sim_solver
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_sim_solver_mobile_robot.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code/acados_sim_solver_park.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park/acados_sim_solver_park.c
         )
 
+find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
@@ -118,6 +120,7 @@ alglib
 ocp_shared_lib 
 sim_shared_lib
 ${catkin_LIBRARIES}
+nlohmann_json::nlohmann_json
 )
 
 add_executable(bridge1
