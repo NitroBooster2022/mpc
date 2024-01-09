@@ -53,7 +53,7 @@ class Optimizer(object):
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
         name = 'path3'
-        name = 'path2'
+        # name = 'path2'
         self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=x0)
         self.waypoints_x = self.path.waypoints_x
         self.waypoints_y = self.path.waypoints_y
