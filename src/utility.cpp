@@ -120,7 +120,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     }
     if (pubOdom) {
         double odom_publish_frequency = rateVal; 
-        // odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
+        odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
 }
 

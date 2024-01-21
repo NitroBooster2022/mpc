@@ -53,9 +53,9 @@ public:
 
 // private:
     // Constants
-    const std::array<std::string, 9> state_names = {
+    const std::array<std::string, 10> state_names = {
         "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
-        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE"
+        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING"
     };
     enum STATE {
         INIT,
@@ -67,6 +67,7 @@ public:
         PARKED,
         EXITING_PARKING,
         DONE,
+        LANE_FOLLOWING,
     };
     enum OBJECT {
         ONEWAY,
@@ -342,6 +343,8 @@ void StateMachine::run() {
             }
             change_state(STATE::WAITING_FOR_STOPSIGN);
             continue;
+        } else if (state == STATE::LANE_FOLLOWING) {
+            // get waypoints from lane detector
         } else if (state == STATE::WAITING_FOR_STOPSIGN) {
             stop_for(STOP_DURATION);
             cooldown_timer = ros::Time::now() + ros::Duration(SIGN_COOLDOWN);
@@ -371,13 +374,14 @@ void StateMachine::run() {
             right_park = true;
             ROS_INFO("parking offset is: %3f", base_offset);
             xs << base_offset, 0., 0., 0., 0.;
-            // ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
+            ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
             // move_to(xs);
             ros::Rate temp_rate(1/T_park);
-            // std::cout << "park rate: " << 1/T_park << std::endl;
+            std::cout << "park rate: " << 1/T_park << std::endl;
             mpc.set_up_park(xs);
             int status, i = 0;
             int target_spot = 0;
+            std::cout << "target spot: " << target_spot << std::endl;
             while(1) {
                 std::list<int> cars = utils.recent_car_indices;
                 // iterate through all cars and check if any are in the parking spot
@@ -464,7 +468,9 @@ void StateMachine::run() {
 }
 int StateMachine::parking_maneuver_hardcode(bool right, bool exit, double rate_val) {
     double x0, y0, yaw0;
+    // get current states
     utils.get_states(x0, y0, yaw0);
+    // get closest direction
     yaw0 = mpc.NearestDirection(yaw0);
     while (yaw0 < -M_PI) yaw0 += 2*M_PI;
     while (yaw0 > M_PI) yaw0 -= 2*M_PI;
@@ -537,6 +543,9 @@ void StateMachine::solve() {
     // ROS_INFO("Solve time: %f ms", duration.count()/1000.0);
 }
 void StateMachine::publish_commands() {
+    /*
+    Publishes the commands of the MPC controller to the car
+    */
     double steer = -mpc.u_current[1] * 180 / M_PI; // convert to degrees
     double speed = mpc.u_current[0];
     // steer = 23;

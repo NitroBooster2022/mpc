@@ -9,15 +9,15 @@ N: 80
 # N: 100
 constraints:
   # sim
-  v_max: 2.0
-  v_min: -1
-  v_ref: 1.0
+  # v_max: 2.0
+  # v_min: -1
+  # v_ref: 1.0
   # v_ref: 1.3
 
   # gazebo
-  # v_max: 0.7
-  # v_min: -0.7
-  # v_ref: 0.5
+  v_max: 1.5
+  v_min: -1.5
+  v_ref: 0.5
 
   delta_max: 0.4
   delta_min: -0.4
