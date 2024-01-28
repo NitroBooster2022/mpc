@@ -86,9 +86,19 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     x_state[4] = 0.0;
 
     // region_of_acceptance = 0.03076923*3.0 * (0.125*1.3) / density;
-    state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
-    input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
-    state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
+    // get relative path
+    std::string dir = getSourceDirectory();
+    std::cout << "dir1: " << dir << std::endl; 
+    //replace last occurence of src with scripts
+    dir.replace(dir.rfind("src"), 3, "scripts");
+    printf("dir: %s\n", dir.c_str());
+    std::cout << "dir2: " << dir + "/paths/state_refs.txt" << std::endl; 
+    state_refs = loadTxt(dir + "/paths/state_refs2.txt");
+    input_refs = loadTxt(dir + "/paths/input_refs2.txt");
+    state_attributes = loadTxt(dir + "/paths/wp_attributes2.txt");
+    // state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
+    // input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
+    // state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
     std::vector<int> indices;
     for(int i=0; i<state_attributes.rows(); i++) {
         if(state_attributes(i) == 7) {
@@ -107,7 +117,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     }
     // exit(1);
     state_refs_ptr = &state_refs;
-    normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
+    // normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
+    normals = loadTxt(dir + "/paths/wp_normals2.txt");
     num_waypoints = state_refs.rows();
     std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
 
@@ -156,7 +167,12 @@ int Optimizer::run() {
 }
 
 int Optimizer::update_and_solve() {
-    auto t_start = std::chrono::high_resolution_clock::now();
+    /*
+    * Update the reference trajectory and solve the optimization problem
+    * Computed control input is stored in u_current
+    * Returns 0 if successful, 1 otherwise
+    */
+    auto t_start = std::chrono::high_resolution_clock::now(); // debug timer
 
     state_refs_ptr = &state_refs;
     if(debug) {
@@ -174,10 +190,13 @@ int Optimizer::update_and_solve() {
     x_state[3] = 0.0;
     x_state[4] = 0.0;
 
+    // Set the reference trajectory for the optimization problem
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "yref", x_state);
 
+    // Set the reference trajectory for next N steps
     for (int j = 0; j < N; ++j) {
-        if (target_waypoint_index + j >= (*state_refs_ptr).rows()) {
+        if (target_waypoint_index + j >= (*state_refs_ptr).rows()) { 
+            // if the target wpt exceeds the last wpt, set the last wpt as the target wpt
             for(int i=0; i<3; i++) {
                 x_state[i] = (*state_refs_ptr)((*state_refs_ptr).rows() - 1, i);
             }
@@ -192,7 +211,7 @@ int Optimizer::update_and_solve() {
                 // x_state[i + 3] = input_refs(idx + j, i)*1.5;
             }
         }
-        x_state[4] = 0.0;
+        x_state[4] = 0.0; // set steer rate to 0
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, j, "yref", x_state);
         // double u_max[2] = {2, 0.4};
         // ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, j, "ubu", u_max);
@@ -283,9 +302,9 @@ int Optimizer::find_next_waypoint(int min_index, int max_index) {
     // return std::min(target_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
 
     //2
-    double roa_sq;
+    double roa_sq; // region of acceptance squared
     if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
-        roa_sq = region_of_acceptance_cw * region_of_acceptance_cw;
+        roa_sq = region_of_acceptance_cw * region_of_acceptance_cw; 
     } else if (state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYLEFT || state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYRIGHT) {
         roa_sq = region_of_acceptance_hw * region_of_acceptance_hw;
     } else {
@@ -306,7 +325,7 @@ int Optimizer::find_next_waypoint(int min_index, int max_index) {
             target_waypoint_index = closest_idx + 1;
         }
     }
-    double dist = sqrt(min_distance_sq);
+    // double dist = sqrt(min_distance_sq);
     // std::cout << "cur:" << x_current[0] << "," << x_current[1] << "," << x_current[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
     // std::cout << "closest_idx:" << closest_idx <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
     return std::min(target_waypoint_index, static_cast<int>((*state_refs_ptr).rows()) - 1);

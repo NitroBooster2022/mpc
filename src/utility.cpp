@@ -30,7 +30,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     recent_car_indices = std::list<int>();
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
-    rateVal = 10;
+    rateVal = 50;
     rate = new ros::Rate(rateVal);
     wheelbase = 0.27;
     odomRatio = 1.0;
@@ -69,18 +69,20 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
 
     covariance_value = 0.01 * 4;
     std::fill(std::begin(odom_msg.pose.covariance), std::end(odom_msg.pose.covariance), 0.0);
-    std::fill(std::begin(odom1_msg.pose.covariance), std::end(odom1_msg.pose.covariance), 0.0);
+    // std::fill(std::begin(odom1_msg.pose.covariance), std::end(odom1_msg.pose.covariance), 0.0);
     std::fill(std::begin(odom_msg.twist.covariance), std::end(odom_msg.twist.covariance), 0.0);
-    std::fill(std::begin(odom1_msg.twist.covariance), std::end(odom1_msg.twist.covariance), 0.0);
+    // std::fill(std::begin(odom1_msg.twist.covariance), std::end(odom1_msg.twist.covariance), 0.0);
     for (int hsy=0; hsy<36; hsy+=7) {
         odom_msg.pose.covariance[hsy] = covariance_value;
-        odom1_msg.pose.covariance[hsy] = covariance_value;
+        // odom1_msg.pose.covariance[hsy] = covariance_value;
         odom_msg.twist.covariance[hsy] = covariance_value;
-        odom1_msg.twist.covariance[hsy] = covariance_value;
+        // odom1_msg.twist.covariance[hsy] = covariance_value;
     }
 
     odom_pub = nh.advertise<nav_msgs::Odometry>("odom", 3);
-    odom1_pub = nh.advertise<nav_msgs::Odometry>("odom1", 3);
+    odom_msg.header.frame_id = "odom";
+    odom_msg.child_frame_id = "chassis";
+    // odom1_pub = nh.advertise<nav_msgs::Odometry>("odom1", 3);
     cmd_vel_pub = nh.advertise<std_msgs::String>("/automobile/command", 3);
 
     std::cout << "waiting for Imu message" << std::endl;
@@ -120,7 +122,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     }
     if (pubOdom) {
         double odom_publish_frequency = rateVal; 
-        // odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
+        odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
 }
 
@@ -365,11 +367,11 @@ void Utility::publish_odom() {
     // auto& car_inertial = model.twist[*car_idx];
     // x_speed = car_inertial.linear.x;
     // y_speed = car_inertial.linear.y;
-    double speed = sqrt(x_speed * x_speed + y_speed * y_speed);
-    if (velocity_command < -0.01) {
-        speed *= -1;
-    }
-    velocity = speed; 
+    // double speed = sqrt(x_speed * x_speed + y_speed * y_speed);
+    // if (velocity_command < -0.01) {
+    //     speed *= -1;
+    // }
+    // velocity = speed; 
     // ROS_INFO("speed: %3f, command: %3f", speed, velocity_command);
 
     // Set GPS
@@ -384,27 +386,25 @@ void Utility::publish_odom() {
     // ROS_INFO("odomX: %3f, gps_x: %3f, odomY: %3f, gps_y: %3f, error: %3f", odomX, gps_x, odomY, gps_y, sqrt((odomX - gps_x) * (odomX - gps_x) + (odomY - gps_y) * (odomY - gps_y))); // works
 
     odom_msg.header.stamp = ros::Time::now();
-    odom_msg.header.frame_id = "odom";
-    odom_msg.child_frame_id = "chassis";
     odom_msg.pose.pose.position.x = odomX;
     odom_msg.pose.pose.position.y = odomY;
     odom_msg.pose.pose.position.z = 0.032939;
 
-    tf2::Quaternion quaternion;
-    quaternion.setRPY(0, 0, yaw);
-    odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
+    // tf2::Quaternion quaternion;
+    // quaternion.setRPY(0, 0, yaw);
+    // odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
 
-    odom_msg.twist.twist.linear.x = velocity * cos(yaw);
-    odom_msg.twist.twist.linear.y = velocity * sin(yaw);
+    // odom_msg.twist.twist.linear.x = velocity * cos(yaw);
+    // odom_msg.twist.twist.linear.y = velocity * sin(yaw);
     odom_pub.publish(odom_msg);
 
     // Prepare and publish odom1 message
-    odom1_msg.header.stamp = ros::Time::now();
-    odom1_msg.header.frame_id = "odom";
-    odom1_msg.child_frame_id = "chassis";
-    odom1_msg.twist.twist.linear.x = velocity * cos(yaw);
-    odom1_msg.twist.twist.linear.y = velocity * sin(yaw);
-    odom1_pub.publish(odom1_msg);
+    // odom1_msg.header.stamp = ros::Time::now();
+    // odom1_msg.header.frame_id = "odom";
+    // odom1_msg.child_frame_id = "chassis";
+    // odom1_msg.twist.twist.linear.x = velocity * cos(yaw);
+    // odom1_msg.twist.twist.linear.y = velocity * sin(yaw);
+    // odom1_pub.publish(odom1_msg);
     // auto end = std::chrono::high_resolution_clock::now();
     // std::chrono::duration<double> elapsed = end - start;
     // ROS_INFO("time elapsed: %3fs", elapsed.count());
@@ -473,6 +473,20 @@ std::array<double, 4> Utility::object_box(int index) {
 
     return box;
 }
+void Utility::object_box(int index, std::array<double, 4>& oBox) {
+    if (num_obj == 1) {
+        oBox[0] = detected_objects[x1];
+        oBox[1] = detected_objects[y1];
+        oBox[2] = detected_objects[x2];
+        oBox[3] = detected_objects[y2];
+    } else if (index >= 0 && index < num_obj) {
+        int startIndex = index * NUM_VALUES_PER_OBJECT;
+        oBox[0] = detected_objects[startIndex + x1];
+        oBox[1] = detected_objects[startIndex + y1];
+        oBox[2] = detected_objects[startIndex + x2];
+        oBox[3] = detected_objects[startIndex + y2];
+    }
+}
 void Utility::set_initial_pose(double x, double y, double yaw) {
     // initializationTimer = ros::Time::now();
     odomX = x;
@@ -515,7 +529,7 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
         if (steering_angle > 23) steering_angle = 23;
         if (steering_angle < -23) steering_angle = -23;
     }
-    publish_odom();
+    // publish_odom();
     lock.lock();
     steer_command = steering_angle;
     velocity_command = velocity;

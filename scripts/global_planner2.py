@@ -13,7 +13,7 @@ class GlobalPlanner:
         self.attribute = {}
         for node, data in self.G.nodes(data=True):
             # print("node: ", node)
-            self.pos[node] = (data['x'], 13.786-data['y'])
+            self.pos[node] = (data['x']+0.1, 13.786-data['y'])
             self.attribute[node] = data['new_attribute']
         self.wp_x = []
         self.wp_y = []

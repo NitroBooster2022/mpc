@@ -55,7 +55,7 @@ public:
     }
     // void update_current_states(double* state);
     Eigen::VectorXd computeStats(int hsy);
-    std::string getSourceDirectory();
+    static std::string getSourceDirectory();
     template <typename EigenType>
     void saveToFile(const EigenType &data, const std::string &filename);
     Eigen::MatrixXd loadTxt(const std::string &filename);
@@ -142,9 +142,13 @@ public:
     void set_up_park(Eigen::VectorXd& xs) {
         int reset_status = park_acados_reset(acados_ocp_capsule_park, 1);
         ocp_nlp_cost_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, N_park, "yref", xs.data());
-        for (int j = 0; j < N; ++j) {
+        std::cout << "N_park: " << N_park << std::endl;
+        for (int j = 0; j < N_park; ++j) {
             ocp_nlp_cost_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, j, "yref", xs.data());
         }
+        std::cout << "Hi2" << std::endl;
+        std::cout << "frame1: " << frame1 << std::endl;
+        std::cout << "x_current: " << x_current << std::endl;
         frame1.head(2) = x_current.head(2);
         frame1[2] = NearestDirection(x_current[2]);
         std::cout << "yaw: " << x_current[2] << ", nearest: " << frame1[2] << std::endl;
