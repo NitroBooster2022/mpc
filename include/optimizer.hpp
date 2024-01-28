@@ -55,7 +55,7 @@ public:
     }
     // void update_current_states(double* state);
     Eigen::VectorXd computeStats(int hsy);
-    std::string getSourceDirectory();
+    static std::string getSourceDirectory();
     template <typename EigenType>
     void saveToFile(const EigenType &data, const std::string &filename);
     Eigen::MatrixXd loadTxt(const std::string &filename);

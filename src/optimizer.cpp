@@ -86,9 +86,19 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     x_state[4] = 0.0;
 
     // region_of_acceptance = 0.03076923*3.0 * (0.125*1.3) / density;
-    state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
-    input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
-    state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
+    // get relative path
+    std::string dir = getSourceDirectory();
+    std::cout << "dir1: " << dir << std::endl; 
+    //replace last occurence of src with scripts
+    dir.replace(dir.rfind("src"), 3, "scripts");
+    printf("dir: %s\n", dir.c_str());
+    std::cout << "dir2: " << dir + "/paths/state_refs.txt" << std::endl; 
+    state_refs = loadTxt(dir + "/paths/state_refs2.txt");
+    input_refs = loadTxt(dir + "/paths/input_refs2.txt");
+    state_attributes = loadTxt(dir + "/paths/wp_attributes2.txt");
+    // state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
+    // input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
+    // state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
     std::vector<int> indices;
     for(int i=0; i<state_attributes.rows(); i++) {
         if(state_attributes(i) == 7) {
@@ -107,7 +117,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     }
     // exit(1);
     state_refs_ptr = &state_refs;
-    normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
+    // normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
+    normals = loadTxt(dir + "/paths/wp_normals2.txt");
     num_waypoints = state_refs.rows();
     std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
 

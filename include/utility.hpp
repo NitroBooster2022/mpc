@@ -24,6 +24,7 @@
 
 class Utility {
 public:
+    
     Utility(ros::NodeHandle& nh_, bool subSign = true, bool useEkf = false, bool subLane = false,  bool subModel = true, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
@@ -96,13 +97,13 @@ public:
 
     // publishers
     ros::Publisher odom_pub;
-    ros::Publisher odom1_pub;
+    // ros::Publisher odom1_pub;
     ros::Publisher cmd_vel_pub;
     ros::Publisher car_pose_pub;
 
     // messages
     nav_msgs::Odometry odom_msg;
-    nav_msgs::Odometry odom1_msg;
+    // nav_msgs::Odometry odom1_msg;
     nav_msgs::Odometry ekf_msg;
     std_msgs::String msg;
     std_msgs::String msg2;
@@ -144,6 +145,7 @@ public:
     std::vector<int> object_indices(int obj_id);
     double object_distance(int index);
     std::array<double, 4> object_box(int index);
+    void object_box(int index, std::array<double, 4>& oBox);
     void set_initial_pose(double x, double y, double yaw);
     void update_states_rk4(double velocity, double steer, double dt=-1);
     geometry_msgs::TransformStamped add_static_link(double x, double y, double z, double roll, double pitch, double yaw, std::string parent, std::string child);
@@ -256,5 +258,16 @@ public:
         double x2 = bounding_box[2];
         double y2 = bounding_box[3];
         return estimate_object_pose2d(x, y, yaw, x1, y1, x2, y2, object_distance, camera_params, is_car);
+    }
+    static std::string getSourceDirectory() {
+        std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
+        size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
+        if (last_dir_sep == std::string::npos) {
+            last_dir_sep = file_path.rfind('\\');  // For Windows path
+        }
+        if (last_dir_sep != std::string::npos) {
+            return file_path.substr(0, last_dir_sep);  // Extract directory path
+        }
+        return "";  // Return empty string if path not found
     }
 };
