@@ -13,8 +13,8 @@
 
 class StateMachine {
 public:
-    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park): 
-    nh(nh_), utils(nh, sign, ekf, lane), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
+    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name): 
+    nh(nh_), utils(nh, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
     state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0)
     {
         //initialize parking spots
@@ -638,7 +638,9 @@ int main(int argc, char **argv) {
     double T, v_ref, T_park;
     int N;
     bool sign, ekf, lane;
+    std::string name;
     bool success = nh.getParam("/mpc_controller/lane", lane) && nh.getParam("/mpc_controller/ekf", ekf) && nh.getParam("/mpc_controller/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    success = success && nh.getParam("/mpc_controller/name", name);
     success = success && nh.getParam("/T_park", T_park);
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
@@ -653,7 +655,7 @@ int main(int argc, char **argv) {
         std::cout << "Successfully got parameters" << std::endl;
     }
     std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", v_ref: " << v_ref << std::endl;
-    StateMachine sm(nh, T, N, v_ref, sign, ekf, lane, T_park);
+    StateMachine sm(nh, T, N, v_ref, sign, ekf, lane, T_park, name);
 
     globalStateMachinePtr = &sm;
     signal(SIGINT, signalHandler);

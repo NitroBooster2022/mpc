@@ -22,8 +22,8 @@
 #include <mutex>
 #include <cmath>
 
-Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, bool subModel, bool subImu, bool pubOdom) 
-    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf)
+Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
+    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name)
 {
     detected_cars = std::vector<Eigen::Vector2d>();
     detected_cars_counter = std::vector<int>();
@@ -83,14 +83,18 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     odom_msg.header.frame_id = "odom";
     odom_msg.child_frame_id = "chassis";
     // odom1_pub = nh.advertise<nav_msgs::Odometry>("odom1", 3);
-    cmd_vel_pub = nh.advertise<std_msgs::String>("/automobile/command", 3);
 
+    // if (robot_name[0] != '/') {
+    //     robot_name = "/" + robot_name;
+    // }
+    cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
+    std::string imu_topic_name = "/" + robot_name + "/imu";
     std::cout << "waiting for Imu message" << std::endl;
     ros::topic::waitForMessage<sensor_msgs::Imu>("/camera/imu");
     std::cout << "waiting for model_states message" << std::endl;
     ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
-
+    
     if (useEkf) {
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
@@ -102,6 +106,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     }
     if (subImu) {
         imu_sub = nh.subscribe("/camera/imu", 3, &Utility::imu_callback, this);
+        // imu_sub = nh.subscribe(imu_topic, 3, &Utility::imu_callback, this);
     }
     if (subLane) {
         lane_sub = nh.subscribe("/lane", 3, &Utility::lane_callback, this);
@@ -250,7 +255,7 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
     lock.lock();
     // auto start = std::chrono::high_resolution_clock::now();
     if (!car_idx.has_value()) {
-        auto it = std::find(msg->name.begin(), msg->name.end(), "automobile");
+        auto it = std::find(msg->name.begin(), msg->name.end(), robot_name);
         if (it != msg->name.end()) {
             car_idx = std::distance(msg->name.begin(), it);
             std::cout << "automobile found: " << *car_idx << std::endl;

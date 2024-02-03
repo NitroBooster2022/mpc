@@ -25,7 +25,7 @@
 class Utility {
 public:
     
-    Utility(ros::NodeHandle& nh_, bool subSign = true, bool useEkf = false, bool subLane = false,  bool subModel = true, bool subImu = true, bool pubOdom = true);
+    Utility(ros::NodeHandle& nh_, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "automobile", bool subModel = true, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
 // private:
@@ -53,7 +53,8 @@ public:
     static constexpr double SIGN_COOLDOWN = 1.0;
     static constexpr double TOLERANCE_SQUARED = 0.01;
     static constexpr double STOP_DURATION = 1.50;
-
+    
+    std::string robot_name;
     // std::vector<std::array<double, 2>> detected_cars;
     std::vector<Eigen::Vector2d> detected_cars;
     std::vector<int> detected_cars_counter;

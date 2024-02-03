@@ -52,7 +52,7 @@ class Odom():
         self.model_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.gps_callback, queue_size=3)
         self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
-        self.imu1_sub = rospy.Subscriber("/imu", Imu, self.imu1_callback, queue_size=3)
+        self.imu1_sub = rospy.Subscriber("/automobile/imu", Imu, self.imu1_callback, queue_size=3)
         self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
     

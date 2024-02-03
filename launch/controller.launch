@@ -7,10 +7,12 @@
   <arg name="sign" default="false"/>
   <arg name="ekf" default="false"/>
   <arg name="lane" default="false"/>
+  <arg name="name" default="automobile"/>
 
   <node pkg="mpc" type="controller" name="mpc_controller" output="screen"> 
     <param name="sign" value="$(arg sign)"/>
     <param name="ekf" value="$(arg ekf)"/>
     <param name="lane" value="$(arg lane)"/>
+    <param name="name" value="$(arg name)"/>
   </node>
 </launch>

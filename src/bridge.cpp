@@ -10,8 +10,8 @@
 
 class LocalizationBridge {
     public:
-        LocalizationBridge(ros::NodeHandle& nh_):
-            nh(nh_)
+        LocalizationBridge(ros::NodeHandle& nh_, std::string name) :
+            nh(nh_), robot_name(name)
         {
             nh.getParam("/x_offset", x_offset);
             nh.getParam("/y_offset", y_offset);
@@ -20,7 +20,8 @@ class LocalizationBridge {
             nh.getParam("/manual_integration", manual);
             ROS_INFO("manual_integration: %d", manual);
             pose_pub = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("/gps", 10);
-            sub = nh_.subscribe("/automobile/localisation", 10, &LocalizationBridge::localisationCallback, this);
+            std::string gps_topic = "/" + robot_name + "/localisation";
+            sub = nh_.subscribe(gps_topic, 10, &LocalizationBridge::localisationCallback, this);
             commands_sub = nh_.subscribe("/commands", 10, &LocalizationBridge::commandsCallback, this);
             imu_sub = nh_.subscribe("/camera/imu", 10, &LocalizationBridge::imuCallback, this);
             std::fill(std::begin(msg.pose.covariance), std::end(msg.pose.covariance), 0.0);
@@ -35,6 +36,7 @@ class LocalizationBridge {
             msg.pose.covariance[21] = pos_cov; 
             msg.pose.covariance[28] = pos_cov; 
             msg.pose.covariance[35] = pos_cov;
+            msg.header.frame_id = "odom";
             wheelbase = 0.27;
             prev_time = 0.0;
             prev_yaw = M_PI / 2;
@@ -42,6 +44,7 @@ class LocalizationBridge {
             prev_steering = 0;
         }
     private:
+        std::string robot_name;
         ros::NodeHandle nh;
         ros::Publisher pose_pub;
         ros::Subscriber sub;
@@ -55,10 +58,10 @@ class LocalizationBridge {
         std::deque<std_msgs::Float64MultiArray> commands;
 
         void localisationCallback(const utils::localisation::ConstPtr& msg_in) {
-            auto start = std::chrono::high_resolution_clock::now();
+            // auto start = std::chrono::high_resolution_clock::now();
+
             // Copy the header
             msg.header.stamp = msg_in->header.stamp; // localisation msg is delayed by 1s
-            msg.header.frame_id = "odom";
 
             double x0 = msg_in->posA + x_offset;
             double y0 = msg_in->posB + y_offset;
@@ -107,14 +110,16 @@ class LocalizationBridge {
             msg.pose.pose.position.y = y0;
             msg.pose.pose.position.z = 0.0; // 2d
 
+            // ROS_INFO("x: %3.3f, y: %3.3f", x0, y0);
+
             // tf2::Quaternion q;
             // q.setRPY(0, 0, msg_in->rotA); 
             // msg.pose.pose.orientation = tf2::toMsg(q);
 
             // Publish the message
             pose_pub.publish(msg);
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end-start);
+            // auto end = std::chrono::high_resolution_clock::now();
+            // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end-start);
             // ROS_INFO("Time taken: %3.3f ms", duration.count()/1000.0); 
         }
         void imuCallback(const sensor_msgs::Imu::ConstPtr& msg_in) {
@@ -165,8 +170,12 @@ int main(int argc, char **argv) {
     // Initialize the ROS node
     ros::init(argc, argv, "localization_bridge");
     ros::NodeHandle nh;
-
-    LocalizationBridge bridge(nh);
+    std::string name;
+    if(!nh.getParam("/localization_bridge/name", name)) {
+        ROS_ERROR("GPS bridge node: Failed to get param 'name'");
+        return 1;
+    }
+    LocalizationBridge bridge(nh, name);
     while (ros::ok()) {
         ros::spinOnce();
     }
