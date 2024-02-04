@@ -395,9 +395,9 @@ void Utility::publish_odom() {
     odom_msg.pose.pose.position.y = odomY;
     odom_msg.pose.pose.position.z = 0.032939;
 
-    // tf2::Quaternion quaternion;
-    // quaternion.setRPY(0, 0, yaw);
-    // odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
+    tf2::Quaternion quaternion;
+    quaternion.setRPY(0, 0, yaw);
+    odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
 
     // odom_msg.twist.twist.linear.x = velocity * cos(yaw);
     // odom_msg.twist.twist.linear.y = velocity * sin(yaw);
