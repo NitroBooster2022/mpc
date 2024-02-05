@@ -87,10 +87,16 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     // if (robot_name[0] != '/') {
     //     robot_name = "/" + robot_name;
     // }
+    std::cout << "namespace: " << robot_name << std::endl;
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
-    std::string imu_topic_name = "/" + robot_name + "/imu";
+    std::string imu_topic_name;
+    if(robot_name == "automobile") {
+        imu_topic_name = "/camera/imu";
+    } else {
+        imu_topic_name = "/" + robot_name + "/imu";
+    }
     std::cout << "waiting for Imu message" << std::endl;
-    ros::topic::waitForMessage<sensor_msgs::Imu>("/camera/imu");
+    ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
     std::cout << "waiting for model_states message" << std::endl;
     ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
@@ -105,7 +111,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
     }
     if (subImu) {
-        imu_sub = nh.subscribe("/camera/imu", 3, &Utility::imu_callback, this);
+        imu_sub = nh.subscribe(imu_topic_name, 3, &Utility::imu_callback, this);
         // imu_sub = nh.subscribe(imu_topic, 3, &Utility::imu_callback, this);
     }
     if (subLane) {

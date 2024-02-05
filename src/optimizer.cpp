@@ -88,11 +88,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     // region_of_acceptance = 0.03076923*3.0 * (0.125*1.3) / density;
     // get relative path
     std::string dir = getSourceDirectory();
-    std::cout << "dir1: " << dir << std::endl; 
-    //replace last occurence of src with scripts
     dir.replace(dir.rfind("src"), 3, "scripts");
-    printf("dir: %s\n", dir.c_str());
-    std::cout << "dir2: " << dir + "/paths/state_refs.txt" << std::endl; 
     state_refs = loadTxt(dir + "/paths/state_refs2.txt");
     input_refs = loadTxt(dir + "/paths/input_refs2.txt");
     state_attributes = loadTxt(dir + "/paths/wp_attributes2.txt");
@@ -105,17 +101,6 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
             indices.push_back(i);
         }
     }
-    // print indices if not empty
-    if(!indices.empty()) {
-        std::cout << "indices: ";
-        for(int i=0; i<indices.size(); i++) {
-            std::cout << indices[i] << ", ";
-        }
-        std::cout << std::endl;
-    } else {
-        std::cout << "indices is empty" << std::endl;
-    }
-    // exit(1);
     state_refs_ptr = &state_refs;
     // normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
     normals = loadTxt(dir + "/paths/wp_normals2.txt");
@@ -425,11 +410,11 @@ Eigen::VectorXd Optimizer::computeStats(int hsy) {
                 average_x_error, average_y_error, average_yaw_error;
     
     // Eigen::VectorXd stats = computeStats();
-    saveToFile(simX, "simX.txt");
-    saveToFile(simU, "simU.txt");
+    saveToFile(simX, "results/simX.txt");
+    saveToFile(simU, "results/simU.txt");
     // saveToFile(time_record, "time_record.txt"); 
-    saveToFile(stats, "stats.txt");
-    saveToFile(state_refs, "state_refs.txt");
+    saveToFile(stats, "results/stats.txt");
+    saveToFile(state_refs, "results/state_refs.txt");
     return stats;
 }
 

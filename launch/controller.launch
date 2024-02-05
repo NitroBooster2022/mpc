@@ -9,7 +9,7 @@
   <arg name="lane" default="false"/>
   <arg name="name" default="automobile"/>
 
-  <node pkg="mpc" type="controller" name="mpc_controller" output="screen"> 
+  <node pkg="mpc" type="controller" name="$(anon mpc_controller)" output="screen"> 
     <param name="sign" value="$(arg sign)"/>
     <param name="ekf" value="$(arg ekf)"/>
     <param name="lane" value="$(arg lane)"/>

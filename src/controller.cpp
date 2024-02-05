@@ -620,27 +620,29 @@ void signalHandler(int signum) {
 
 using json = nlohmann::json;
 int main(int argc, char **argv) {
-    std::string dir = Optimizer::getSourceDirectory();
-    //replace last occurence of src with scripts
-    dir.replace(dir.rfind("src"), 3, "scripts");
-    std::string file_path = dir + "/" + "config/mpc_config2.json";
-    std::ifstream file(file_path);
-    if(!file.is_open()) {
-        std::cout << "Failed to open file: " << file_path << std::endl;
-        exit(1);
-    }
-    json j;
-    file >> j;
+    // std::string dir = Optimizer::getSourceDirectory();
+    // dir.replace(dir.rfind("src"), 3, "scripts");
+    // std::string file_path = dir + "/" + "config/mpc_config2.json";
+    // std::ifstream file(file_path);
+    // if(!file.is_open()) {
+    //     std::cout << "Failed to open file: " << file_path << std::endl;
+    //     exit(1);
+    // }
+    // json j;
+    // file >> j;
 
     std::cout.precision(3);
-    ros::init(argc, argv, "mpc_node", ros::init_options::NoSigintHandler);
+    //create anonymous node handle
+    ros::init(argc, argv, "mpc_node", ros::init_options::NoSigintHandler | ros::init_options::AnonymousName);
     ros::NodeHandle nh;
     double T, v_ref, T_park;
     int N;
     bool sign, ekf, lane;
     std::string name;
-    bool success = nh.getParam("/mpc_controller/lane", lane) && nh.getParam("/mpc_controller/ekf", ekf) && nh.getParam("/mpc_controller/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
-    success = success && nh.getParam("/mpc_controller/name", name);
+    std::string nodeName = ros::this_node::getName();
+    std::cout << "node name: " << nodeName << std::endl;
+    bool success = nh.getParam(nodeName + "/lane", lane) && nh.getParam(nodeName+"/ekf", ekf) && nh.getParam(nodeName+"/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    success = success && nh.getParam(nodeName+"/name", name);
     success = success && nh.getParam("/T_park", T_park);
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
