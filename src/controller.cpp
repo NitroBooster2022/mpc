@@ -44,7 +44,7 @@ public:
         std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
         if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
         mpc.update_current_states(x, y, utils.yaw);
-        mpc.target_waypoint_index = mpc.find_next_waypoint(0, static_cast<int>(mpc.state_refs.rows() - 1));
+        mpc.target_waypoint_index = mpc.find_next_waypoint(mpc.x_current, 0, static_cast<int>(mpc.state_refs.rows() - 1));
     }
     ~StateMachine() {
         // utils.stop_car();
@@ -53,9 +53,9 @@ public:
 
 // private:
     // Constants
-    const std::array<std::string, 10> state_names = {
+    const std::array<std::string, 11> state_names = {
         "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
-        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING"
+        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING"
     };
     enum STATE {
         INIT,
@@ -68,6 +68,7 @@ public:
         EXITING_PARKING,
         DONE,
         LANE_FOLLOWING,
+        INTERSECTION_MANEUVERING
     };
     enum OBJECT {
         ONEWAY,
@@ -105,12 +106,16 @@ public:
     std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
+    std::array<int, 4> maneuver_indices = {0, 1, 2, 1};
+    int maneuver_index = 0;
     std::array<double, 4> bbox = {0.0, 0.0, 0.0, 0.0};
     double T_park, T;
     double detected_dist = 0;
     bool right_park = true;
     int park_count = 0;
     bool stopsign_flag = false;
+    int maneuver_direction = 0; // 0: left, 1: straight, 2: right
+    const std::array<std::string, 3> MANEUVER_DIRECTIONS = {"left", "straight", "right"};
     ros::Time cd_timer = ros::Time::now();
     int detected_index = 0;
     Eigen::Vector2d destination;
@@ -300,7 +305,8 @@ void StateMachine::run() {
                         double min_dist_sq = 1000.;
                         int min_index = 0;
                         for (int i = mpc.closest_waypoint_index; i < look_ahead_index; i++) {
-                            double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                            // double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                            double dist_sq = std::pow(car_pose[0] - mpc.state_refs(i, 0), 2) + std::pow(car_pose[1] - mpc.state_refs(i, 1), 2);
                             if (dist_sq < min_dist_sq) {
                                 min_dist_sq = dist_sq;
                                 min_index = i;
@@ -502,9 +508,55 @@ void StateMachine::run() {
                 move_to(xs, 0.15);
             }
             change_state(STATE::MOVING);
+        } else if (state == STATE::INTERSECTION_MANEUVERING) {
+            ROS_INFO("maneuvering");
+            mpc.target_waypoint_index = 0;
+            Eigen::MatrixXd* state_refs_ptr;
+            maneuver_direction = maneuver_indices[maneuver_index++];
+            ROS_INFO("direction: %s", MANEUVER_DIRECTIONS[maneuver_direction].c_str());
+            if (maneuver_direction == 0) {
+                state_refs_ptr = &mpc.left_turn_states;
+            } else if (maneuver_direction == 1) {
+                state_refs_ptr = &mpc.straight_states;
+            } else if (maneuver_direction == 2) {
+                state_refs_ptr = &mpc.right_turn_states;
+            } else {
+                ROS_INFO("invalid maneuver direction: %d", maneuver_direction);
+                change_state(STATE::MOVING);
+                continue;
+            }
+            double x0, y0, yaw0;
+            utils.get_states(x0, y0, yaw0);
+            mpc.frame1 << x0, y0, yaw0;
+            mpc.frame2 = state_refs_ptr->row(0);
+            mpc.frame1[2] = mpc.NearestDirection(mpc.frame2[2]);
+            std::cout << "frame1: " << mpc.frame1 << ",\n frame2: " << mpc.frame2 << std::endl;
+            int last_history = mpc.last_waypoint_index;
+            mpc.last_waypoint_index = 0;
+            while(1) {
+                update_mpc_state();
+                mpc.transform_point(mpc.x_current, mpc.x_current_transformed, mpc.frame1, mpc.frame2);
+                double yaw_frame2 = mpc.frame2[2];
+                while (mpc.x_current_transformed[2] - yaw_frame2 > M_PI) {
+                    mpc.x_current_transformed[2] -= 2 * M_PI;
+                }
+                while (mpc.x_current_transformed[2] - yaw_frame2 < -M_PI) {
+                    mpc.x_current_transformed[2] += 2 * M_PI;
+                }
+                double error_sq = (mpc.x_current_transformed - state_refs_ptr->row(state_refs_ptr->rows()-1).transpose()).squaredNorm();
+                if (error_sq < TOLERANCE_SQUARED) {
+                    break;
+                }
+                ROS_INFO("error_sq: %3f", error_sq);
+                int status = mpc.update_and_solve(mpc.x_current_transformed, maneuver_direction);
+                publish_commands();
+            }
+            mpc.last_waypoint_index = last_history;
+            change_state(STATE::MOVING);
         } else if (state == STATE::INIT) {
             change_state(STATE::MOVING);
-            if (lane) change_state(STATE::LANE_FOLLOWING);
+            // change_state(STATE::INTERSECTION_MANEUVERING);
+            // if (lane) change_state(STATE::INTERSECTION_MANEUVERING);
             // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;
@@ -583,7 +635,7 @@ void StateMachine::update_mpc_state() {
 void StateMachine::solve() {
     // auto start = std::chrono::high_resolution_clock::now();
 
-    int status = mpc.update_and_solve();
+    int status = mpc.update_and_solve(mpc.x_current);
     publish_commands();
     if (debug) {
         ;

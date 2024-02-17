@@ -207,45 +207,35 @@ public:
                 // std::cout << "Parallel to the camera" << std::endl;
                 dist = CAR_LENGTH / 2 / normalized_ratio_parallel;
             } else { // Perpendicular to the camera
-                // std::cout << "Perpendicular to the camera" << std::endl;
                 dist = CAR_WIDTH / 2 / normalized_ratio_perpendicular;
             }
-            // std::cout << "dist: " << dist << std::endl;
             
             object_distance += dist;
         }
 
-        // Unpack the vehicle state and camera parameters
         std::array<double, 2> vehicle_pos = { x, y }; // Only x and y are needed for 2D
         
-        // Intrinsic parameters
         double fx = camera_params[0];
         double cx = camera_params[2];
         
-        // Calculate center of bounding box along the x-axis
-        // double bbox_center_x = (bounding_box[0] + bounding_box[2]) / 2;
         double bbox_center_x = (x1 + x2) / 2;
         
-        // Transform pixel coordinates to camera coordinates along the x-axis
         double X_c = (bbox_center_x - cx) / fx * object_distance;
         
         // Vehicle coordinates (X_v is forward, Y_v is left/right from the vehicle's perspective)
         double X_v = object_distance;
-        double Y_v = -X_c; // Negate because a positive X_c means the object is to the right in the image
+        double Y_v = -X_c; 
 
-        // Create rotation matrix
         std::array<std::array<double, 2>, 2> rotation_matrix = {{
             { std::cos(yaw), -std::sin(yaw) },
             { std::sin(yaw), std::cos(yaw) }
         }};
         
-        // Transform to vehicle coordinates
         std::array<double, 2> vehicle_coordinates = {
             rotation_matrix[0][0] * X_v + rotation_matrix[0][1] * Y_v,
             rotation_matrix[1][0] * X_v + rotation_matrix[1][1] * Y_v
         };
         
-        // Transform to world coordinates
         Eigen::Vector2d world_coordinates = {
             vehicle_pos[0] + vehicle_coordinates[0],
             vehicle_pos[1] + vehicle_coordinates[1]

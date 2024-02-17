@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding=UTF-8
 
-from path2 import Path
+# from path2 import Path
+from turning_wpts import Path
 import os
 import sys
 import shutil
@@ -106,7 +107,7 @@ class Optimizer(object):
                                        + '_T'+str(self.T))
         self.obstacle = []
         
-    def create_solver(self, config_path='config/mpc_config2.yaml'):
+    def create_solver(self, config_path='config/mpc_config25.yaml'):
         print("creating solver...")
         t1 = timeit.default_timer()
         model = AcadosModel() #  ca.types.SimpleNamespace()
@@ -133,16 +134,16 @@ class Optimizer(object):
         model.xdot = x_dot
         model.u = controls
         model.p = []
-        model.name = 'mobile_robot'
 
         current_path = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(current_path, config_path)
         with open(path, 'r') as f:
             config = yaml.safe_load(f)
+        model.name = config['name']
         if "park" in config_path:
             self.park_thresh = config['park_thresh']
             self.exit_thresh = config['exit_thresh']
-        if config_path == 'config/mpc_config2.yaml':
+        if "park" not in config_path:
             T = config['T']
             N = config['N']
             constraint_name = 'constraints'
@@ -255,12 +256,14 @@ class Optimizer(object):
         cur_path = os.path.dirname(os.path.realpath(__file__))
         path = os.path.join(cur_path, 'paths')
         os.makedirs(path, exist_ok=True)
-        np.savetxt(os.path.join(path,'state_refs2.txt'), self.state_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'state_refs50.txt'), self.state_refs, fmt='%.8f')
         print("stateref shape: ", self.state_refs.shape)
-        np.savetxt(os.path.join(path,'input_refs2.txt'), self.input_refs, fmt='%.8f')
-        np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_normals2.txt'), self.wp_normals, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_attributes2.txt'), self.path.attributes, fmt='%.8f')
+        np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'input_refs25.txt'), self.input_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_normals25.txt'), self.wp_normals, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_attributes25.txt'), self.path.attributes, fmt='%.8f')
         exit()
 
         self.target_waypoint_index = self.find_next_waypoint()

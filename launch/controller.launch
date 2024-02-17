@@ -2,7 +2,7 @@
 
   <!-- <rosparam command="load" file="$(find control)/config/gps_config.yaml" /> -->
   <!-- <node pkg="control" type="bridge" name="localization_bridge" output="screen"> </node> -->
-  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config2.yaml" />
+  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config50.yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
   <arg name="sign" default="false"/>
   <arg name="ekf" default="false"/>

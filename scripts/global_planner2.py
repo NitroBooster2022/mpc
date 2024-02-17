@@ -141,7 +141,9 @@ class GlobalPlanner:
             4: 'black',   # highwayLeft
             5: 'orange',    # highwayRight
             6: 'pink',      # roundabout
-            7: 'purple'     # stopline
+            7: 'purple',     # stopline
+            8: 'brown',      # parking
+            9: 'cyan'       # parking
         }
         node_colors = [color_map[self.attribute.get(node, 0)] for node in self.G.nodes()]
         # Display the image

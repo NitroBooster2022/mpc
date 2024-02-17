@@ -91,7 +91,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
     std::string imu_topic_name;
     if(robot_name == "automobile") {
-        imu_topic_name = "/camera/imu";
+        imu_topic_name = "/realsense/imu";
     } else {
         imu_topic_name = "/" + robot_name + "/imu";
     }
@@ -586,7 +586,7 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");
     static_transforms.push_back(t_imu0);
 
-    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0, 0, 0.2, 0, 0, 0, "chassis", "imu_cam");
+    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
     static_transforms.push_back(t_imu_cam);
 
     static_broadcaster.sendTransform(static_transforms);
