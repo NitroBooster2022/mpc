@@ -14,8 +14,11 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_sim_solver_mobile_robot.h"
 #include "acados_solver_mobile_robot.h"
+#include "acados_sim_solver_mobile_robot_25.h"
+#include "acados_solver_mobile_robot_25.h"
 #include "acados_solver_park.h"
 #include "acados_sim_solver_park.h"
+
 
 class Optimizer {
 public:
@@ -46,9 +49,9 @@ public:
         free(nlp_out_park);
     }
     int run(); 
-    int update_and_solve();
+    int update_and_solve(Eigen::Vector3d &i_current_state, int mode = -1);
     void integrate_next_states();
-    int find_next_waypoint(int min_index = -1, int max_index = -1);
+    int find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index = -1, int max_index = -1);
     void update_current_states(double x, double y, double yaw, Eigen::Vector3d& state);
     void update_current_states(double x, double y, double yaw) {
         update_current_states(x, y, yaw, x_current);
@@ -74,10 +77,12 @@ public:
     int N_park, nx_park, nu_park;
     double T_park;
     int target_waypoint_index, last_waypoint_index, closest_waypoint_index, num_waypoints;
+    int v_ref_int;
+    bool use25 = false;
     double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
     bool debug = true;
     Eigen::Vector3d current_state;
-    Eigen::MatrixXd state_refs, input_refs, normals;
+    Eigen::MatrixXd state_refs, input_refs, normals, left_turn_states, right_turn_states, straight_states;
     Eigen::VectorXd state_attributes;
     enum ATTRIBUTE {
         NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT, STOPLINE, DOTTED, DOTTED_CROSSWALK
@@ -87,6 +92,8 @@ public:
 
     mobile_robot_solver_capsule *acados_ocp_capsule;
     mobile_robot_sim_solver_capsule *sim_capsule;
+    mobile_robot_25_solver_capsule *acados_ocp_capsule_25;
+    mobile_robot_25_sim_solver_capsule *sim_capsule_25;
     sim_config *mobile_robot_sim_config;
     void *mobile_robot_sim_dims;
     sim_in *mobile_robot_sim_in;
@@ -107,8 +114,8 @@ public:
     ocp_nlp_in *nlp_in_park;
     ocp_nlp_out *nlp_out_park;
 
-    Eigen::MatrixXd simX, simU;
-    Eigen::VectorXd time_record, x_errors, y_errors, yaw_errors;
+    Eigen::MatrixXd simX, simU, time_record;
+    Eigen::VectorXd x_errors, y_errors, yaw_errors;
 
     Eigen::Matrix2d rotation_matrix;
     Eigen::Vector2d rotated_xy;
@@ -141,12 +148,14 @@ public:
     }
     void set_up_park(Eigen::VectorXd& xs) {
         int reset_status = park_acados_reset(acados_ocp_capsule_park, 1);
+        if( reset_status ) {
+            printf("WARNING: park_acados_reset() returned status %d.\n", reset_status);
+        }
         ocp_nlp_cost_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, N_park, "yref", xs.data());
         std::cout << "N_park: " << N_park << std::endl;
         for (int j = 0; j < N_park; ++j) {
             ocp_nlp_cost_model_set(nlp_config_park, nlp_dims_park, nlp_in_park, j, "yref", xs.data());
         }
-        std::cout << "Hi2" << std::endl;
         std::cout << "frame1: " << frame1 << std::endl;
         std::cout << "x_current: " << x_current << std::endl;
         frame1.head(2) = x_current.head(2);
@@ -160,6 +169,7 @@ public:
     Eigen::Vector3d frame2;
     Eigen::Vector3d frame1;
     Eigen::Vector3d x_current_transformed;
+    
     int update_and_solve_park(Eigen::VectorXd& xs, double thresh_sq = 0.0025) {
         auto t_start = std::chrono::high_resolution_clock::now();
         
@@ -268,9 +278,9 @@ public:
             if (status == 2 || i>100) {
                 break;
             }
-            x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); // v * cos(psi) * dt
-            x_current[1] += 0.05 * u_current[0] * sin(x_current[2]); // v * sin(psi) * dt
-            x_current[2] += 0.05 * u_current[0]/0.27 * tan(u_current[1]); // v * tan(delta) * dt / L
+            x_current[0] += 0.05 * u_current[0] * cos(x_current[2]); 
+            x_current[1] += 0.05 * u_current[0] * sin(x_current[2]); 
+            x_current[2] += 0.05 * u_current[0]/0.27 * tan(u_current[1]); 
             i++;
         }
         std::cout << "done2" << std::endl;

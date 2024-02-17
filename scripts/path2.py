@@ -245,6 +245,7 @@ class Path:
             attributes_cw.append(interpolate_attributes(old_run.T, attributes[i], runs_cw[i]))
             attributes_hw.append(interpolate_attributes(old_run.T, attributes[i], runs_hw[i]))
             attributes[i] = interpolate_attributes(old_run.T, attributes[i], runs[i])
+        
         # print("run1: \n", runs[0].shape)
         # print("attr1: \n", attributes[0].shape)
         # print("run_hw1: \n", runs_hw[0].shape)
@@ -327,6 +328,7 @@ class Path:
         self.state_refs[:,2] = smooth_yaw_angles(self.state_refs[:,2])
         
         self.attributes = np.pad(self.attributes, (0,self.N+5), 'edge')
+
         # print(self.attributes.shape, self.attributes)
 
         # for i in range(len(self.state_refs)):
@@ -338,6 +340,12 @@ class Path:
         self.state_refs[start_index:end_index,0] += normals[start_index:end_index, 0] * shift_distance
         self.state_refs[start_index:end_index,1] += normals[start_index:end_index, 1] * shift_distance
         return self.state_refs
+
+    def illustrate_path(self, state_refs):
+        import matplotlib.pyplot as plt
+        print("shape: ", state_refs.shape)
+        plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
+        plt.show()
 
 if __name__ == "__main__":
     path = Path(v_ref = 1.3, N=40, T=0.125)

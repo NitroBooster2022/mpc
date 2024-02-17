@@ -13,8 +13,8 @@
 
 class StateMachine {
 public:
-    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park): 
-    nh(nh_), utils(nh, sign, ekf, lane), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
+    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name): 
+    nh(nh_), utils(nh, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
     state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0)
     {
         //initialize parking spots
@@ -44,7 +44,7 @@ public:
         std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
         if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
         mpc.update_current_states(x, y, utils.yaw);
-        mpc.target_waypoint_index = mpc.find_next_waypoint(0, static_cast<int>(mpc.state_refs.rows() - 1));
+        mpc.target_waypoint_index = mpc.find_next_waypoint(mpc.x_current, 0, static_cast<int>(mpc.state_refs.rows() - 1));
     }
     ~StateMachine() {
         // utils.stop_car();
@@ -53,9 +53,9 @@ public:
 
 // private:
     // Constants
-    const std::array<std::string, 10> state_names = {
+    const std::array<std::string, 11> state_names = {
         "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
-        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING"
+        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING"
     };
     enum STATE {
         INIT,
@@ -68,6 +68,7 @@ public:
         EXITING_PARKING,
         DONE,
         LANE_FOLLOWING,
+        INTERSECTION_MANEUVERING
     };
     enum OBJECT {
         ONEWAY,
@@ -105,12 +106,16 @@ public:
     std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
+    std::array<int, 4> maneuver_indices = {0, 1, 2, 1};
+    int maneuver_index = 0;
     std::array<double, 4> bbox = {0.0, 0.0, 0.0, 0.0};
     double T_park, T;
     double detected_dist = 0;
     bool right_park = true;
     int park_count = 0;
     bool stopsign_flag = false;
+    int maneuver_direction = 0; // 0: left, 1: straight, 2: right
+    const std::array<std::string, 3> MANEUVER_DIRECTIONS = {"left", "straight", "right"};
     ros::Time cd_timer = ros::Time::now();
     int detected_index = 0;
     Eigen::Vector2d destination;
@@ -300,7 +305,8 @@ void StateMachine::run() {
                         double min_dist_sq = 1000.;
                         int min_index = 0;
                         for (int i = mpc.closest_waypoint_index; i < look_ahead_index; i++) {
-                            double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                            // double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                            double dist_sq = std::pow(car_pose[0] - mpc.state_refs(i, 0), 2) + std::pow(car_pose[1] - mpc.state_refs(i, 1), 2);
                             if (dist_sq < min_dist_sq) {
                                 min_dist_sq = dist_sq;
                                 min_index = i;
@@ -502,9 +508,55 @@ void StateMachine::run() {
                 move_to(xs, 0.15);
             }
             change_state(STATE::MOVING);
+        } else if (state == STATE::INTERSECTION_MANEUVERING) {
+            ROS_INFO("maneuvering");
+            mpc.target_waypoint_index = 0;
+            Eigen::MatrixXd* state_refs_ptr;
+            maneuver_direction = maneuver_indices[maneuver_index++];
+            ROS_INFO("direction: %s", MANEUVER_DIRECTIONS[maneuver_direction].c_str());
+            if (maneuver_direction == 0) {
+                state_refs_ptr = &mpc.left_turn_states;
+            } else if (maneuver_direction == 1) {
+                state_refs_ptr = &mpc.straight_states;
+            } else if (maneuver_direction == 2) {
+                state_refs_ptr = &mpc.right_turn_states;
+            } else {
+                ROS_INFO("invalid maneuver direction: %d", maneuver_direction);
+                change_state(STATE::MOVING);
+                continue;
+            }
+            double x0, y0, yaw0;
+            utils.get_states(x0, y0, yaw0);
+            mpc.frame1 << x0, y0, yaw0;
+            mpc.frame2 = state_refs_ptr->row(0);
+            mpc.frame1[2] = mpc.NearestDirection(mpc.frame2[2]);
+            std::cout << "frame1: " << mpc.frame1 << ",\n frame2: " << mpc.frame2 << std::endl;
+            int last_history = mpc.last_waypoint_index;
+            mpc.last_waypoint_index = 0;
+            while(1) {
+                update_mpc_state();
+                mpc.transform_point(mpc.x_current, mpc.x_current_transformed, mpc.frame1, mpc.frame2);
+                double yaw_frame2 = mpc.frame2[2];
+                while (mpc.x_current_transformed[2] - yaw_frame2 > M_PI) {
+                    mpc.x_current_transformed[2] -= 2 * M_PI;
+                }
+                while (mpc.x_current_transformed[2] - yaw_frame2 < -M_PI) {
+                    mpc.x_current_transformed[2] += 2 * M_PI;
+                }
+                double error_sq = (mpc.x_current_transformed - state_refs_ptr->row(state_refs_ptr->rows()-1).transpose()).squaredNorm();
+                if (error_sq < TOLERANCE_SQUARED) {
+                    break;
+                }
+                ROS_INFO("error_sq: %3f", error_sq);
+                int status = mpc.update_and_solve(mpc.x_current_transformed, maneuver_direction);
+                publish_commands();
+            }
+            mpc.last_waypoint_index = last_history;
+            change_state(STATE::MOVING);
         } else if (state == STATE::INIT) {
             change_state(STATE::MOVING);
-            if (lane) change_state(STATE::LANE_FOLLOWING);
+            // change_state(STATE::INTERSECTION_MANEUVERING);
+            // if (lane) change_state(STATE::INTERSECTION_MANEUVERING);
             // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;
@@ -583,7 +635,7 @@ void StateMachine::update_mpc_state() {
 void StateMachine::solve() {
     // auto start = std::chrono::high_resolution_clock::now();
 
-    int status = mpc.update_and_solve();
+    int status = mpc.update_and_solve(mpc.x_current);
     publish_commands();
     if (debug) {
         ;
@@ -620,25 +672,29 @@ void signalHandler(int signum) {
 
 using json = nlohmann::json;
 int main(int argc, char **argv) {
-    std::string dir = Optimizer::getSourceDirectory();
-    //replace last occurence of src with scripts
-    dir.replace(dir.rfind("src"), 3, "scripts");
-    std::string file_path = dir + "/" + "config/mpc_config2.json";
-    std::ifstream file(file_path);
-    if(!file.is_open()) {
-        std::cout << "Failed to open file: " << file_path << std::endl;
-        exit(1);
-    }
-    json j;
-    file >> j;
+    // std::string dir = Optimizer::getSourceDirectory();
+    // dir.replace(dir.rfind("src"), 3, "scripts");
+    // std::string file_path = dir + "/" + "config/mpc_config2.json";
+    // std::ifstream file(file_path);
+    // if(!file.is_open()) {
+    //     std::cout << "Failed to open file: " << file_path << std::endl;
+    //     exit(1);
+    // }
+    // json j;
+    // file >> j;
 
     std::cout.precision(3);
-    ros::init(argc, argv, "mpc_node", ros::init_options::NoSigintHandler);
+    //create anonymous node handle
+    ros::init(argc, argv, "mpc_node", ros::init_options::NoSigintHandler | ros::init_options::AnonymousName);
     ros::NodeHandle nh;
     double T, v_ref, T_park;
     int N;
     bool sign, ekf, lane;
-    bool success = nh.getParam("/mpc_controller/lane", lane) && nh.getParam("/mpc_controller/ekf", ekf) && nh.getParam("/mpc_controller/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    std::string name;
+    std::string nodeName = ros::this_node::getName();
+    std::cout << "node name: " << nodeName << std::endl;
+    bool success = nh.getParam(nodeName + "/lane", lane) && nh.getParam(nodeName+"/ekf", ekf) && nh.getParam(nodeName+"/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
+    success = success && nh.getParam(nodeName+"/name", name);
     success = success && nh.getParam("/T_park", T_park);
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
@@ -653,7 +709,7 @@ int main(int argc, char **argv) {
         std::cout << "Successfully got parameters" << std::endl;
     }
     std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", v_ref: " << v_ref << std::endl;
-    StateMachine sm(nh, T, N, v_ref, sign, ekf, lane, T_park);
+    StateMachine sm(nh, T, N, v_ref, sign, ekf, lane, T_park, name);
 
     globalStateMachinePtr = &sm;
     signal(SIGINT, signalHandler);

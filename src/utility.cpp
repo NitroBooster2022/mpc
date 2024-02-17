@@ -22,8 +22,8 @@
 #include <mutex>
 #include <cmath>
 
-Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, bool subModel, bool subImu, bool pubOdom) 
-    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf)
+Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
+    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name)
 {
     detected_cars = std::vector<Eigen::Vector2d>();
     detected_cars_counter = std::vector<int>();
@@ -83,14 +83,24 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     odom_msg.header.frame_id = "odom";
     odom_msg.child_frame_id = "chassis";
     // odom1_pub = nh.advertise<nav_msgs::Odometry>("odom1", 3);
-    cmd_vel_pub = nh.advertise<std_msgs::String>("/automobile/command", 3);
 
+    // if (robot_name[0] != '/') {
+    //     robot_name = "/" + robot_name;
+    // }
+    std::cout << "namespace: " << robot_name << std::endl;
+    cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
+    std::string imu_topic_name;
+    if(robot_name == "automobile") {
+        imu_topic_name = "/realsense/imu";
+    } else {
+        imu_topic_name = "/" + robot_name + "/imu";
+    }
     std::cout << "waiting for Imu message" << std::endl;
-    ros::topic::waitForMessage<sensor_msgs::Imu>("/camera/imu");
+    ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
     std::cout << "waiting for model_states message" << std::endl;
     ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
-
+    
     if (useEkf) {
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
@@ -101,7 +111,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
     }
     if (subImu) {
-        imu_sub = nh.subscribe("/camera/imu", 3, &Utility::imu_callback, this);
+        imu_sub = nh.subscribe(imu_topic_name, 3, &Utility::imu_callback, this);
+        // imu_sub = nh.subscribe(imu_topic, 3, &Utility::imu_callback, this);
     }
     if (subLane) {
         lane_sub = nh.subscribe("/lane", 3, &Utility::lane_callback, this);
@@ -250,7 +261,7 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
     lock.lock();
     // auto start = std::chrono::high_resolution_clock::now();
     if (!car_idx.has_value()) {
-        auto it = std::find(msg->name.begin(), msg->name.end(), "automobile");
+        auto it = std::find(msg->name.begin(), msg->name.end(), robot_name);
         if (it != msg->name.end()) {
             car_idx = std::distance(msg->name.begin(), it);
             std::cout << "automobile found: " << *car_idx << std::endl;
@@ -390,9 +401,9 @@ void Utility::publish_odom() {
     odom_msg.pose.pose.position.y = odomY;
     odom_msg.pose.pose.position.z = 0.032939;
 
-    // tf2::Quaternion quaternion;
-    // quaternion.setRPY(0, 0, yaw);
-    // odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
+    tf2::Quaternion quaternion;
+    quaternion.setRPY(0, 0, yaw);
+    odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
 
     // odom_msg.twist.twist.linear.x = velocity * cos(yaw);
     // odom_msg.twist.twist.linear.y = velocity * sin(yaw);
@@ -575,7 +586,7 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");
     static_transforms.push_back(t_imu0);
 
-    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0, 0, 0.2, 0, 0, 0, "chassis", "imu_cam");
+    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
     static_transforms.push_back(t_imu_cam);
 
     static_broadcaster.sendTransform(static_transforms);
