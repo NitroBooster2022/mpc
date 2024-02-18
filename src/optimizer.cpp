@@ -119,6 +119,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     // state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
     // input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
     // state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
+    state_refs = state_refs.block(3026, 0, 98, 3);
+    input_refs = input_refs.block(3026, 0, 98, 2);
     std::vector<int> indices;
     for(int i=0; i<state_attributes.rows(); i++) {
         if(state_attributes(i) == 7) {

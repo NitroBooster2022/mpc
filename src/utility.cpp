@@ -47,13 +47,13 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
 
     yaw = 1.5707;
     velocity = 0.0;
-    odomX = 0.0;
-    odomY = 0.0;
-    odomYaw = 0.0;
-    ekf_x = 0.0;
-    ekf_y = 0.0;
-    gps_x = 0.0;
-    gps_y = 0.0;
+    odomX = 5.62624053; //5.62624053 0.75251255 12.50461810
+    odomY = 0.75251255;
+    odomYaw = 12.50461810;
+    ekf_x = 5.62624053;
+    ekf_y = 0.75251255;
+    gps_x = 5.62624053;
+    gps_y = 0.75251255;
     steer_command = 0.0;
     velocity_command = 0.0;
     // car_idx = std::nullopt;
@@ -97,8 +97,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     }
     std::cout << "waiting for Imu message" << std::endl;
     ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
-    std::cout << "waiting for model_states message" << std::endl;
-    ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
+    // std::cout << "waiting for model_states message" << std::endl;
+    // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
     
     if (useEkf) {
@@ -546,7 +546,7 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     velocity_command = velocity;
     lock.unlock();
     float steer = steering_angle;
-    float vel = velocity;
+    float vel = velocity*100;
     msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
     // ros::Duration(0.01).sleep();
     cmd_vel_pub.publish(msg);
@@ -586,7 +586,7 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");
     static_transforms.push_back(t_imu0);
 
-    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
+    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "camera_imu_optical_frame");
     static_transforms.push_back(t_imu_cam);
 
     static_broadcaster.sendTransform(static_transforms);

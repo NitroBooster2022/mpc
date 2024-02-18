@@ -32,6 +32,7 @@ public:
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
         ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
         while(!utils.initializationFlag) {
+            std::cout <<"hi"<<std::endl;
             ros::spinOnce();
             rate->sleep();
         }
@@ -696,6 +697,7 @@ int main(int argc, char **argv) {
     bool success = nh.getParam(nodeName + "/lane", lane) && nh.getParam(nodeName+"/ekf", ekf) && nh.getParam(nodeName+"/sign", sign) && nh.getParam("T", T) && nh.getParam("N", N) && nh.getParam("constraints/v_ref", v_ref);
     success = success && nh.getParam(nodeName+"/name", name);
     success = success && nh.getParam("/T_park", T_park);
+    v_ref = 0.25;
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
         T = 0.100;
