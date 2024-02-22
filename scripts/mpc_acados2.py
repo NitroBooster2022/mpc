@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # coding=UTF-8
 
-# from path2 import Path
-from turning_wpts import Path
+from path2 import Path
+# from turning_wpts import Path
 import os
 import sys
 import shutil
@@ -62,6 +62,7 @@ class Optimizer(object):
         self.wp_normals = self.path.wp_normals
         self.kappa = self.path.kappa
         self.density = self.path.density
+        print("density: ", self.density)
         self.state_refs = self.path.state_refs
         self.input_refs = self.path.input_refs
         self.waypoints_x = self.state_refs[:,0]
@@ -107,7 +108,11 @@ class Optimizer(object):
                                        + '_T'+str(self.T))
         self.obstacle = []
         
-    def create_solver(self, config_path='config/mpc_config25.yaml'):
+    def create_solver(self, config_path='config/mpc_config50.yaml'):
+        # extract the number from config_path (50 in this case)
+        self.v_ref_int = int(''.join(filter(str.isdigit, config_path)))
+        print("number: ", self.v_ref_int)
+
         print("creating solver...")
         t1 = timeit.default_timer()
         model = AcadosModel() #  ca.types.SimpleNamespace()
@@ -165,6 +170,7 @@ class Optimizer(object):
         self.y_min = config[constraint_name]['y_min']
         self.y_max = config[constraint_name]['y_max']
         self.v_ref = config[constraint_name]['v_ref']
+        print("v_ref: ", self.v_ref)
         # costs
         self.x_cost = config[cost_name]['x_cost']
         self.y_cost = config[cost_name]['y_cost']
@@ -253,18 +259,20 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        cur_path = os.path.dirname(os.path.realpath(__file__))
-        path = os.path.join(cur_path, 'paths')
-        os.makedirs(path, exist_ok=True)
-        np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'state_refs50.txt'), self.state_refs, fmt='%.8f')
-        print("stateref shape: ", self.state_refs.shape)
-        np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'input_refs25.txt'), self.input_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_normals25.txt'), self.wp_normals, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_attributes25.txt'), self.path.attributes, fmt='%.8f')
-        exit()
+        # cur_path = os.path.dirname(os.path.realpath(__file__))
+        # path = os.path.join(cur_path, 'paths')
+        # os.makedirs(path, exist_ok=True)
+        # # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
+        # # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
+
+        # np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
+        # print("stateref shape: ", self.state_refs.shape)
+        # np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
+
+        # # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        # exit()
 
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index

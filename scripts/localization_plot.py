@@ -14,10 +14,12 @@ import argparse
 from std_msgs.msg import String
 import os
 from std_srvs.srv import Trigger, TriggerResponse
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 class Odom():
     def __init__(self):
         rospy.init_node('localization_plot', anonymous=True)
+        self.name = 'car1'
         self.odomState = np.zeros(2)
         self.gpsState = np.zeros(2)
         self.ekfState = np.zeros(2)
@@ -44,7 +46,7 @@ class Odom():
         self.car_inertial = None
 
         rospy.on_shutdown(self.plot_data)
-        rospy.wait_for_message("/automobile/command", String)
+        rospy.wait_for_message("/"+self.name+"/command", String)
 
         # Subscribe to topics
         # self.localization_sub = rospy.Subscriber("/automobile/localisation", localisation, self.gps_callback, queue_size=3)
@@ -52,7 +54,8 @@ class Odom():
         self.model_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.gps_callback, queue_size=3)
         self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
-        self.imu1_sub = rospy.Subscriber("/automobile/imu", Imu, self.imu1_callback, queue_size=3)
+        # self.odom_sub = rospy.Subscriber("/gps", PoseWithCovarianceStamped, self.odom_callback, queue_size=3)
+        self.imu1_sub = rospy.Subscriber("/"+self.name+"/imu", Imu, self.imu1_callback, queue_size=3)
         self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
     
@@ -69,7 +72,7 @@ class Odom():
         # self.gpsState[1] = 15.0 - data.posB
         if self.car_idx is None:
             try:
-                self.car_idx = data.name.index("automobile")
+                self.car_idx = data.name.index(self.name)
             except ValueError:
                 return
         self.car_pose = data.pose[self.car_idx]
