@@ -102,7 +102,7 @@ Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool s
     std::cout << "waiting for Imu message" << std::endl;
     ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
     std::cout << "waiting for model_states message" << std::endl;
-    ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
+    if (subModel) ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
     
     if (pubOdom) {
@@ -110,6 +110,7 @@ Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool s
         odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
     if (useEkf) {
+        subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
         for (int i = 0; i < 10; i++) {
@@ -355,11 +356,11 @@ void Utility::set_pose_using_service(double x, double y, double yaw) {
 void Utility::publish_odom() {
 
     if (!initializationFlag) {
-        // initializationFlag = true;
+        initializationFlag = true;
         // std::cout << "Initializing... gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
         // set_initial_pose(gps_x, gps_y, yaw);
         // std::cout << "odomX: " << odomX << ", odomY: " << odomY << std::endl;
-        // timerodom = ros::Time::now();
+        timerodom = ros::Time::now();
         ROS_WARN("not initialized");
         return;
     }
