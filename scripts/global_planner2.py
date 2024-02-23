@@ -141,21 +141,25 @@ class GlobalPlanner:
             4: 'black',   # highwayLeft
             5: 'orange',    # highwayRight
             6: 'pink',      # roundabout
-            7: 'purple'     # stopline
+            7: 'purple',     # stopline
+            8: 'brown',     # parking
+            9: 'grey',      # speedbump
         }
         node_colors = [color_map[self.attribute.get(node, 0)] for node in self.G.nodes()]
         # Display the image
         # ax.imshow(img, extent=[0, 20.5, 1.2, 14.35]) 
 
         # Draw the graph
-        nx.draw(self.G, self.pos, ax=ax, with_labels=True, node_size=20, node_color=node_colors, font_size=6)
+        nx.draw(self.G, self.pos, ax=ax, with_labels=True, node_size=60, node_color=node_colors, font_size=6)
         
         # Highlight the path
-        nx.draw_networkx_edges(self.G, self.pos, edgelist=path_edges, edge_color='g', width=2)
+        nx.draw_networkx_edges(self.G, self.pos, edgelist=path_edges, edge_color='g', width=7)
         
         plt.show()
   
 if __name__ == "__main__":
     planner = GlobalPlanner()
     # planner.plan_path(58, 59)
-    planner.illustrate_path(134, 97)
+    start = planner.place_names["highway_entrance_east"]
+    end = planner.place_names["2021_south"]
+    planner.illustrate_path(start, end)
