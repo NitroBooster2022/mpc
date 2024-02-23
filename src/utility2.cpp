@@ -21,10 +21,13 @@
 #include <std_srvs/Trigger.h>
 #include <mutex>
 #include <cmath>
+#include <robot_localization/SetPose.h>
 
-Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
+Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name)
 {
+    q_transform.setRPY(0, 0.15, 0);
+    // q_transform.setRPY(0, 0.0, 0);
     detected_cars = std::vector<Eigen::Vector2d>();
     detected_cars_counter = std::vector<int>();
     recent_car_indices = std::list<int>();
@@ -45,15 +48,17 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     static_broadcaster = tf2_ros::StaticTransformBroadcaster();
     publish_static_transforms();
 
-    yaw = 1.5707;
+    yaw = yaw0;
     velocity = 0.0;
-    odomX = 0.0;
-    odomY = 0.0;
-    odomYaw = 0.0;
-    ekf_x = 0.0;
-    ekf_y = 0.0;
-    gps_x = 0.0;
-    gps_y = 0.0;
+    odomX = x0;
+    odomY = y0;
+    odomYaw = yaw0;
+    ekf_x = x0;
+    ekf_y = y0;
+    ekf_yaw = yaw0;
+    set_pose_using_service(x0, y0, yaw0);
+    gps_x = x0;
+    gps_y = y0;
     steer_command = 0.0;
     velocity_command = 0.0;
     // car_idx = std::nullopt;
@@ -63,9 +68,6 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     timerpid = std::nullopt;
 
     initializationFlag = false;
-
-    pose_to_set.header = std_msgs::Header();
-    pose_to_set.header.frame_id = "chassis";
 
     covariance_value = 0.01 * 4;
     std::fill(std::begin(odom_msg.pose.covariance), std::end(odom_msg.pose.covariance), 0.0);
@@ -91,19 +93,29 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
     std::string imu_topic_name;
     if(robot_name == "automobile") {
-        imu_topic_name = "/camera/imu";
+        imu_topic_name = "/realsense/imu";
     } else {
-        imu_topic_name = "/" + robot_name + "/imu";
+        // imu_topic_name = "/" + robot_name + "/imu";
+        imu_topic_name = "/realsense/imu";
     }
+    ROS_INFO("imu topic: %s", imu_topic_name.c_str());
     std::cout << "waiting for Imu message" << std::endl;
     ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
     std::cout << "waiting for model_states message" << std::endl;
     ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
     std::cout << "received message from Imu and model_states" << std::endl;
     
+    if (pubOdom) {
+        double odom_publish_frequency = rateVal; 
+        odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
+    }
     if (useEkf) {
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
+        for (int i = 0; i < 10; i++) {
+            publish_odom(); // publish odom once to initialize
+            rate->sleep();
+        }
         ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
         std::cout << "received message from ekf" << std::endl;
     } 
@@ -130,10 +142,6 @@ Utility::Utility(ros::NodeHandle& nh_, bool subSign, bool useEkf, bool subLane, 
         car_pose_pub = nh.advertise<std_msgs::Float64MultiArray>("/car_locations", 10);
         car_pose_msg.data.push_back(0.0); // self
         car_pose_msg.data.push_back(0.0);
-    }
-    if (pubOdom) {
-        double odom_publish_frequency = rateVal; 
-        odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
 }
 
@@ -219,22 +227,24 @@ void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
     lock.unlock();
 }
 void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
-    // ros::Time now = ros::Time::now();
     lock.lock();
-    // imu = *msg;
-    q = tf2::Quaternion(msg->orientation.x, msg->orientation.y, msg->orientation.z, msg->orientation.w);
-    m = tf2::Matrix3x3(q);
+    q_imu = tf2::Quaternion(msg->orientation.x, msg->orientation.y, msg->orientation.z, msg->orientation.w);
+    q_chassis = q_transform * q_imu;
+    q_chassis.normalize();
+    m_chassis = tf2::Matrix3x3(q_chassis);
     double roll, pitch;
-    m.getRPY(roll, pitch, yaw);
-    ROS_INFO("yaw: %3f", yaw * 180 / M_PI);
+
+    // m_chassis = tf2::Matrix3x3(q_imu); // No transformation
+
+    m_chassis.getRPY(roll, pitch, yaw);
+
+    // ROS_INFO("yaw: %3f", yaw * 180 / M_PI);
+    // ROS_INFO("yaw: %3f\n, angular velocity: %3f\n, acceleration: %3f, %3f, %3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
     if (!imuInitialized) {
         imuInitialized = true;
         std::cout << "imu initialized" << std::endl;
     }
     lock.unlock();
-    // ROS_INFO("imu time: %f", (now - ros::Time::now()).toSec());
-    // ROS_INFO("imu callback rate: %3f", 1 / (now - general_timer).toSec());
-    // general_timer = now;
 }
 void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     // ros::Time now = ros::Time::now();
@@ -284,13 +294,14 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
     if (!initializationFlag && imuInitialized) {
         initializationFlag = true;
         std::cout << "Initializing... gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
-        set_initial_pose(gps_x, gps_y, yaw);
+        // set_initial_pose(gps_x, gps_y, yaw);
         std::cout << "odomX: " << odomX << ", odomY: " << odomY << std::endl;
         timerodom = ros::Time::now();
         // if (useEkf) set_pose_using_service(gps_x, gps_y, yaw);
         lock.unlock();
         return;
     }
+    
     // ROS_INFO("gps_x: %3f, gps_y: %3f", gps_x, gps_y); // works
     // model = *msg;
     // auto end = std::chrono::high_resolution_clock::now();
@@ -312,54 +323,36 @@ void Utility::stop_car() {
 }
 
 void Utility::set_pose_using_service(double x, double y, double yaw) {
-    pose_to_set.pose.pose.position.x = x;
-    pose_to_set.pose.pose.position.y = y;
+    geometry_msgs::PoseWithCovarianceStamped pose_msg;
+    pose_msg.header.frame_id = "odom";
+    pose_msg.pose.pose.position.x = x;
+    pose_msg.pose.pose.position.y = y;
     Eigen::Quaterniond q(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()));
-    geometry_msgs::Quaternion ros_quaternion;
-    ros_quaternion.x = q.x();
-    ros_quaternion.y = q.y();
-    ros_quaternion.z = q.z();
-    ros_quaternion.w = q.w();
+    pose_msg.pose.pose.orientation.x = q.x();
+    pose_msg.pose.pose.orientation.y = q.y();
+    pose_msg.pose.pose.orientation.z = q.z();
+    pose_msg.pose.pose.orientation.w = q.w();
+
     if (useEkf) {
         std::cout << "waiting for set_pose service" << std::endl;
         ros::service::waitForService("/set_pose");
     }
+
     try {
-        ros::ServiceClient client = nh.serviceClient<std_srvs::Trigger>("/set_pose");
-        std_srvs::Trigger srv;
-        client.call(srv);
-    } catch (ros::Exception& e) {
-        std::cout << "Service call failed: " << e.what() << std::endl;
+        ros::ServiceClient client = nh.serviceClient<robot_localization::SetPose>("/set_pose");
+        robot_localization::SetPose srv;
+        srv.request.pose = pose_msg;
+        if (client.call(srv)) {
+            ROS_INFO("Service call successful");
+        } else {
+            ROS_ERROR("Failed to call service set_pose");
+        }
+    } catch (const std::exception& e) {
+        ROS_ERROR("Service call failed: %s", e.what());
     }
 }
 
-void Utility::process_yaw() {
-    q = tf2::Quaternion(imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w);
-    m = tf2::Matrix3x3(q);
-    double roll, pitch;
-    m.getRPY(roll, pitch, yaw);
-}
-
 void Utility::publish_odom() {
-    // calculate rate
-    // static ros::Time last_time;
-    // ros::Time now = ros::Time::now();
-    // double dt = (now - last_time).toSec();
-    // last_time = now;
-    // ROS_INFO("odom callback rate: %3f", 1 / dt);
-
-    // calculate time elapsed
-    // auto start = std::chrono::high_resolution_clock::now();
-    
-    // if (!car_idx.has_value()) {
-    //     auto it = std::find(model.name.begin(), model.name.end(), "automobile");
-    //     if (it != model.name.end()) {
-    //         car_idx = std::distance(model.name.begin(), it);
-    //         std::cout << "automobile found: " << *car_idx << std::endl;
-    //     } else {
-    //         return; 
-    //     }
-    // }
 
     if (!initializationFlag) {
         // initializationFlag = true;
@@ -371,24 +364,7 @@ void Utility::publish_odom() {
         return;
     }
     
-    // process_yaw();
     yaw = fmod(yaw, 2 * M_PI);
-
-    // Set velocity
-    // auto& car_inertial = model.twist[*car_idx];
-    // x_speed = car_inertial.linear.x;
-    // y_speed = car_inertial.linear.y;
-    // double speed = sqrt(x_speed * x_speed + y_speed * y_speed);
-    // if (velocity_command < -0.01) {
-    //     speed *= -1;
-    // }
-    // velocity = speed; 
-    // ROS_INFO("speed: %3f, command: %3f", speed, velocity_command);
-
-    // Set GPS
-    // gps_x = model.pose[*car_idx].position.x; 
-    // gps_y = 15 + model.pose[*car_idx].position.y;
-    // ROS_INFO("gps_x: %3f, gps_y: %3f", gps_x, gps_y); // works
 
     // update_states_rk4(velocity, steer_command);
     update_states_rk4(velocity_command, steer_command);
@@ -405,20 +381,20 @@ void Utility::publish_odom() {
     quaternion.setRPY(0, 0, yaw);
     odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
 
-    // odom_msg.twist.twist.linear.x = velocity * cos(yaw);
-    // odom_msg.twist.twist.linear.y = velocity * sin(yaw);
     odom_pub.publish(odom_msg);
 
-    // Prepare and publish odom1 message
-    // odom1_msg.header.stamp = ros::Time::now();
-    // odom1_msg.header.frame_id = "odom";
-    // odom1_msg.child_frame_id = "chassis";
-    // odom1_msg.twist.twist.linear.x = velocity * cos(yaw);
-    // odom1_msg.twist.twist.linear.y = velocity * sin(yaw);
-    // odom1_pub.publish(odom1_msg);
-    // auto end = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> elapsed = end - start;
-    // ROS_INFO("time elapsed: %3fs", elapsed.count());
+    // static tf2_ros::TransformBroadcaster br;
+    // geometry_msgs::TransformStamped transformStamped;
+    // transformStamped.header.stamp = current_time;
+    // transformStamped.header.frame_id = "odom";
+    // transformStamped.child_frame_id = "chassis";
+    // transformStamped.transform.translation.x = odomX;
+    // transformStamped.transform.translation.y = odomY;
+    // transformStamped.transform.translation.z = 0.0;
+    // tf2::Quaternion q;
+    // q.setRPY(0, 0, yaw);
+    // transformStamped.transform.rotation = tf2::toMsg(q);
+    // br.sendTransform(transformStamped);
 }
 
 int Utility::object_index(int obj_id) {
@@ -586,7 +562,7 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");
     static_transforms.push_back(t_imu0);
 
-    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0, 0, 0.2, 0, 0, 0, "chassis", "realsense");
+    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
     static_transforms.push_back(t_imu_cam);
 
     static_broadcaster.sendTransform(static_transforms);

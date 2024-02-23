@@ -107,8 +107,8 @@ public:
     ocp_nlp_in *nlp_in_park;
     ocp_nlp_out *nlp_out_park;
 
-    Eigen::MatrixXd simX, simU;
-    Eigen::VectorXd time_record, x_errors, y_errors, yaw_errors;
+    Eigen::MatrixXd simX, simU, time_record;
+    Eigen::VectorXd x_errors, y_errors, yaw_errors;
 
     Eigen::Matrix2d rotation_matrix;
     Eigen::Vector2d rotated_xy;

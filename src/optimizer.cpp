@@ -117,7 +117,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     x_errors = Eigen::VectorXd::Zero(len, 1);
     y_errors = Eigen::VectorXd::Zero(len, 1);
     yaw_errors = Eigen::VectorXd::Zero(len, 1);
-    time_record = Eigen::VectorXd::Zero(len, nu);
+    time_record = Eigen::MatrixXd::Zero(len, nu);
 }
 
 int Optimizer::run() {
