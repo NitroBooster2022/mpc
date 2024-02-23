@@ -31,6 +31,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     nlp_out_park = park_acados_get_nlp_out(acados_ocp_capsule_park);
 
     if (v_ref_int == 50) {
+        std::cout << "reference speed is 50 cm/s" << std::endl;
         // Create a capsule according to the pre-defined model
         acados_ocp_capsule = mobile_robot_acados_create_capsule();
 
@@ -60,6 +61,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
         nlp_in = mobile_robot_acados_get_nlp_in(acados_ocp_capsule);
         nlp_out = mobile_robot_acados_get_nlp_out(acados_ocp_capsule);
     } else if(v_ref_int == 25) {
+        std::cout << "reference speed is 25 cm/s" << std::endl;
         use25 = true;
         acados_ocp_capsule_25 = mobile_robot_25_acados_create_capsule();
         status = mobile_robot_25_acados_create(acados_ocp_capsule_25);
@@ -110,15 +112,14 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     std::string dir = getSourceDirectory();
     dir.replace(dir.rfind("src"), 3, "scripts");
     std::string v_ref_int_str = std::to_string(v_ref_int);
+    std::cout << "state ref path: " << dir + "/paths/state_refs" +v_ref_int_str+ ".txt" << std::endl;
     state_refs = loadTxt(dir + "/paths/state_refs" +v_ref_int_str+ ".txt");
     input_refs = loadTxt(dir + "/paths/input_refs" +v_ref_int_str+ ".txt");
     state_attributes = loadTxt(dir + "/paths/wp_attributes" +v_ref_int_str+ ".txt");
     left_turn_states = loadTxt(dir + "/paths/left_turn_states" +v_ref_int_str+ ".txt");
     right_turn_states = loadTxt(dir + "/paths/right_turn_states" +v_ref_int_str+ ".txt");
     straight_states = loadTxt(dir + "/paths/straight_states" +v_ref_int_str+ ".txt");
-    // state_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/state_refs2.txt");
-    // input_refs = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/input_refs2.txt");
-    // state_attributes = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_attributes2.txt");
+    // state_refs = state_refs.block(3026, 0, 98, 3);
     std::vector<int> indices;
     for(int i=0; i<state_attributes.rows(); i++) {
         if(state_attributes(i) == 7) {
@@ -182,11 +183,9 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
     * Returns 0 if successful, 1 otherwise
     */
     auto t_start = std::chrono::high_resolution_clock::now(); // debug timer
-    std::cout << "mode: " << mode << std::endl;
     if (mode == -1) {
         state_refs_ptr = &state_refs;
     } else if (mode == 0) {
-        std::cout << "left turn mode" << std::endl;
         state_refs_ptr = &left_turn_states;
     } else if (mode == 1) {
         state_refs_ptr = &straight_states;
@@ -196,7 +195,6 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
         std::cerr << "Invalid mode, proceed with default mode" << std::endl;
         state_refs_ptr = &state_refs;
     }
-    std::cout << "target_waypoint_index: " << target_waypoint_index << std::endl;
     if(debug) {
         x_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 0) - i_current_state[0];
         y_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 1) - i_current_state[1];
@@ -204,7 +202,6 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
         // auto t_start = std::chrono::high_resolution_clock::now();
     }
     target_waypoint_index = find_next_waypoint(i_current_state);
-    std::cout << "target_waypoint_index: " << target_waypoint_index << std::endl;
     int idx = target_waypoint_index;
 
     for(int i=0; i<3; i++) {
@@ -239,7 +236,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
         // double u_max[2] = {2, 0.4};
         // ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, j, "ubu", u_max);
     }
-    std::cout << "x_state: " << x_state[0] << ", " << x_state[1] << ", " << x_state[2] << ", " << x_state[3] << ", " << x_state[4] << std::endl;
+    // std::cout << "x_state: " << x_state[0] << ", " << x_state[1] << ", " << x_state[2] << ", " << x_state[3] << ", " << x_state[4] << std::endl;
 
     // Set the constraints for the current state
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", i_current_state.data());
@@ -305,9 +302,7 @@ void Optimizer::integrate_next_states() {
 
 int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index, int max_index) {
     // auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "min_index: " << min_index << ", max_index: " << max_index << std::endl;
     double current_norm = i_current_state.head(2).squaredNorm();
-    std::cout << "current_norm: " << current_norm << std::endl;
 
     // Initialize variables for finding the minimum distance
     Eigen::VectorXd::Index closest_idx;
@@ -317,7 +312,6 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
 
     if (min_index < 0) min_index = std::max(last_waypoint_index - limit, 0); //0;
     if (max_index < 0) max_index = std::min(last_waypoint_index + limit, static_cast<int>((*state_refs_ptr).rows()) - 1); //state_refs.rows() - 1;
-    std::cout << "min_index: " << min_index << ", max_index: " << max_index << std::endl;
     // int min_index = 0;
     // int max_index = state_refs.rows() - 1;
     for (int i = min_index; i < max_index; ++i) {
@@ -331,7 +325,6 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
         }
     }
     closest_waypoint_index = closest_idx;
-    std::cout << "closest_idx: " << closest_idx << std::endl;
     //1
     // last_waypoint_index = target_waypoint_index;
     // target_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_idx));

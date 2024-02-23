@@ -1,7 +1,7 @@
 <launch>
 
   <rosparam command="load" file="$(find mpc)/config/gps_config.yaml" />
-  <arg name="name" default="automobile"/>
+  <arg name="name" default="car1"/>
   <node pkg="mpc" type="bridge1" name="localization_bridge" output="screen"> 
     <param name="name" value="$(arg name)"/>
   </node>

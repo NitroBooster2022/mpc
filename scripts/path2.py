@@ -169,6 +169,7 @@ def interpolate_waypoints2(waypoints, num_points):
 class Path:
     def __init__(self, v_ref, N, T, x0=None, name="path3"):
         self.v_ref = v_ref
+        print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
         self.N = N
         self.global_planner = GlobalPlanner()
 

@@ -25,7 +25,7 @@
 class Utility {
 public:
     
-    Utility(ros::NodeHandle& nh_, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "automobile", bool subModel = true, bool subImu = true, bool pubOdom = true);
+    Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "car1", bool subModel = true, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
 // private:
@@ -94,7 +94,6 @@ public:
     bool initializationFlag, imuInitialized = false;
 
     tf2_ros::StaticTransformBroadcaster static_broadcaster;
-    geometry_msgs::PoseWithCovarianceStamped pose_to_set;
 
     // publishers
     ros::Publisher odom_pub;
@@ -114,9 +113,11 @@ public:
     std_msgs::Float32MultiArray sign;
     utils::Lane lane;
     sensor_msgs::Imu imu;
-    tf2::Quaternion q;
-    tf2::Matrix3x3 m;
+    tf2::Quaternion q_imu;
+    tf2::Matrix3x3 m_chassis;
     tf2::Quaternion tf2_quat;
+    tf2::Quaternion q_transform;
+    tf2::Quaternion q_chassis;
 
     // subscribers
     ros::Subscriber lane_sub;
@@ -140,7 +141,6 @@ public:
     void stop_car();
     void publish_static_transforms();
     void set_pose_using_service(double x, double y, double yaw);
-    void process_yaw();
     void publish_odom();
     int object_index(int obj_id);
     std::vector<int> object_indices(int obj_id);
@@ -168,7 +168,7 @@ public:
         if(useEkf) {
             x_ = ekf_x;
             y_ = ekf_y;
-            yaw_ = ekf_yaw;
+            yaw_ = yaw;
         } else {
             x_ = gps_x;
             y_ = gps_y;
@@ -180,10 +180,10 @@ public:
         y_ = gps_y;
         yaw_ = yaw;
     }
-    void get_ekf_states(double &x, double &y, double &yaw) {
-        x = ekf_x;
-        y = ekf_y;
-        yaw = ekf_yaw;
+    void get_ekf_states(double &x_, double &y_, double &yaw_) {
+        x_ = ekf_x;
+        y_ = ekf_y;
+        yaw_ = yaw;
     }
     
     Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw, double x1, double y1, double x2, double y2, double object_distance, const std::array<double, 4>& camera_params, bool is_car = false) {

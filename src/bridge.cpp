@@ -23,7 +23,7 @@ class LocalizationBridge {
             std::string gps_topic = "/" + robot_name + "/localisation";
             sub = nh_.subscribe(gps_topic, 10, &LocalizationBridge::localisationCallback, this);
             commands_sub = nh_.subscribe("/commands", 10, &LocalizationBridge::commandsCallback, this);
-            imu_sub = nh_.subscribe("/camera/imu", 10, &LocalizationBridge::imuCallback, this);
+            imu_sub = nh_.subscribe("/realsense/imu", 10, &LocalizationBridge::imuCallback, this);
             std::fill(std::begin(msg.pose.covariance), std::end(msg.pose.covariance), 0.0);
             // σ^2 = (b - a)^2 / 12
             double pos_cov = std::pow(2*max_noise, 2) / 12;
@@ -171,9 +171,12 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "localization_bridge");
     ros::NodeHandle nh;
     std::string name;
-    if(!nh.getParam("/localization_bridge/name", name)) {
+    if(!nh.getParam("/robot_name", name)) {
         ROS_ERROR("GPS bridge node: Failed to get param 'name'");
-        return 1;
+        if(!nh.getParam("/localization_bridge/name", name)) {
+            ROS_ERROR("GPS bridge node: Failed to get param 'localization_bridge/name'");
+            return 1;
+        }
     }
     LocalizationBridge bridge(nh, name);
     while (ros::ok()) {
