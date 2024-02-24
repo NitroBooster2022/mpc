@@ -92,9 +92,11 @@ public:
     static constexpr double MIN_SIGN_DIST = 0.39;  // 0.6 - 0.21
     static constexpr double MAX_SIGN_DIST = 1.09;  // 1.3 - 0.21
     static constexpr double MAX_PARK_DIST = 0.79;  // 1.0 - 0.21
+    static constexpr double MAX_CROSSWALK_DIST = 0.79;  // 1.0 - 0.21
     static constexpr double PARKSIGN_TO_CAR = 0.51;
     static constexpr double PARK_OFFSET = 1.31;    // 1.1 + 0.21
     static constexpr double PARKING_SPOT_LENGTH = 0.723;
+    static constexpr double CROSSWALK_LENGTH = 1.0;
     static constexpr double OVERTAKE_DIST = 2.0;
     static constexpr double LANE_OFFSET = 0.36;
     static constexpr double MIN_DIST_TO_CAR = 0.8;
@@ -162,7 +164,10 @@ public:
         }
         return status;
     }
-    bool intersection_reached() {
+    bool intersection_reached(bool lane = false) {
+        if(lane) {
+            return utils.stopline;
+        }
         auto attribute3 = mpc.state_attributes(mpc.target_waypoint_index+3); // check 3 waypoints ahead
         if(attribute3 == mpc.ATTRIBUTE::STOPLINE) {
             std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
@@ -245,13 +250,24 @@ public:
         }
         return false;
     }
+    double crosswalk_detected() {
+        int crosswalk_index = utils.object_index(OBJECT::CROSSWALK);
+        if(crosswalk_index >= 0) {
+            double dist = utils.object_distance(crosswalk_index);
+            if (dist < MAX_CROSSWALK_DIST && dist > 0) {
+                std::cout << "crosswalk detected at a distance of: " << dist << std::endl;
+                detected_dist = dist;
+                return dist;
+            }
+        }
+        return -1;
+    }
 };
 
 void StateMachine::run() {
     while (ros::ok()) {
         if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
-            // check if stopline is reached
             if(intersection_reached()) {
                 change_state(STATE::WAITING_FOR_STOPSIGN);
                 continue;
@@ -390,13 +406,109 @@ void StateMachine::run() {
             change_state(STATE::WAITING_FOR_STOPSIGN);
             continue;
         } else if (state == STATE::LANE_FOLLOWING) {
+            if(cooldown_timer < ros::Time::now() && intersection_reached(true)) {
+                if (stopsign_flag) {
+                    stopsign_flag = false;
+                    change_state(STATE::WAITING_FOR_STOPSIGN);
+                    continue;
+                } else {
+                    change_state(STATE::INTERSECTION_MANEUVERING);
+                    continue;
+                }
+            }
+            if (sign && cooldown_timer < ros::Time::now()) {
+                double crosswalk_dist = crosswalk_detected();
+                if(crosswalk_dist > 0) {
+                    double cd = (crosswalk_dist + CROSSWALK_LENGTH) / 0.15;
+                    cooldown_timer = ros::Time::now() + ros::Duration(cd);
+                    ROS_INFO("crosswalk detected at a distance of: %3f, slowing down for %3f", crosswalk_dist, cd);
+                    continue;
+                }
+                check_stop_sign();
+                if(park_sign_detected() && park_count < 1) {
+                    park_count++;
+                    change_state(STATE::PARKING);
+                    continue;
+                }
+                double dist;
+                int car_index = utils.object_index(OBJECT::CAR);
+                if(car_index >= 0) { // if car detected
+                    dist = utils.object_distance(car_index); // compute distance to back of car
+                    if (dist < MAX_CAR_DIST && dist > 0 && mpc.closest_waypoint_index >= detected_index * 1.2) {
+                        std::cout << "a car is detected at a distance of " << dist << ", at index: " << mpc.closest_waypoint_index << ", detected_index: " << detected_index << std::endl;
+                        // std::array<double, 4> car_bbox = utils.object_box(car_index);
+                        utils.object_box(car_index, bbox);
+                        double x, y, yaw;
+                        if (ekf) {
+                            utils.get_ekf_states(x, y, yaw);
+                        } else {
+                            utils.get_gps_states(x, y, yaw);
+                        }
+                        auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, utils.CAMERA_PARAMS);
+                        printf("estimated car pose: %3f, %3f\n", car_pose[0], car_pose[1]);
+                        // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
+                        double look_ahead_dist = dist * 1.5;
+                        int look_ahead_index = look_ahead_dist * mpc.density + mpc.closest_waypoint_index;
+                        // compute distance from car_pose to waypoint, find closest waypoint and distance
+                        double min_dist_sq = 1000.;
+                        int min_index = 0;
+                        for (int i = mpc.closest_waypoint_index; i < look_ahead_index; i++) {
+                            // double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                            double dist_sq = std::pow(car_pose[0] - mpc.state_refs(i, 0), 2) + std::pow(car_pose[1] - mpc.state_refs(i, 1), 2);
+                            if (dist_sq < min_dist_sq) {
+                                min_dist_sq = dist_sq;
+                                min_index = i;
+                            }
+                        }
+                        double min_dist = std::sqrt(min_dist_sq);
+                        bool same_lane = false;
+                        if (min_dist < LANE_OFFSET * 0.25) {
+                            std::cout << "closest index: " << min_index << ", closest dist: " << min_dist << ", closest waypoint: (" << mpc.state_refs(min_index, 0) << ", " << mpc.state_refs(min_index, 1) << ")" << std::endl;
+                            same_lane = true;
+                        }
+                        std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << same_lane << std::endl;
+                        if (same_lane) {
+                            int idx = mpc.closest_waypoint_index + dist * mpc.density * 0.75; // compute index of midpoint between detected car and ego car
+                            int attribute = mpc.state_attributes(idx);
+                            std::cout << "attribute: " << attribute << std::endl;
+                            if (attribute != mpc.ATTRIBUTE::DOTTED && attribute != mpc.ATTRIBUTE::DOTTED_CROSSWALK && attribute != mpc.ATTRIBUTE::HIGHWAYLEFT && attribute != mpc.ATTRIBUTE::HIGHWAYRIGHT) {
+                                if (dist < MAX_TAILING_DIST) {
+                                    std::cout << "detected car is in oneway or non-dotted region, dist =" << dist << std::endl;
+                                    stop_for(T);
+                                    continue;
+                                } else {
+                                    std::cout << "car on oneway pretty far and within safety margin, keep tailing: " << dist << std::endl;
+                                }
+                            } else {
+                                dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
+                                bool right = false;
+                                double density = mpc.density;
+                                if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
+                                    density *= 1/1.33;
+                                }
+                                else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
+                                    right = true; 
+                                    density *= 1/1.33;
+                                }
+                                int offset = static_cast<int>(dist * density);
+                                detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * density);
+                                std::cout << "detected car at a distance of: " << dist << ", changing lane, right: " << right << ", current index: " << mpc.target_waypoint_index << ", detected index: " << detected_index << ", offset: " << offset << std::endl;
+                                mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, right, LANE_OFFSET);
+                            }
+                        }
+                    }
+                }
+            }
             update_mpc_state();
             double error_sq = (mpc.x_current.head(2) - destination).squaredNorm();
             if (error_sq < TOLERANCE_SQUARED) {
                 change_state(STATE::DONE);
             }
             double steer = utils.get_steering_angle();
-            double speed = 0.5;
+            double speed = 0.25;
+            if(ros::Time::now() < cooldown_timer) {
+                speed = 0.15; // slow down for crosswalk
+            }
             utils.publish_cmd_vel(steer, speed);
             rate->sleep();
             continue;
@@ -556,7 +668,7 @@ void StateMachine::run() {
         } else if (state == STATE::INIT) {
             change_state(STATE::MOVING);
             // change_state(STATE::INTERSECTION_MANEUVERING);
-            // if (lane) change_state(STATE::INTERSECTION_MANEUVERING);
+            if (lane) change_state(STATE::LANE_FOLLOWING);
             // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
             std::cout << "Done" << std::endl;

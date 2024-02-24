@@ -225,6 +225,7 @@ void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
 void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
     lock.lock();
     center = msg->center;
+    stopline = msg->stopline;
     lock.unlock();
 }
 void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
