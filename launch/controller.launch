@@ -12,6 +12,7 @@
   <arg name="x0" default="11.88"/>
   <arg name="y0" default="1.91"/>
   <arg name="yaw0" default="0"/>
+  <arg name="real" default="false"/>
 
   <node pkg="mpc" type="controller" name="$(anon mpc_controller)" output="screen"> 
     <param name="sign" value="$(arg sign)"/>
@@ -23,5 +24,6 @@
     <param name="x0" value="$(arg x0)"/>
     <param name="y0" value="$(arg y0)"/>
     <param name="yaw0" value="$(arg yaw0)"/>
+    <param name="real" value="$(arg real)"/>
   </node>
 </launch>
