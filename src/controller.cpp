@@ -388,7 +388,8 @@ void StateMachine::run() {
     while (ros::ok()) {
         if (sign) {
             while (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
-                ROS_INFO("girl detected, stopping...");
+                double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
+                ROS_INFO("girl detected at a distance of: %3f", dist);
                 stop_for(mpc.T * 5);
             }
         }
@@ -498,7 +499,7 @@ void StateMachine::run() {
             rate->sleep();
             continue;
         } else if (state == STATE::APPROACHING_INTERSECTION) {
-            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST);
+            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.9;
             utils.reset_odom();
             double orientation = mpc.NearestDirection(utils.get_yaw());
             ROS_INFO("sign detected at a distance of: %3f, offset: %3f, resetting odom...", detected_dist, offset);
@@ -571,7 +572,12 @@ void StateMachine::run() {
             if (error_sq < TOLERANCE_SQUARED) {
                 change_state(STATE::DONE);
             }
-            lane_follow();
+            if(intersection_reached(true)) {
+                double orientation = mpc.NearestDirection(utils.get_yaw());
+                orientation_follow(orientation);
+            } else {
+                lane_follow();
+            }
             rate->sleep();
             continue;
         } else if (state == STATE::WAITING_FOR_STOPSIGN) {
@@ -588,8 +594,10 @@ void StateMachine::run() {
             change_state(STATE::MOVING);
             if(lane) change_state(STATE::LANE_FOLLOWING);
         } else if (state == STATE::PARKING) {
+            stop_for(STOP_DURATION/2);
             double offset_thresh = 0.1;
             double base_offset = detected_dist + PARKING_SPOT_LENGTH * 1.5 + offset_thresh;
+            base_offset *= 2; // temporary fix for gazebo
             ROS_INFO("parking offset is: %3f", base_offset);
             // base_offset = 0;
             right_park = true;
@@ -655,6 +663,7 @@ void StateMachine::run() {
                 utils.reset_odom();
                 while(1) {
                     double norm = utils.odomX * utils.odomX + utils.odomY * utils.odomY;
+                    ROS_INFO("norm: %3f", norm);
                     if (norm >= base_offset)
                     {
                         ROS_INFO("parking spot reached, stopping...");
@@ -766,9 +775,16 @@ void StateMachine::run() {
                 Eigen::Vector2d transformedFrame = {0, 0};
                 utils.setIntersectionDecision(maneuver_direction);
                 while(true) {
-                    double yaw_error = target_yaw - utils.get_yaw();
-                    if (std::abs(yaw_error) < 0.1) {
-                        break;
+                    if (maneuver_direction == 1) { // if straight
+                        double distance_traveled = std::sqrt(utils.odomX * utils.odomX + utils.odomY * utils.odomY);
+                        if (distance_traveled > 0.57) {
+                            break;
+                        }
+                    } else {
+                        double yaw_error = target_yaw - utils.get_yaw();
+                        if (std::abs(yaw_error) < 0.2) {
+                            break;
+                        }
                     }
                     odomFrame << utils.odomX, utils.odomY;
                     // transformedFrame = rotation_matrices[direction_index] * odomFrame;
