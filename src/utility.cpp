@@ -24,7 +24,8 @@
 #include <robot_localization/SetPose.h>
 
 Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
-    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name)
+    : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name),
+    trajectoryFunction(nullptr), intersectionDecision(-1)
 {
     q_transform.setRPY(0, 0.15, 0);
     // q_transform.setRPY(0, 0.0, 0);
@@ -33,6 +34,7 @@ Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool s
     recent_car_indices = std::list<int>();
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
+    nh.getParam("/subModel", this->subModel);
     rateVal = 50;
     rate = new ros::Rate(rateVal);
     wheelbase = 0.27;
@@ -223,8 +225,19 @@ void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
     car_pose_pub.publish(car_pose_msg);
 }
 void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
+    static double previous_center = 320;
     lock.lock();
     center = msg->center;
+    if(std::abs(center - previous_center) > 250) {
+        center = previous_center;
+    }
+    if (std::abs(center - 320) < 1) {
+        double temp = center;
+        center = previous_center;
+        previous_center = temp;
+    } else {
+        previous_center = center;
+    }
     stopline = msg->stopline;
     lock.unlock();
 }
@@ -357,7 +370,7 @@ void Utility::set_pose_using_service(double x, double y, double yaw) {
 void Utility::publish_odom() {
 
     if (!initializationFlag) {
-        initializationFlag = true;
+        if(imuInitialized) initializationFlag = true;
         // std::cout << "Initializing... gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
         // set_initial_pose(gps_x, gps_y, yaw);
         // std::cout << "odomX: " << odomX << ", odomY: " << odomY << std::endl;
@@ -370,6 +383,7 @@ void Utility::publish_odom() {
 
     // update_states_rk4(velocity, steer_command);
     update_states_rk4(velocity_command, steer_command);
+    // ROS_INFO("ODOM: dx: %.3f, dy: %.3f, yaw: %.3f, x: %.3f, y: %.3f", dx, dy, yaw, odomX, odomY);
     odomX += dx;
     odomY += dy;
     // ROS_INFO("odomX: %3f, gps_x: %3f, odomY: %3f, gps_y: %3f, error: %3f", odomX, gps_x, odomY, gps_y, sqrt((odomX - gps_x) * (odomX - gps_x) + (odomY - gps_y) * (odomY - gps_y))); // works
@@ -483,6 +497,9 @@ void Utility::set_initial_pose(double x, double y, double yaw) {
     odomYaw = yaw;
     // set_pose_using_service(x, y, yaw);
 }
+void Utility::reset_odom() {
+    set_initial_pose(0, 0, 0);
+}
 void Utility::update_states_rk4 (double speed, double steering_angle, double dt) {
     if (dt < 0) {
         dt = (ros::Time::now() - timerodom).toSec();
@@ -533,7 +550,7 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
 }
 void Utility::lane_follow() {
     steer_command = get_steering_angle();
-    publish_cmd_vel(steer_command, 0.5);
+    publish_cmd_vel(steer_command, 0.175);
 }
 void Utility::idle() {
     steer_command = 0.0;
@@ -566,6 +583,9 @@ void Utility::publish_static_transforms() {
 
     geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
     static_transforms.push_back(t_imu_cam);
+
+    geometry_msgs::TransformStamped t_imu_cam2 = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "camera_imu_optical_frame");
+    static_transforms.push_back(t_imu_cam2);
 
     static_broadcaster.sendTransform(static_transforms);
 }

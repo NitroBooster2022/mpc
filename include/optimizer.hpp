@@ -247,6 +247,33 @@ public:
         }
         return nearestDirection;
     }
+    int NearestDirectionIndex(double yaw) {
+        while(yaw > 2 * M_PI) {
+            yaw -= 2 * M_PI;
+        }
+        while(yaw < 0) {
+            yaw += 2 * M_PI;
+        }
+
+        static const double directions[5] = {0, M_PI / 2, M_PI, 3 * M_PI / 2, 2 * M_PI};
+
+        double minDifference = std::abs(yaw - directions[0]);
+        double nearestDirection = directions[0];
+
+        int closest_index = 0;
+        for (int i = 1; i < 5; ++i) {
+            double difference = std::abs(yaw - directions[i]);
+            if (difference < minDifference) {
+                minDifference = difference;
+                nearestDirection = directions[i];
+                closest_index = i;
+            }
+        }
+        if (closest_index == 4) {
+            closest_index = 0;
+        }
+        return closest_index;
+    }
 
     int park() {
         std::cout.precision(3);

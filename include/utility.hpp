@@ -25,16 +25,22 @@
 class Utility {
 public:
     
-    Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "car1", bool subModel = true, bool subImu = true, bool pubOdom = true);
+    Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "car1", bool subModel = false, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
 // private:
+    typedef double (Utility::*TrajectoryFunction)(double x);
+    TrajectoryFunction trajectoryFunction;
+    int intersectionDecision;
     ros::NodeHandle& nh;
     ros::ServiceClient triggerServiceClient;
     // Constants
     static const int NUM_VALUES_PER_OBJECT = 7;
     enum SignValues { x1, y1, x2, y2, distance, confidence, id };
-
+    enum LOCALIZATION_SOURCE {
+        ODOM,
+        EKF
+    };
     static constexpr double CAM_TO_CAR_FRONT = 0.21;
     static constexpr double CAR_LENGTH = 0.464;
     static constexpr double CAR_WIDTH = 0.1885;
@@ -149,6 +155,7 @@ public:
     std::array<double, 4> object_box(int index);
     void object_box(int index, std::array<double, 4>& oBox);
     void set_initial_pose(double x, double y, double yaw);
+    void reset_odom();
     void update_states_rk4(double velocity, double steer, double dt=-1);
     geometry_msgs::TransformStamped add_static_link(double x, double y, double z, double roll, double pitch, double yaw, std::string parent, std::string child);
     void publish_cmd_vel(double steering_angle, double velocity = -3.57, bool clip = true);
@@ -159,21 +166,19 @@ public:
     double get_current_orientation();
     std::array<double, 3> get_real_states() const;
     double get_yaw() {
-        if(useEkf) {
-            return ekf_yaw;
-        } else {
-            return yaw;
-        }
+        return yaw;
     }
     void get_states(double &x_, double &y_, double &yaw_) {
+        yaw_ = yaw;
         if(useEkf) {
             x_ = ekf_x;
             y_ = ekf_y;
-            yaw_ = yaw;
-        } else {
+        } else if(subModel) {
             x_ = gps_x;
             y_ = gps_y;
-            yaw_ = yaw;
+        } else {
+            x_ = odomX;
+            y_ = odomY;
         }
     }
     void get_gps_states(double &x_, double &y_, double &yaw_) {
@@ -251,15 +256,66 @@ public:
         double y2 = bounding_box[3];
         return estimate_object_pose2d(x, y, yaw, x1, y1, x2, y2, object_distance, camera_params, is_car);
     }
+    // 8773598130 2036 0590595 
     static std::string getSourceDirectory() {
-        std::string file_path(__FILE__);  // __FILE__ is the full path of the source file
-        size_t last_dir_sep = file_path.rfind('/');  // For Unix/Linux path
+        std::string file_path(__FILE__); 
+        size_t last_dir_sep = file_path.rfind('/');
         if (last_dir_sep == std::string::npos) {
-            last_dir_sep = file_path.rfind('\\');  // For Windows path
+            last_dir_sep = file_path.rfind('\\'); 
         }
         if (last_dir_sep != std::string::npos) {
             return file_path.substr(0, last_dir_sep);  // Extract directory path
         }
         return "";  // Return empty string if path not found
+    }
+    double straightTrajectory(double x) {
+        return 0;
+    }
+
+    double leftTrajectorySim(double x) {
+        return exp(3.57 * x - 4.2);
+    }
+
+    double rightTrajectorySim(double x) {
+        return -exp(3.75 * x - 3.);
+    }
+    void setIntersectionDecision(int decision) {
+        intersectionDecision = decision;
+        std::cout << "Intersection decision: " << intersectionDecision << std::endl;
+        switch (decision) {
+            case 0: // Left
+                trajectoryFunction = &Utility::leftTrajectorySim;
+                ROS_INFO("Left trajectory");
+                break;
+            case 1: // Straight
+                trajectoryFunction = &Utility::straightTrajectory;
+                ROS_INFO("Straight trajectory");
+                break;
+            case 2: // Right
+                trajectoryFunction = &Utility::rightTrajectorySim;
+                ROS_INFO("Right trajectory");
+                break;
+            default:
+                trajectoryFunction = nullptr;
+                ROS_INFO("Invalid trajectory");
+        }
+    }
+    double computeTrajectory(double x) {
+        if (trajectoryFunction != nullptr) {
+            return (this->*trajectoryFunction)(x);
+        }
+        return 0;
+    }
+    double computeTrajectoryPid(double error) {
+        static double last_error = 0;
+        static double error_sum = 0;
+        static ros::Time last_time = ros::Time::now() - ros::Duration(0.1);
+        static double p = 2.35 * 180 / M_PI;
+        static double d = 0;//1 * 180 / M_PI;
+        ros::Time current_time = ros::Time::now();
+        double dt = (current_time - last_time).toSec();
+        last_time = current_time;
+        double derivative = (error - last_error) / dt;
+        return p * error + d * derivative;
     }
 };
