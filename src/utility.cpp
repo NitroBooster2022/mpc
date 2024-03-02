@@ -543,8 +543,8 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     float steer = steering_angle;
     float vel = velocity;
     msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
-    // ros::Duration(0.01).sleep();
     cmd_vel_pub.publish(msg);
+    ros::Duration(0.03).sleep();
     msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
     cmd_vel_pub.publish(msg2);
 }
