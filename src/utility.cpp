@@ -233,7 +233,7 @@ void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
     //     center = previous_center;
     // }
     if (std::abs(center - 320) < 0.01) {
-        ROS_INFO("center is 320");
+        // ROS_INFO("center is 320");
         double temp = center;
         center = previous_center;
         previous_center = temp;
