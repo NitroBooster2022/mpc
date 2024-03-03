@@ -390,7 +390,11 @@ void StateMachine::run() {
             while (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
                 double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
                 ROS_INFO("girl detected at a distance of: %3f", dist);
-                stop_for(mpc.T * 5);
+                stop_for(mpc.T * 10);
+            }
+            if (utils.object_index(OBJECT::NOENTRY) >= 0) {
+                ROS_INFO("no entry detected, signaling end of mission");
+                change_state(STATE::DONE);
             }
         }
         if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
@@ -499,7 +503,7 @@ void StateMachine::run() {
             rate->sleep();
             continue;
         } else if (state == STATE::APPROACHING_INTERSECTION) {
-            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.9;
+            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.75;
             utils.reset_odom();
             double orientation = mpc.NearestDirection(utils.get_yaw());
             ROS_INFO("sign detected at a distance of: %3f, offset: %3f, resetting odom...", detected_dist, offset);
@@ -538,18 +542,29 @@ void StateMachine::run() {
             stopsign_flag = 0;
             continue;
         } else if (state == STATE::LANE_FOLLOWING) {
+            static bool use_stopline = true;
             // if(cooldown_timer < ros::Time::now() && intersection_reached(true)) {
             if(cooldown_timer < ros::Time::now()) {
-                if (stopsign_flag) {
-                    change_state(STATE::APPROACHING_INTERSECTION);
-                    continue;
-                //     stopsign_flag = 0;
-                //     change_state(STATE::WAITING_FOR_STOPSIGN);
-                //     continue;
-                // } else {
-                //     // change_state(STATE::INTERSECTION_MANEUVERING);
-                //     change_state(STATE::APPROACHING_INTERSECTION);
-                //     continue;
+                if (use_stopline) {
+                    if(intersection_reached(true)) {
+                        ROS_INFO("used stopling to detect intersection");
+                        if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
+                            stopsign_flag = STOPSIGN_FLAGS::NONE;
+                            ROS_INFO("stop sign detected");
+                            change_state(STATE::WAITING_FOR_STOPSIGN);
+                            continue;
+                        } else {
+                            ROS_INFO("no stop sign or light detected");
+                            change_state(STATE::INTERSECTION_MANEUVERING);
+                            continue;
+                        }
+                    }
+                } else {
+                    if (stopsign_flag) {
+                        ROS_INFO("stop sign detected, but stopline detection disabled, using distance to gauge intersection");
+                        change_state(STATE::APPROACHING_INTERSECTION);
+                        continue;
+                    }
                 }
             }
             if (sign && cooldown_timer < ros::Time::now()) {
