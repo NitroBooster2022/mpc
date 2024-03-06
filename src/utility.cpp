@@ -34,6 +34,7 @@ Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool s
     detected_cars = std::vector<Eigen::Vector2d>();
     detected_cars_counter = std::vector<int>();
     recent_car_indices = std::list<int>();
+    nh.getParam("/real", real);
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
     nh.getParam("/subModel", this->subModel);
@@ -263,7 +264,7 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     // ROS_INFO("yaw: %3f\n, angular velocity: %3f\n, acceleration: %3f, %3f, %3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
     if (!imuInitialized) {
         imuInitialized = true;
-        initial_yaw = yaw;
+        if (real) initial_yaw = yaw;
         std::cout << "imu initialized" << ", intial yaw is " << yaw * 180 / M_PI << std::endl;
     } else {
         yaw -= initial_yaw;
@@ -345,12 +346,15 @@ void Utility::stop_car() {
     msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(0.0) + "}";
     msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(0.0) + "}";
     for (int i = 0; i < 10; i++) {
-        send_speed(0.0);
-        send_steer(0.0);
-        cmd_vel_pub.publish(msg2);
-        ros::Duration(0.15).sleep();
-        cmd_vel_pub.publish(msg);
-        ros::Duration(0.15).sleep();
+        if(real) {
+            send_speed(0.0);
+            ros::Duration(0.15).sleep();
+            send_steer(0.0);
+        } else {
+            cmd_vel_pub.publish(msg);
+            ros::Duration(0.15).sleep();
+            cmd_vel_pub.publish(msg2);
+        }
     }
     std::cout << "sent commands to stop car" << std::endl;
 }

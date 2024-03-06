@@ -107,6 +107,8 @@ public:
     static constexpr double SIGN_COOLDOWN = 1.0;
     static constexpr double TOLERANCE_SQUARED = 0.01;
     static constexpr double STOP_DURATION = 1.50;
+    static constexpr double NORMAL_SPEED = 0.175;
+    static constexpr double FAST_SPEED = 0.4;
     std::array<double, 2> PARKING_SPOT_RIGHT = {9.50, 0.372};
     std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
@@ -277,6 +279,29 @@ public:
         }
         return -1;
     }
+    void pedestrian_detected() {
+        int pedestrian_count = 0;
+        if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
+            while (true) {
+                if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
+                    double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
+                    ROS_INFO("girl detected at a distance of: %3f", dist);
+                    stop_for(STOP_DURATION);
+                } else {
+                    pedestrian_count ++;
+                    stop_for(STOP_DURATION/15);
+                }
+                if (pedestrian_count > 10) break;
+            }
+            rate->sleep();
+        }
+    }
+    void exit_detected() {
+        if (utils.object_index(OBJECT::NOENTRY) >= 0) {
+            ROS_INFO("no entry detected, signaling end of mission");
+            change_state(STATE::DONE);
+        }
+    }
     void lane_follow(double speed = 0.175) {
         double steer = utils.get_steering_angle();
         if(ros::Time::now() < cooldown_timer) {
@@ -396,24 +421,8 @@ void StateMachine::change_state(STATE new_state) {
 void StateMachine::run() {
     while (ros::ok()) {
         if (sign) {
-            int pedestrian_count = 0;
-            if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
-            while (true) {
-                if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
-                    double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
-                    ROS_INFO("girl detected at a distance of: %3f", dist);
-                    stop_for(STOP_DURATION);
-                } else {
-                    pedestrian_count ++;
-                    stop_for(STOP_DURATION/15);
-                }
-                if (pedestrian_count > 10) break;
-            }
-            }
-            if (utils.object_index(OBJECT::NOENTRY) >= 0) {
-                ROS_INFO("no entry detected, signaling end of mission");
-                change_state(STATE::DONE);
-            }
+            pedestrian_detected();
+            exit_detected();
         }
         if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
@@ -599,6 +608,51 @@ void StateMachine::run() {
                     change_state(STATE::PARKING);
                     continue;
                 }
+                double dist;
+                int car_index = utils.object_index(OBJECT::CAR);
+                if(car_index >= 0) { // if car detected
+                    dist = utils.object_distance(car_index); // compute distance to back of car
+                    if (dist < MAX_CAR_DIST && dist > 0) {
+                        std::cout << "a car is detected at a distance of " << dist << std::endl;
+                        // std::array<double, 4> car_bbox = utils.object_box(car_index);
+                        utils.object_box(car_index, bbox);
+                        double x, y, yaw;
+                        utils.get_states(x, y, yaw);
+                        auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, utils.CAMERA_PARAMS);
+                        printf("estimated car pose: %3f, %3f\n", car_pose[0], car_pose[1]);
+                        // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
+                        bool same_lane = true;
+                        if (same_lane) {
+                            int idx = mpc.closest_waypoint_index + dist * mpc.density * 0.75; // compute index of midpoint between detected car and ego car
+                            int attribute = mpc.state_attributes(idx);
+                            std::cout << "attribute: " << attribute << std::endl;
+                            if (true) {
+                                if (dist < MAX_TAILING_DIST) {
+                                    std::cout << "detected car is in oneway or non-dotted region, dist =" << dist << std::endl;
+                                    stop_for(T);
+                                    continue;
+                                } else {
+                                    std::cout << "car on oneway pretty far and within safety margin, keep tailing: " << dist << std::endl;
+                                }
+                            } else {
+                                dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
+                                bool right = false;
+                                double density = mpc.density;
+                                if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
+                                    density *= 1/1.33;
+                                }
+                                else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
+                                    right = true; 
+                                    density *= 1/1.33;
+                                }
+                                int offset = static_cast<int>(dist * density);
+                                detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * density);
+                                std::cout << "detected car at a distance of: " << dist << ", changing lane, right: " << right << ", current index: " << mpc.target_waypoint_index << ", detected index: " << detected_index << ", offset: " << offset << std::endl;
+                                mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, right, LANE_OFFSET);
+                            }
+                        }
+                    }
+                }
             }
             update_mpc_state();
             double error_sq = (mpc.x_current.head(2) - destination).squaredNorm();
@@ -648,6 +702,8 @@ void StateMachine::run() {
                 int target_spot = 0;
                 std::cout << "target spot: " << target_spot << std::endl;
                 while(1) {
+                    pedestrian_detected();
+                    exit_detected();
                     std::list<int> cars = utils.recent_car_indices;
                     // iterate through all cars and check if any are in the parking spot
                     bool changed = false;
@@ -698,6 +754,8 @@ void StateMachine::run() {
                 ROS_INFO("orientation: %.3f", orientation);
                 utils.reset_odom();
                 while(1) {
+                    pedestrian_detected();
+                    exit_detected();
                     double norm = utils.odomX * utils.odomX + utils.odomY * utils.odomY;
                     ROS_INFO("norm: %3f", norm);
                     if (norm >= base_offset)
@@ -772,6 +830,8 @@ void StateMachine::run() {
                 int last_history = mpc.last_waypoint_index;
                 mpc.last_waypoint_index = 0;
                 while(1) {
+                    pedestrian_detected();
+                    exit_detected();
                     update_mpc_state();
                     mpc.transform_point(mpc.x_current, mpc.x_current_transformed, mpc.frame1, mpc.frame2);
                     double yaw_frame2 = mpc.frame2[2];
@@ -813,6 +873,8 @@ void StateMachine::run() {
                 Eigen::Vector2d transformedFrame = {0, 0};
                 utils.setIntersectionDecision(maneuver_direction);
                 while(true) {
+                    pedestrian_detected();
+                    exit_detected();
                     if (maneuver_direction == 1) { // if straight
                         double distance_traveled = std::sqrt(utils.odomX * utils.odomX + utils.odomY * utils.odomY);
                         if (distance_traveled > 0.57) {

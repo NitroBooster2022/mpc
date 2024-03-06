@@ -81,6 +81,7 @@ public:
     int num_obj;
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
+    bool real = true;
     double rateVal;
     ros::Rate* rate;
 
@@ -277,11 +278,17 @@ public:
     }
 
     double leftTrajectorySim(double x) {
-        return exp(3.57 * x - 3.9);
+        if (real) {
+            return -exp(3.57 * x - 3.9);
+        }
+        return exp(3.57 * x - 4.2);
     }
 
     double rightTrajectorySim(double x) {
-        return -exp(3.75 * (x - 0.49));
+        if (real) {
+            return -exp(3.75 * (x - 0.49));
+        }
+        return -exp(3.75 * x - 3.);
     }
     void setIntersectionDecision(int decision) {
         intersectionDecision = decision;
@@ -314,7 +321,13 @@ public:
         static double last_error = 0;
         static double error_sum = 0;
         static ros::Time last_time = ros::Time::now() - ros::Duration(0.1);
-        static double p = 3 * 180 / M_PI;
+        static double p_rad = 0;
+        if (real) {
+            p_rad = 3;
+        } else {
+            p_rad = 2.35;
+        }
+        static double p = p_rad * 180 / M_PI; //2.35
         static double d = 0;//1 * 180 / M_PI;
         ros::Time current_time = ros::Time::now();
         double dt = (current_time - last_time).toSec();
