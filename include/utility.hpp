@@ -26,7 +26,7 @@
 class Utility {
 public:
     
-    Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "car1", bool subModel = false, bool subImu = true, bool pubOdom = true);
+    Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double yaw0, bool subSign = true, bool useEkf = false, bool subLane = false,  std::string robot_name = "car1", bool subModel = false, bool subImu = true, bool pubOdom = true);
     ~Utility();
     void callTriggerService();
 // private:
@@ -81,7 +81,7 @@ public:
     int num_obj;
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
-    bool real = true;
+    bool real;
     double rateVal;
     ros::Rate* rate;
 
@@ -169,7 +169,8 @@ public:
     double get_current_orientation();
     std::array<double, 3> get_real_states() const;
     boost::asio::io_service io;
-    boost::asio::serial_port serial;
+    // boost::asio::serial_port serial;
+    std::unique_ptr<boost::asio::serial_port> serial;
     double get_yaw() {
         return yaw;
     }
@@ -336,18 +337,26 @@ public:
         return p * error + d * derivative;
     }
     void send_speed(float f_velocity) {
+        if (serial == nullptr) {
+            ROS_INFO("Serial is null");
+            return;
+        }
         std::stringstream strs;
         char buff[100];
         snprintf(buff, sizeof(buff), "%.2f;;\r\n", f_velocity * 100);
         strs << "#" << "1" << ":" << buff;
-        boost::asio::write(serial, boost::asio::buffer(strs.str()));
+        boost::asio::write(*serial, boost::asio::buffer(strs.str()));
     }
 
     void send_steer(float f_angle) {
+        if (serial == nullptr) {
+            ROS_INFO("Serial is null");
+            return;
+        }
         std::stringstream strs;
         char buff[100];
         snprintf(buff, sizeof(buff), "%.2f;;\r\n", f_angle);
         strs << "#" << "2" << ":" << buff;
-        boost::asio::write(serial, boost::asio::buffer(strs.str()));
+        boost::asio::write(*serial, boost::asio::buffer(strs.str()));
     }
 };

@@ -4,6 +4,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     T(T), N(N), v_ref(v_ref), density(1/T/v_ref), region_of_acceptance(0.03076923*3 * (0.125*1.3) / density), 
     region_of_acceptance_cw(region_of_acceptance * 1.0/1.5), region_of_acceptance_hw(region_of_acceptance * 1.5), t0(0.0)
  {
+    std::cout << "Optimizer Constructor" << std::endl;
     v_ref_int = static_cast<int>(v_ref * 100); // convert to cm/s
     // Initialize member variables
     min_time = 1e12;

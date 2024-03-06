@@ -13,8 +13,8 @@
 
 class StateMachine {
 public:
-    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name, double x_init, double y_init, double yaw_init): 
-    nh(nh_), utils(nh, x_init, y_init, yaw_init, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
+    StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name, double x_init, double y_init, double yaw_init, bool real): 
+    nh(nh_), utils(nh, real, x_init, y_init, yaw_init, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
     state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0)
     {
         //initialize parking spots
@@ -946,7 +946,7 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     double T, v_ref, T_park;
     int N;
-    bool sign, ekf, lane;
+    bool sign, ekf, lane, real;
     std::string name;
     std::string nodeName = ros::this_node::getName();
     std::cout << "node name: " << nodeName << std::endl;
@@ -954,6 +954,7 @@ int main(int argc, char **argv) {
     double x0, y0, yaw0, vref;
     success = success && nh.getParam(nodeName+"/name", name) && nh.getParam(nodeName+"/vref", vref) && nh.getParam(nodeName+"/x0", x0) && nh.getParam(nodeName+"/y0", y0) && nh.getParam(nodeName+"/yaw0", yaw0);
     success = success && nh.getParam("/T_park", T_park);
+    success = success && nh.getParam(nodeName+"/real", real);
     if (!success) {
         std::cout << "Failed to get parameters" << std::endl;
         T = 0.100;
@@ -966,8 +967,8 @@ int main(int argc, char **argv) {
     } else {
         std::cout << "Successfully loaded parameters" << std::endl;
     }
-    std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", vref: " << vref << std::endl;
-    StateMachine sm(nh, T, N, vref, sign, ekf, lane, T_park, name, x0, y0, yaw0);
+    std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", vref: " << vref << ", real: " << real << std::endl;
+    StateMachine sm(nh, T, N, vref, sign, ekf, lane, T_park, name, x0, y0, yaw0, real);
 
     globalStateMachinePtr = &sm;
     signal(SIGINT, signalHandler);
