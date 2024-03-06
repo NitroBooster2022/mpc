@@ -23,18 +23,22 @@
 #include <cmath>
 #include <robot_localization/SetPose.h>
 
-Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
+Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double yaw0, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name),
-    trajectoryFunction(nullptr), intersectionDecision(-1), io(), serial(io, "/dev/ttyACM0")
+    trajectoryFunction(nullptr), intersectionDecision(-1), io(), serial(nullptr), real(real)
 {
-    //serial.open("/dev/ttyACM0");
-    serial.set_option(boost::asio::serial_port_base::baud_rate(19200));
+    std::cout << "Utility constructor" << std::endl;
+    
+    std::cout << "real: " << real << std::endl;
+    if (real) {
+        serial = std::make_unique<boost::asio::serial_port>(io, "/dev/ttyACM0");
+        serial->set_option(boost::asio::serial_port_base::baud_rate(19200));
+    }
     q_transform.setRPY(0, 0.15, 0);
     // q_transform.setRPY(0, 0.0, 0);
     detected_cars = std::vector<Eigen::Vector2d>();
     detected_cars_counter = std::vector<int>();
     recent_car_indices = std::list<int>();
-    nh.getParam("/real", real);
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
     nh.getParam("/subModel", this->subModel);
@@ -553,7 +557,7 @@ void Utility::update_states_rk4 (double speed, double steering_angle, double dt)
 }
 void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip) {
     static int toggle = 0;
-    static bool real = true;
+    // static bool real = true;
     if (velocity < -3.5) velocity = maxspeed;
     if (clip) {
         if (steering_angle > 23) steering_angle = 23;
@@ -576,12 +580,12 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     } else {
 	    //ROS_INFO("publishing, steer: %.3f, speed: %.3f", steer, vel);
 	    if (toggle % 2) {
-		ROS_INFO("publishing speed: %.3f", vel);
+		// ROS_INFO("publishing speed: %.3f", vel);
 		msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
 		cmd_vel_pub.publish(msg);
 	    } else {
 		//ros::Duration(0.03).sleep();
-		ROS_INFO("publishing steer: %.3f", steer);
+		// ROS_INFO("publishing steer: %.3f", steer);
 		msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
 		cmd_vel_pub.publish(msg2);
 	    }
