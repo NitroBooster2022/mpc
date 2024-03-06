@@ -112,7 +112,7 @@ public:
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
     // std::array<int, 9> maneuver_indices = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-    std::array<int, 9> maneuver_indices = {0,2,2,0,1,2,0,0,0};
+    std::array<int, 9> maneuver_indices = {0,2,1,0,1,2,0,0,0};
     int maneuver_index = 0;
     std::array<double, 4> bbox = {0.0, 0.0, 0.0, 0.0};
     double T_park, T;
@@ -282,6 +282,7 @@ public:
         if(ros::Time::now() < cooldown_timer) {
             speed = speed * 5/7;
         }
+        //std::cout << "lanefollowing " << steer<<" " << speed << std::endl;
         utils.publish_cmd_vel(steer, speed);
     }
     void orientation_follow(double orientation, double speed = 0.175) {
@@ -301,9 +302,10 @@ int StateMachine::parking_maneuver_hardcode(bool right, bool exit, double rate_v
     yaw0 = mpc.NearestDirection(yaw0);
     while (yaw0 < -M_PI) yaw0 += 2*M_PI;
     while (yaw0 > M_PI) yaw0 -= 2*M_PI;
+    ROS_INFO("nearest direction: %.3f", yaw0);
     int stage = 1;
     double steering_angle = -23.;
-    double speed = -0.3;
+    double speed = -0.2;
     double thresh = 0.1;
     if (right) {
         steering_angle *= -1;
@@ -322,7 +324,15 @@ int StateMachine::parking_maneuver_hardcode(bool right, bool exit, double rate_v
         while (yaw < -M_PI) yaw += 2*M_PI;
         while (yaw > M_PI) yaw -= 2*M_PI;
         double yaw_error = yaw - yaw0;
-        if (stage == 1 && std::abs(yaw_error) > M_PI/4) {
+        while(std::abs(yaw_error) > M_PI * 1.2) {
+            if(yaw_error > M_PI * 1.2) {
+                yaw_error -= 2*M_PI;
+            } else {
+                yaw_error += 2*M_PI;
+            }
+        }
+        ROS_INFO("yaw: %3f, yaw0: %.3f, yaw_error: %3f, steering_angle: %3f", yaw, yaw0, yaw_error, steering_angle);
+        if (stage == 1 && std::abs(yaw_error) > M_PI*0.18) {
             ROS_INFO("stage 1 completed. yaw error: %3f", yaw_error);
             stage = 2;
             steering_angle *= -1;
@@ -338,7 +348,6 @@ int StateMachine::parking_maneuver_hardcode(bool right, bool exit, double rate_v
             ROS_INFO("stage 3 completed. yaw error: %3f", yaw_error);
             break;
         }
-        // printf("yaw: %3f, yaw_error: %3f, steering_angle: %3f\n", yaw, yaw_error, steering_angle);
         utils.publish_cmd_vel(steering_angle, speed);
         temp_rate.sleep();
     }
@@ -387,10 +396,19 @@ void StateMachine::change_state(STATE new_state) {
 void StateMachine::run() {
     while (ros::ok()) {
         if (sign) {
-            while (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
-                double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
-                ROS_INFO("girl detected at a distance of: %3f", dist);
-                stop_for(mpc.T * 10);
+            int pedestrian_count = 0;
+            if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
+            while (true) {
+                if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
+                    double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
+                    ROS_INFO("girl detected at a distance of: %3f", dist);
+                    stop_for(STOP_DURATION);
+                } else {
+                    pedestrian_count ++;
+                    stop_for(STOP_DURATION/15);
+                }
+                if (pedestrian_count > 10) break;
+            }
             }
             if (utils.object_index(OBJECT::NOENTRY) >= 0) {
                 ROS_INFO("no entry detected, signaling end of mission");
@@ -503,7 +521,7 @@ void StateMachine::run() {
             rate->sleep();
             continue;
         } else if (state == STATE::APPROACHING_INTERSECTION) {
-            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.75;
+            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.7;
             utils.reset_odom();
             double orientation = mpc.NearestDirection(utils.get_yaw());
             ROS_INFO("sign detected at a distance of: %3f, offset: %3f, resetting odom...", detected_dist, offset);
@@ -542,7 +560,7 @@ void StateMachine::run() {
             stopsign_flag = 0;
             continue;
         } else if (state == STATE::LANE_FOLLOWING) {
-            static bool use_stopline = true;
+            static bool use_stopline = false;
             // if(cooldown_timer < ros::Time::now() && intersection_reached(true)) {
             if(cooldown_timer < ros::Time::now()) {
                 if (use_stopline) {
@@ -592,6 +610,8 @@ void StateMachine::run() {
                 orientation_follow(orientation);
             } else {
                 lane_follow();
+                // double orientation = mpc.NearestDirection(utils.get_yaw());
+                // orientation_follow(orientation);
             }
             rate->sleep();
             continue;
@@ -612,7 +632,7 @@ void StateMachine::run() {
             stop_for(STOP_DURATION/2);
             double offset_thresh = 0.1;
             double base_offset = detected_dist + PARKING_SPOT_LENGTH * 1.5 + offset_thresh;
-            base_offset *= 2; // temporary fix for gazebo
+            base_offset *= 1.7; // temporary fix for gazebo
             ROS_INFO("parking offset is: %3f", base_offset);
             // base_offset = 0;
             right_park = true;
@@ -675,6 +695,7 @@ void StateMachine::run() {
                 }
             } else {
                 double orientation = mpc.NearestDirection(utils.get_yaw());
+                ROS_INFO("orientation: %.3f", orientation);
                 utils.reset_odom();
                 while(1) {
                     double norm = utils.odomX * utils.odomX + utils.odomY * utils.odomY;
@@ -695,6 +716,7 @@ void StateMachine::run() {
             }
             stop_for(STOP_DURATION/2);
             if (hard_code) {
+                right_park = true; //temp
                 parking_maneuver_hardcode(right_park, false, 1/T_park);
             } else {
                 xs << -0.63, -0.35, 0. , 0., 0.;
@@ -708,6 +730,7 @@ void StateMachine::run() {
         } else if (state == STATE::EXITING_PARKING) {
             bool hard_code = true;
             if (hard_code) {
+                right_park = true;
                 parking_maneuver_hardcode(right_park, true, 1/T_park);
             } else {
                 xs << -0.2, 0., 0. , 0., 0.;
@@ -797,7 +820,7 @@ void StateMachine::run() {
                         }
                     } else {
                         double yaw_error = target_yaw - utils.get_yaw();
-                        if (std::abs(yaw_error) < 0.2) {
+                        if (std::abs(yaw_error) < 0.357) {
                             break;
                         }
                     }
@@ -835,8 +858,8 @@ StateMachine *globalStateMachinePtr = nullptr;
 void signalHandler(int signum) {
     if (globalStateMachinePtr) {
         globalStateMachinePtr->utils.stop_car();
-        globalStateMachinePtr->mpc.computeStats(357);
-        globalStateMachinePtr->utils.print_detected_cars();
+        //globalStateMachinePtr->mpc.computeStats(357);
+        //globalStateMachinePtr->utils.print_detected_cars();
     }
     ros::shutdown();
     exit(signum);

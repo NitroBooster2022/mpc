@@ -25,8 +25,10 @@
 
 Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool subSign, bool useEkf, bool subLane, std::string robot_name, bool subModel, bool subImu, bool pubOdom) 
     : nh(nh_), useIMU(useIMU), subLane(subLane), subSign(subSign), subModel(subModel), subImu(subImu), pubOdom(pubOdom), useEkf(useEkf), robot_name(robot_name),
-    trajectoryFunction(nullptr), intersectionDecision(-1)
+    trajectoryFunction(nullptr), intersectionDecision(-1), io(), serial(io, "/dev/ttyACM0")
 {
+    //serial.open("/dev/ttyACM0");
+    serial.set_option(boost::asio::serial_port_base::baud_rate(19200));
     q_transform.setRPY(0, 0.15, 0);
     // q_transform.setRPY(0, 0.0, 0);
     detected_cars = std::vector<Eigen::Vector2d>();
@@ -96,9 +98,11 @@ Utility::Utility(ros::NodeHandle& nh_, double x0, double y0, double yaw0, bool s
     std::string imu_topic_name;
     if(robot_name == "automobile") {
         imu_topic_name = "/realsense/imu";
+        // imu_topic_name = "/car1/data";
     } else {
         // imu_topic_name = "/" + robot_name + "/imu";
         imu_topic_name = "/realsense/imu";
+        // imu_topic_name = "/car1/data";
     }
     ROS_INFO("imu topic: %s", imu_topic_name.c_str());
     std::cout << "waiting for Imu message" << std::endl;
@@ -228,10 +232,10 @@ void Utility::lane_callback(const utils::Lane::ConstPtr& msg) {
     static double previous_center = 320;
     lock.lock();
     center = msg->center;
-    // if(std::abs(center - previous_center) > 250) {
-    //     ROS_INFO("center is too far from previous_center");
-    //     center = previous_center;
-    // }
+    if(std::abs(center - previous_center) > 200) {
+        // ROS_INFO("center is too far from previous_center");
+        center = previous_center;
+    }
     if (std::abs(center - 320) < 0.01) {
         // ROS_INFO("center is 320");
         double temp = center;
@@ -259,7 +263,16 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     // ROS_INFO("yaw: %3f\n, angular velocity: %3f\n, acceleration: %3f, %3f, %3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
     if (!imuInitialized) {
         imuInitialized = true;
-        std::cout << "imu initialized" << std::endl;
+        initial_yaw = yaw;
+        std::cout << "imu initialized" << ", intial yaw is " << yaw * 180 / M_PI << std::endl;
+    } else {
+        yaw -= initial_yaw;
+        while(yaw < -M_PI) {
+            yaw += 2*M_PI;
+        }
+        while(yaw > M_PI) {
+            yaw -= 2*M_PI;
+        }
     }
     lock.unlock();
 }
@@ -332,9 +345,12 @@ void Utility::stop_car() {
     msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(0.0) + "}";
     msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(0.0) + "}";
     for (int i = 0; i < 10; i++) {
+        send_speed(0.0);
+        send_steer(0.0);
         cmd_vel_pub.publish(msg2);
+        ros::Duration(0.15).sleep();
         cmd_vel_pub.publish(msg);
-        // ros::Duration(0.1).sleep();
+        ros::Duration(0.15).sleep();
     }
     std::cout << "sent commands to stop car" << std::endl;
 }
@@ -532,23 +548,41 @@ void Utility::update_states_rk4 (double speed, double steering_angle, double dt)
     // printf("dt: %.3f, v: %.3f, yaw: %.3f, steer: %.3f, dx: %.3f, dy: %.3f, dyaw: %.3f\n", dt, speed, yaw, steering_angle, dx, dy, dyaw);
 }
 void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip) {
+    static int toggle = 0;
+    static bool real = true;
     if (velocity < -3.5) velocity = maxspeed;
     if (clip) {
         if (steering_angle > 23) steering_angle = 23;
         if (steering_angle < -23) steering_angle = -23;
     }
     // publish_odom();
+    float vel = velocity;
     lock.lock();
     steer_command = steering_angle;
-    velocity_command = velocity;
+    if(std::abs(velocity_command-velocity)>0.001) {
+        velocity_command = velocity;
+        if(real) send_speed(vel);
+    }
     lock.unlock();
     float steer = steering_angle;
-    float vel = velocity;
-    msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
-    cmd_vel_pub.publish(msg);
-    ros::Duration(0.03).sleep();
-    msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
-    cmd_vel_pub.publish(msg2);
+    if(real) {
+        // send_speed(vel);
+        send_steer(steer);
+        // ROS_INFO("publishing steer: %.3f, speed: %.3f", steer, vel);
+    } else {
+	    //ROS_INFO("publishing, steer: %.3f, speed: %.3f", steer, vel);
+	    if (toggle % 2) {
+		ROS_INFO("publishing speed: %.3f", vel);
+		msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
+		cmd_vel_pub.publish(msg);
+	    } else {
+		//ros::Duration(0.03).sleep();
+		ROS_INFO("publishing steer: %.3f", steer);
+		msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
+		cmd_vel_pub.publish(msg2);
+	    }
+	    toggle = (toggle + 1) % 100;
+    }
 }
 void Utility::lane_follow() {
     steer_command = get_steering_angle();

@@ -21,6 +21,7 @@
 #include <std_srvs/Trigger.h>
 #include <mutex>
 #include <cmath>
+#include <boost/asio.hpp>
 
 class Utility {
 public:
@@ -86,6 +87,7 @@ public:
     double wheelbase, odomRatio, maxspeed, center, image_center, p, d, last;
     bool stopline = false;
     double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, ekf_yaw, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
+    double initial_yaw = 0;
     double x_offset, y_offset;
     double gps_state[3];
     double ekf_state[3];
@@ -165,6 +167,8 @@ public:
     void set_rate(double rateVal);
     double get_current_orientation();
     std::array<double, 3> get_real_states() const;
+    boost::asio::io_service io;
+    boost::asio::serial_port serial;
     double get_yaw() {
         return yaw;
     }
@@ -273,11 +277,11 @@ public:
     }
 
     double leftTrajectorySim(double x) {
-        return exp(3.57 * x - 4.2);
+        return exp(3.57 * x - 3.9);
     }
 
     double rightTrajectorySim(double x) {
-        return -exp(3.75 * x - 3.);
+        return -exp(3.75 * (x - 0.49));
     }
     void setIntersectionDecision(int decision) {
         intersectionDecision = decision;
@@ -310,12 +314,27 @@ public:
         static double last_error = 0;
         static double error_sum = 0;
         static ros::Time last_time = ros::Time::now() - ros::Duration(0.1);
-        static double p = 2.35 * 180 / M_PI;
+        static double p = 3 * 180 / M_PI;
         static double d = 0;//1 * 180 / M_PI;
         ros::Time current_time = ros::Time::now();
         double dt = (current_time - last_time).toSec();
         last_time = current_time;
         double derivative = (error - last_error) / dt;
         return p * error + d * derivative;
+    }
+    void send_speed(float f_velocity) {
+        std::stringstream strs;
+        char buff[100];
+        snprintf(buff, sizeof(buff), "%.2f;;\r\n", f_velocity * 100);
+        strs << "#" << "1" << ":" << buff;
+        boost::asio::write(serial, boost::asio::buffer(strs.str()));
+    }
+
+    void send_steer(float f_angle) {
+        std::stringstream strs;
+        char buff[100];
+        snprintf(buff, sizeof(buff), "%.2f;;\r\n", f_angle);
+        strs << "#" << "2" << ":" << buff;
+        boost::asio::write(serial, boost::asio::buffer(strs.str()));
     }
 };
