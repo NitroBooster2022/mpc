@@ -25,6 +25,7 @@
     <param name="y0" value="$(arg y0)"/>
     <param name="yaw0" value="$(arg yaw0)"/>
     <param name="real" value="$(arg real)"/>
+    <param name="/real" value="$(arg real)"/>
     <param name="/subModel" value="$(arg subModel)"/>
   </node>
 </launch>
