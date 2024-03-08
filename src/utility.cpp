@@ -173,6 +173,10 @@ void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
         num_obj = 0;
     }
     lock.unlock();
+    static bool populate_car_pose = false;
+    if (!populate_car_pose) {
+        return;
+    }
     int car_id = 12;
     double threshold = 0.5;
     for(int i = 0; i < num_obj; i++) {
