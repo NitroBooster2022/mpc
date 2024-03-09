@@ -280,7 +280,7 @@ public:
 
     double leftTrajectorySim(double x) {
         if (real) {
-            return -exp(3.57 * x - 3.9);
+            return exp(3.57 * x - 3.9);
         }
         return exp(3.57 * x - 4.2);
     }
