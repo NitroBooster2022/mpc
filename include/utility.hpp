@@ -164,7 +164,7 @@ public:
     void publish_cmd_vel(double steering_angle, double velocity = -3.57, bool clip = true);
     void lane_follow();
     void idle();
-    double  get_steering_angle(double offset=0);
+    double  get_steering_angle(double offset=-20);
     void set_rate(double rateVal);
     double get_current_orientation();
     std::array<double, 3> get_real_states() const;
@@ -283,7 +283,7 @@ public:
 
     double leftTrajectorySim(double x) {
         if (real) {
-            return exp(3.57 * x - 3.9);
+            return exp(3.57 * x - 3.1);
         }
         return exp(3.57 * x - 4.2);
     }
@@ -327,7 +327,7 @@ public:
         static ros::Time last_time = ros::Time::now() - ros::Duration(0.1);
         static double p_rad = 0;
         if (real) {
-            p_rad = 3;
+            p_rad = 3.25;
         } else {
             p_rad = 2.35;
         }
