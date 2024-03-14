@@ -41,7 +41,14 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     recent_car_indices = std::list<int>();
     nh.getParam("/x_offset", x_offset);
     nh.getParam("/y_offset", y_offset);
-    nh.getParam("/subModel", this->subModel);
+    bool model;
+    auto ns = ros::this_node::getName();
+    if(nh.getParam(ns + "/subModel", model)) {
+        std::cout << "got subModel from param server: " << model << std::endl;
+        this->subModel = model;
+    } else {
+        std::cout << "failed to get subModel from param server, using default: " << this->subModel << std::endl;
+    }
     rateVal = 50;
     rate = new ros::Rate(rateVal);
     wheelbase = 0.27;
@@ -112,16 +119,14 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     ROS_INFO("imu topic: %s", imu_topic_name.c_str());
     std::cout << "waiting for Imu message" << std::endl;
     ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
-    std::cout << "waiting for model_states message" << std::endl;
-    if (subModel) ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
-    std::cout << "received message from Imu and model_states" << std::endl;
+    std::cout << "received message from Imu" << std::endl;
     
     if (pubOdom) {
         double odom_publish_frequency = rateVal; 
         odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
     if (useEkf) {
-        subModel = false;
+        this->subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
         for (int i = 0; i < 10; i++) {
@@ -131,7 +136,10 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
         std::cout << "received message from ekf" << std::endl;
     } 
-    if (subModel) {
+    if (this->subModel) {
+        std::cout << "waiting for model_states message" << std::endl;
+        ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
+        std::cout << "received message from model_states" << std::endl;
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
     }
     if (subImu) {
