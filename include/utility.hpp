@@ -177,12 +177,15 @@ public:
     void get_states(double &x_, double &y_, double &yaw_) {
         yaw_ = yaw;
         if(useEkf) {
+            // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
             x_ = ekf_x;
             y_ = ekf_y;
         } else if(subModel) {
+            // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
             x_ = gps_x;
             y_ = gps_y;
         } else {
+            // ROS_INFO("Using odom: %.3f, %.3f", odomX, odomY);
             x_ = odomX;
             y_ = odomY;
         }
