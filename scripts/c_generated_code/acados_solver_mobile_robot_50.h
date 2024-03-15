@@ -36,12 +36,12 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define MOBILE_ROBOT_50_NX     3
+#define MOBILE_ROBOT_50_NX     5
 #define MOBILE_ROBOT_50_NZ     0
 #define MOBILE_ROBOT_50_NU     2
 #define MOBILE_ROBOT_50_NP     0
 #define MOBILE_ROBOT_50_NBX    2
-#define MOBILE_ROBOT_50_NBX0   3
+#define MOBILE_ROBOT_50_NBX0   5
 #define MOBILE_ROBOT_50_NBU    2
 #define MOBILE_ROBOT_50_NSBX   0
 #define MOBILE_ROBOT_50_NSBU   0
@@ -57,9 +57,9 @@
 #define MOBILE_ROBOT_50_NG     0
 #define MOBILE_ROBOT_50_NBXN   0
 #define MOBILE_ROBOT_50_NGN    0
-#define MOBILE_ROBOT_50_NY0    5
-#define MOBILE_ROBOT_50_NY     5
-#define MOBILE_ROBOT_50_NYN    3
+#define MOBILE_ROBOT_50_NY0    7
+#define MOBILE_ROBOT_50_NY     7
+#define MOBILE_ROBOT_50_NYN    5
 #define MOBILE_ROBOT_50_N      80
 #define MOBILE_ROBOT_50_NH     0
 #define MOBILE_ROBOT_50_NPHI   0

@@ -34,7 +34,7 @@
 #include "acados_c/sim_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define MOBILE_ROBOT_50_NX     3
+#define MOBILE_ROBOT_50_NX     5
 #define MOBILE_ROBOT_50_NZ     0
 #define MOBILE_ROBOT_50_NU     2
 #define MOBILE_ROBOT_50_NP     0

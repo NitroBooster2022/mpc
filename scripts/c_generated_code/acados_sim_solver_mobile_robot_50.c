@@ -169,8 +169,8 @@ int mobile_robot_50_acados_sim_create(mobile_robot_50_sim_solver_capsule * capsu
 
     /* initialize input */
     // x
-    double x0[3];
-    for (int ii = 0; ii < 3; ii++)
+    double x0[5];
+    for (int ii = 0; ii < 5; ii++)
         x0[ii] = 0.0;
 
     sim_in_set(mobile_robot_50_sim_config, mobile_robot_50_sim_dims,
@@ -186,11 +186,11 @@ int mobile_robot_50_acados_sim_create(mobile_robot_50_sim_solver_capsule * capsu
                mobile_robot_50_sim_in, "u", u0);
 
     // S_forw
-    double S_forw[15];
-    for (int ii = 0; ii < 15; ii++)
+    double S_forw[35];
+    for (int ii = 0; ii < 35; ii++)
         S_forw[ii] = 0.0;
-    for (int ii = 0; ii < 3; ii++)
-        S_forw[ii + ii * 3 ] = 1.0;
+    for (int ii = 0; ii < 5; ii++)
+        S_forw[ii + ii * 5 ] = 1.0;
 
 
     sim_in_set(mobile_robot_50_sim_config, mobile_robot_50_sim_dims,

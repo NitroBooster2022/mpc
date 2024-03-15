@@ -20,13 +20,17 @@
         "idxbx_0": [
             0,
             1,
-            2
+            2,
+            3,
+            4
         ],
         "idxbx_e": [],
         "idxbxe_0": [
             0,
             1,
-            2
+            2,
+            3,
+            4
         ],
         "idxsbu": [],
         "idxsbx": [],
@@ -46,6 +50,8 @@
             -1.0
         ],
         "lbx_0": [
+            0.0,
+            0.0,
             0.0,
             0.0,
             0.0
@@ -75,6 +81,8 @@
             16.0
         ],
         "ubx_0": [
+            0.0,
+            0.0,
             0.0,
             0.0,
             0.0
@@ -111,6 +119,14 @@
                 0.0
             ],
             [
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0
+            ],
+            [
                 1.0,
                 0.0
             ],
@@ -120,6 +136,14 @@
             ]
         ],
         "Vu_0": [
+            [
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0
+            ],
             [
                 0.0,
                 0.0
@@ -145,9 +169,27 @@
             [
                 1.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
                 0.0,
                 1.0,
                 0.0
@@ -155,14 +197,20 @@
             [
                 0.0,
                 0.0,
+                0.0,
+                0.0,
                 1.0
             ],
             [
                 0.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                0.0,
                 0.0,
                 0.0,
                 0.0
@@ -172,9 +220,27 @@
             [
                 1.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
                 0.0,
                 1.0,
                 0.0
@@ -182,14 +248,20 @@
             [
                 0.0,
                 0.0,
+                0.0,
+                0.0,
                 1.0
             ],
             [
                 0.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                0.0,
                 0.0,
                 0.0,
                 0.0
@@ -199,14 +271,34 @@
             [
                 1.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
                 0.0,
                 1.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
                 0.0,
                 0.0,
                 1.0
@@ -220,11 +312,15 @@
                 0.0,
                 0.0,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
                 0.0,
                 2.0,
+                0.0,
+                0.0,
                 0.0,
                 0.0,
                 0.0
@@ -234,9 +330,31 @@
                 0.0,
                 0.5,
                 0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
                 0.0,
                 0.0,
                 0.0,
@@ -248,7 +366,9 @@
                 0.0,
                 0.0,
                 0.0,
-                0.25
+                0.0,
+                0.0,
+                0.0
             ]
         ],
         "W_0": [
@@ -257,6 +377,71 @@
                 0.0,
                 0.0,
                 0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                2.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+            ]
+        ],
+        "W_e": [
+            [
+                2.0,
+                0.0,
+                0.0,
+                0.0,
                 0.0
             ],
             [
@@ -277,32 +462,15 @@
                 0.0,
                 0.0,
                 0.0,
-                1.0,
-                0.0
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.25
-            ]
-        ],
-        "W_e": [
-            [
-                2.0,
                 0.0,
                 0.0
             ],
             [
                 0.0,
-                2.0,
-                0.0
-            ],
-            [
                 0.0,
                 0.0,
-                0.5
+                0.0,
+                1.0
             ]
         ],
         "Zl": [],
@@ -320,6 +488,8 @@
             0.0,
             0.0,
             0.0,
+            0.0,
+            0.0,
             0.0
         ],
         "yref_0": [
@@ -327,9 +497,13 @@
             0.0,
             0.0,
             0.0,
+            0.0,
+            0.0,
             0.0
         ],
         "yref_e": [
+            0.0,
+            0.0,
             0.0,
             0.0,
             0.0
@@ -347,9 +521,9 @@
         "N": 80,
         "nbu": 2,
         "nbx": 2,
-        "nbx_0": 3,
+        "nbx_0": 5,
         "nbx_e": 0,
-        "nbxe_0": 3,
+        "nbxe_0": 5,
         "ng": 0,
         "ng_e": 0,
         "nh": 0,
@@ -372,10 +546,10 @@
         "nsphi": 0,
         "nsphi_e": 0,
         "nu": 2,
-        "nx": 3,
-        "ny": 5,
-        "ny_0": 5,
-        "ny_e": 3,
+        "nx": 5,
+        "ny": 7,
+        "ny_0": 7,
+        "ny_e": 5,
         "nz": 0
     },
     "json_file": "./mobile_robot_50_acados_ocp.json",
@@ -412,8 +586,8 @@
         "dyn_disc_fun_jac_hess": null,
         "dyn_ext_fun_type": "casadi",
         "dyn_generic_source": null,
-        "f_expl_expr": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegoaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaadaaaaaaaahdhjgegdaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaaegnaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaegeaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaaegmcaaaaaaaaaaaaaachiebokhebokhebnpdegpaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbg",
-        "f_impl_expr": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfadegdaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegoaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaadaaaaaaaahdhjgegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfbdegdaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegnaaaaaaaaaaaaaaachdaaaaaaaaaaaaaaaegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfcdegdaaaaaaaaaaaaaaaegeaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegmcaaaaaaaaaaaaaachiebokhebokhebnpdegpaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbg",
+        "f_expl_expr": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegjaaaaaaaaaaaaaaafaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaeaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegoaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaadaaaaaaaahdhjgegdaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaaegnaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaegeaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaaegmcaaaaaaaaaaaaaachiebokhebokhebnpdegpaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbgegcaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaagaaaaaaaghpfahchfgghegcaaaaaaaaaaaaaaachjaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaakaaaaaaaegfgmgehbgpfahchfggh",
+        "f_impl_expr": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegjaaaaaaaaaaaaaaafaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaeaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfadegdaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegoaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaadaaaaaaaahdhjgegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfbdegdaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegnaaaaaaaaaaaaaaachdaaaaaaaaaaaaaaaegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfcdegdaaaaaaaaaaaaaaaegeaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegmcaaaaaaaaaaaaaachiebokhebokhebnpdegpaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbgegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfddegcaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaagaaaaaaaghpfahchfgghegcaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfedegcaaaaaaaaaaaaaaachoaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaakaaaaaaaegfgmgehbgpfahchfggh",
         "gnsf": {
             "nontrivial_f_LO": 1,
             "purely_linear": 0
@@ -421,8 +595,8 @@
         "name": "mobile_robot_50",
         "p": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "u": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeggaaaaaaaaaaaaaaacaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaghegpcaaaaaaaaaaaaaafaaaaaaaegfgmgehbg",
-        "x": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaihegpcaaaaaaaaaaaaaabaaaaaaajhegpcaaaaaaaaaaaaaadaaaaaaaahdhjg",
-        "xdot": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeghaaaaaaaaaaaaaaadaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfadegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfbdegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfcd",
+        "x": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegjaaaaaaaaaaaaaaafaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaeaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaabaaaaaaaihegpcaaaaaaaaaaaaaabaaaaaaajhegpcaaaaaaaaaaaaaadaaaaaaaahdhjgegpcaaaaaaaaaaaaaagaaaaaaaghpfahchfgghegpcaaaaaaaaaaaaaakaaaaaaaegfgmgehbgpfahchfggh",
+        "xdot": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegjaaaaaaaaaaaaaaafaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaadaaaaaaaaaaaaaaaeaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfadegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfbdegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfcdegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfddegpcaaaaaaaaaaaaaahaaaaaaaihpfegpgehpfed",
         "z": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaegdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
     "parameter_values": [],
