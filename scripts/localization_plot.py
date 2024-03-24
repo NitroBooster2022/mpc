@@ -14,11 +14,19 @@ import argparse
 from std_msgs.msg import String
 import os
 from std_srvs.srv import Trigger, TriggerResponse
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from std_srvs.srv import TriggerResponse  # Add this line
+from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
+import cv2
 
 class Odom():
-    def __init__(self):
+    def __init__(self,  show, plot):
         rospy.init_node('localization_plot', anonymous=True)
+        self.plot = plot
+        self.show = show
+        print("plot: ", self.plot, "show: ", self.show)
+        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
+        #shape is (8107, 12223, 3)
+        self.map = cv2.resize(self.map, (700, int(self.map.shape[0]/self.map.shape[1]*700)))
         self.name = 'car1'
         self.odomState = np.zeros(2)
         self.gpsState = np.zeros(2)
@@ -46,19 +54,46 @@ class Odom():
         self.car_inertial = None
 
         rospy.on_shutdown(self.plot_data)
-        rospy.wait_for_message("/"+self.name+"/command", String)
+        if(self.plot):
+            rospy.wait_for_message("/"+self.name+"/command", String)
 
         # Subscribe to topics
         # self.localization_sub = rospy.Subscriber("/automobile/localisation", localisation, self.gps_callback, queue_size=3)
         # self.localization_sub = rospy.Subscriber("/automobile/localisation", localisation, self.gps_callback, queue_size=3)
         self.model_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.gps_callback, queue_size=3)
         self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
+        # self.gmapping_sub = rospy.Subscriber("/chassis_pose", PoseWithCovarianceStamped, self.gmapping_callback, queue_size=3)
+        # self.hector_sub = rospy.Subscriber("/poseupdate", PoseWithCovarianceStamped, self.hector_callback, queue_size=3)
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
         # self.odom_sub = rospy.Subscriber("/gps", PoseWithCovarianceStamped, self.odom_callback, queue_size=3)
         self.imu1_sub = rospy.Subscriber("/"+self.name+"/imu", Imu, self.imu1_callback, queue_size=3)
-        self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
+        if self.plot:
+            self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
+
+        if self.show:
+            print("showing")
+            self.timer2 = rospy.Timer(rospy.Duration(1.0 / 10.0), self.display)
     
+    def display(self, event):
+        img_map = np.copy(self.map)
+        
+        # ekf
+        img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((14.96-self.ekfState[1])/14.96*self.map.shape[0])),
+                    ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((14.96- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/14.96*self.map.shape[0]))), color=(255,0,255), thickness=2)
+        cv2.circle(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((14.96-self.ekfState[1])/14.96*self.map.shape[0])), radius=5, color=(0, 0, 255), thickness=-1)
+
+        # odom 
+        img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((14.96-self.odomState[1])/14.96*self.map.shape[0])),
+                    ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((14.96- (self.odomState[1]+0.75*math.sin(self.yaw1)))/14.96*self.map.shape[0]))), color=(255,0,255), thickness=2)
+        cv2.circle(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((14.96-self.odomState[1])/14.96*self.map.shape[0])), radius=5, color=(0, 255, 0), thickness=-1)
+
+        windowName = 'track'
+        cv2.namedWindow(windowName,cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(windowName, 700, int(700*img_map.shape[0]/img_map.shape[1]))
+        cv2.imshow(windowName, img_map)
+        key = cv2.waitKey(10)
+
     def handle_trigger(self, req):
         print("Service has been triggered. Plotting data...")
         response = TriggerResponse(success=True, message="Triggered successfully!")
@@ -67,6 +102,7 @@ class Odom():
         time.sleep(0.5)
         rospy.signal_shutdown("Service has been triggered. Shutting down.")
         return response
+    
     def gps_callback(self, data):
         # self.gpsState[0] = data.posA
         # self.gpsState[1] = 15.0 - data.posB
@@ -88,6 +124,12 @@ class Odom():
         self.yaw2 = tf.transformations.euler_from_quaternion([data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z, data.pose.pose.orientation.w])[2]
         self.measuredTwist[0] = data.twist.twist.linear.x
         self.measuredTwist[1] = data.twist.twist.linear.y
+    def gmapping_callback(self, data):
+        self.ekfState[0] = data.pose.pose.position.x
+        self.ekfState[1] = data.pose.pose.position.y
+    def hector_callback(self, data):
+        self.ekfState[0] = data.pose.pose.position.x + 11.71
+        self.ekfState[1] = data.pose.pose.position.y +  1.895
     def odom_callback(self, data):
         self.odomState[0] = data.pose.pose.position.x
         self.odomState[1] = data.pose.pose.position.y
@@ -120,6 +162,8 @@ class Odom():
         print("----------")
     
     def plot_data(self):
+        if not self.plot:
+            return
         # rospy.signal_shutdown("Finished")
         labels = ['X', 'Y', 'Yaw', 'x vel', 'y vel', 'error vs yaw', 'Accel', 'XY']
         fig, axs = plt.subplots(2, len(labels), figsize=(35,10))
@@ -337,7 +381,13 @@ class Odom():
         # plt.show()
 
 if __name__ == '__main__':
-    node = Odom()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--noPlot", action='store_true', help='Boolean for whether to plot the data')
+    # parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
+    # args = parser.parse_args()
+    show = False
+    plot = True
+    node = Odom(show = show, plot = plot)
     while not rospy.is_shutdown():
         rospy.spin()
         

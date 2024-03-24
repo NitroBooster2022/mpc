@@ -11,6 +11,8 @@
 #include <gazebo_msgs/ModelStates.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_msgs/TFMessage.h>
+#include <tf2_ros/buffer.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -22,6 +24,9 @@
 #include <mutex>
 #include <cmath>
 #include <boost/asio.hpp>
+#include "constants.h"
+
+using namespace VehicleConstants;
 
 class Utility {
 public:
@@ -35,31 +40,6 @@ public:
     int intersectionDecision;
     ros::NodeHandle& nh;
     ros::ServiceClient triggerServiceClient;
-    // Constants
-    static const int NUM_VALUES_PER_OBJECT = 7;
-    enum SignValues { x1, y1, x2, y2, distance, confidence, id };
-    enum LOCALIZATION_SOURCE {
-        ODOM,
-        EKF
-    };
-    static constexpr double CAM_TO_CAR_FRONT = 0.21;
-    static constexpr double CAR_LENGTH = 0.464;
-    static constexpr double CAR_WIDTH = 0.1885;
-    static constexpr double CAR_HEIGHT = 0.1155;
-    static constexpr double MAX_TAILING_DIST = 1.0;
-    static constexpr double MIN_SIGN_DIST = 0.39;  // 0.6 - 0.21
-    static constexpr double MAX_SIGN_DIST = 1.09;  // 1.3 - 0.21
-    static constexpr double MAX_PARK_DIST = 0.79;  // 1.0 - 0.21
-    static constexpr double PARKSIGN_TO_CAR = 0.51;
-    static constexpr double PARK_OFFSET = 1.31;    // 1.1 + 0.21
-    static constexpr double PARKING_SPOT_LENGTH = 0.723;
-    static constexpr double OVERTAKE_DIST = 2.0;
-    static constexpr double LANE_OFFSET = 0.36;
-    static constexpr double MIN_DIST_TO_CAR = 0.8;
-    static constexpr double MAX_CAR_DIST = 3.0;
-    static constexpr double SIGN_COOLDOWN = 1.0;
-    static constexpr double TOLERANCE_SQUARED = 0.01;
-    static constexpr double STOP_DURATION = 1.50;
     
     std::string robot_name;
     // std::vector<std::array<double, 2>> detected_cars;
@@ -71,7 +51,6 @@ public:
             std::cout << "Car " << i << ": " << detected_cars[i][0] << ", " << detected_cars[i][1] << std::endl;
         }
     }
-    std::array<double, 4> CAMERA_PARAMS = {554.3826904296875, 554.3826904296875, 320, 240};
     struct CameraPose {
         double x;
         double y;
@@ -82,6 +61,7 @@ public:
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
     bool real;
+    bool useTf = true;
     double rateVal;
     ros::Rate* rate;
 
@@ -104,12 +84,15 @@ public:
     bool initializationFlag, imuInitialized = false;
 
     tf2_ros::StaticTransformBroadcaster static_broadcaster;
+    tf2_ros::TransformBroadcaster broadcaster;
+    tf2_ros::Buffer tfBuffer;
 
     // publishers
     ros::Publisher odom_pub;
     // ros::Publisher odom1_pub;
     ros::Publisher cmd_vel_pub;
     ros::Publisher car_pose_pub;
+    ros::Publisher pose_pub;
 
     // messages
     nav_msgs::Odometry odom_msg;
@@ -122,7 +105,7 @@ public:
     gazebo_msgs::ModelStates model;
     std_msgs::Float32MultiArray sign;
     utils::Lane lane;
-    sensor_msgs::Imu imu;
+    sensor_msgs::Imu imu_msg;
     tf2::Quaternion q_imu;
     tf2::Matrix3x3 m_chassis;
     tf2::Quaternion tf2_quat;
@@ -136,6 +119,7 @@ public:
     ros::Subscriber model_sub;
     ros::Subscriber imu_sub;
     ros::Subscriber ekf_sub;
+    ros::Subscriber tf_sub;
 
     ros::Timer odom_pub_timer;
     void odom_pub_timer_callback(const ros::TimerEvent&);
@@ -146,6 +130,7 @@ public:
     void model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg);
     void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
     void ekf_callback(const nav_msgs::Odometry::ConstPtr& msg);
+    void tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg);
     void spin();
     // Methods
     void stop_car();
@@ -177,12 +162,15 @@ public:
     void get_states(double &x_, double &y_, double &yaw_) {
         yaw_ = yaw;
         if(useEkf) {
+            // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
             x_ = ekf_x;
             y_ = ekf_y;
         } else if(subModel) {
+            // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
             x_ = gps_x;
             y_ = gps_y;
         } else {
+            // ROS_INFO("Using odom: %.3f, %.3f", odomX, odomY);
             x_ = odomX;
             y_ = odomY;
         }

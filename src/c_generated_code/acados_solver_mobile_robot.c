@@ -390,7 +390,6 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     W_0[1+(NY0) * 1] = 2;
     W_0[2+(NY0) * 2] = 0.5;
     W_0[3+(NY0) * 3] = 1;
-    W_0[4+(NY0) * 4] = 0.25;
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "W", W_0);
     free(W_0);
     double* W = calloc(NY*NY, sizeof(double));
@@ -399,7 +398,6 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     W[1+(NY) * 1] = 2;
     W[2+(NY) * 2] = 0.5;
     W[3+(NY) * 3] = 1;
-    W[4+(NY) * 4] = 0.25;
 
     for (int i = 1; i < N; i++)
     {
@@ -498,10 +496,10 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
-    lbu[0] = -1;
-    ubu[0] = 2;
-    lbu[1] = -0.4;
-    ubu[1] = 0.4;
+    lbu[0] = -0.4;
+    ubu[0] = 0.5;
+    lbu[1] = -0.42;
+    ubu[1] = 0.42;
 
     for (int i = 0; i < N; i++)
     {
@@ -528,9 +526,9 @@ void mobile_robot_acados_create_5_set_nlp_in(mobile_robot_solver_capsule* capsul
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -1;
+    lbx[0] = -2;
     ubx[0] = 22;
-    lbx[1] = -1;
+    lbx[1] = -2;
     ubx[1] = 16;
 
     for (int i = 1; i < N; i++)

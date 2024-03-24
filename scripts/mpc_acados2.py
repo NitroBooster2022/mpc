@@ -259,20 +259,20 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        # cur_path = os.path.dirname(os.path.realpath(__file__))
-        # path = os.path.join(cur_path, 'paths')
-        # os.makedirs(path, exist_ok=True)
-        # # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
-        # # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
+        cur_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(cur_path, 'paths')
+        os.makedirs(path, exist_ok=True)
+        # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
 
-        # np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
-        # print("stateref shape: ", self.state_refs.shape)
-        # np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
+        np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
+        print("stateref shape: ", self.state_refs.shape)
+        np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
 
-        # # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        # exit()
+        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        exit()
 
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index
@@ -299,7 +299,7 @@ class Optimizer(object):
         # std::cout << "x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
         # print x_cur, ref, u_cur, error
         self.counter += 1
-        print(self.counter, ") cur: ", np.around(self.current_state, 2), ", ref: ", np.around(self.next_trajectories[0, :], 2), ", ctrl: ", np.around(next_u, 2), ", idx: ", self.target_waypoint_index)
+        # print(self.counter, ") cur: ", np.around(self.current_state, 2), ", ref: ", np.around(self.next_trajectories[0, :], 2), ", ctrl: ", np.around(next_u, 2), ", idx: ", self.target_waypoint_index)
         return next_u
     def integrate_next_states(self, u_res=None):
         # 以下纯粹为了仿真
@@ -462,7 +462,7 @@ class Optimizer(object):
             self.last_waypoint_index += 1
         target_idx = max(self.last_waypoint_index, closest_idx)
         # print this: std::cout << "cur:" << current_state[0] << "," << current_state[1] << "," << current_state[2] << ", closest_idx:" << closest_idx << ", closest:" << state_refs(closest_idx, 0) << "," << state_refs(closest_idx, 1) << "," << state_refs(closest_idx, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
-        print("cur:", self.current_state, ", closest_idx: ", closest_idx, ", closest: ", self.state_refs[closest_idx], "dist_to_waypoint: ", dist_to_waypoint,  ", last_waypoint_index: ", self.last_waypoint_index, ", target_idx: ", target_idx)
+        # print("cur:", self.current_state, ", closest_idx: ", closest_idx, ", closest: ", self.state_refs[closest_idx], "dist_to_waypoint: ", dist_to_waypoint,  ", last_waypoint_index: ", self.last_waypoint_index, ", target_idx: ", target_idx)
         # print("find_next_waypoint time: ", timeit.default_timer() - start)
         return min(target_idx, len(self.waypoints_x) - 1)
     def draw_result(self, stats, xmin=None, xmax=None, ymin=None, ymax=None, objects=None, car_states=None):
@@ -547,7 +547,7 @@ if __name__ == '__main__':
 
     mpc.target_waypoint_index = 0
     while True:
-        if mpc.target_waypoint_index >= mpc.num_waypoints-1:
+        if mpc.target_waypoint_index >= mpc.num_waypoints-1 or mpc.mpciter > 1000:
         # if mpc.target_waypoint_index >= 375:
             break
         t = time.time()
@@ -571,12 +571,12 @@ if __name__ == '__main__':
         mpc.mpciter = mpc.mpciter + 1
     stats = mpc.compute_stats()
     # save current states and controls as txt
-    np.savetxt('x.txt', mpc.xx, fmt='%.8f')
-    np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
-    park_offset = 0.#95
-    mpc.current_state = np.array([park_offset, 0, np.pi])
-    mpc.go_straight(park_offset)
-    mpc.park()
+    # np.savetxt('x.txt', mpc.xx, fmt='%.8f')
+    # np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
+    # park_offset = 0.#95
+    # mpc.current_state = np.array([park_offset, 0, np.pi])
+    # mpc.go_straight(park_offset)
+    # mpc.park()
     # mpc.exit_park()
     print("done")
     mpc.draw_result(stats, 0, 22, 0, 15)

@@ -16,9 +16,10 @@
 #include "acados_solver_mobile_robot.h"
 #include "acados_sim_solver_mobile_robot_25.h"
 #include "acados_solver_mobile_robot_25.h"
+#include "acados_sim_solver_mobile_robot_18.h"
+#include "acados_solver_mobile_robot_18.h"
 #include "acados_solver_park.h"
 #include "acados_sim_solver_park.h"
-
 
 class Optimizer {
 public:
@@ -79,6 +80,7 @@ public:
     int target_waypoint_index, last_waypoint_index, closest_waypoint_index, num_waypoints;
     int v_ref_int;
     bool use25 = false;
+    bool use18 = false;
     double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
     bool debug = true;
     Eigen::Vector3d current_state;
@@ -94,6 +96,8 @@ public:
     mobile_robot_sim_solver_capsule *sim_capsule;
     mobile_robot_25_solver_capsule *acados_ocp_capsule_25;
     mobile_robot_25_sim_solver_capsule *sim_capsule_25;
+    mobile_robot_18_solver_capsule *acados_ocp_capsule_18;
+    mobile_robot_18_sim_solver_capsule *sim_capsule_18;
     sim_config *mobile_robot_sim_config;
     void *mobile_robot_sim_dims;
     sim_in *mobile_robot_sim_in;
