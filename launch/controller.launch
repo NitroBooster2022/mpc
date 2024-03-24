@@ -7,7 +7,7 @@
   <arg name="sign" default="false"/>
   <arg name="ekf" default="false"/>
   <arg name="lane" default="false"/>
-  <arg name="name" default="automobile"/>
+  <arg name="name" default="car1"/>
   <arg name="vref" default="0.50"/>
   <arg name="x0" default="11.88"/>
   <arg name="y0" default="1.91"/>

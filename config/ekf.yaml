@@ -6,6 +6,7 @@ print_diagnostics: true
 debug: false
 two_d_mode: true
 smooth_lagged_data: true 
+publish_tf: false
 history_length: 1.57
 # initial_state: [0.82, 0.09, 0.0, 
 #                 0.0, 0.0, 1.570761, 

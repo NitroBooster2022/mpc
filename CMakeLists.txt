@@ -10,6 +10,12 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -DEXT_DEP -fdiagnostics-show-option")
 find_package(PkgConfig)
 pkg_search_module(Eigen3 REQUIRED eigen3)
+# see if acados source dir found
+if(NOT DEFINED ENV{ACADOS_SOURCE_DIR})
+  message(FATAL_ERROR "Please set the environment variable ACADOS_SOURCE_DIR to the acados source directory")
+else()
+  message(STATUS "Found acados source directory: $ENV{ACADOS_SOURCE_DIR}")
+endif()
 include_directories(${Eigen3_INCLUDE_DIRS})
 message(STATUS "Found Eigen version: ${Eigen3_VERSION}")
 include_directories($ENV{ACADOS_SOURCE_DIR}/include)
@@ -20,6 +26,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_park)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_50)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_25)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18)
 link_directories($ENV{ACADOS_SOURCE_DIR}/lib)
 
 file(GLOB ocp_solver
@@ -68,6 +75,17 @@ file(GLOB casadi_fun25
 file(GLOB sim_solver25
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_25/acados_sim_solver_mobile_robot_25.c
         )
+file(GLOB ocp_solver18
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/acados_solver_mobile_robot_18.c
+        )
+file(GLOB casadi_fun18
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/mobile_robot_18_model/mobile_robot_18_expl_ode_fun.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/mobile_robot_18_model/mobile_robot_18_expl_vde_forw.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/mobile_robot_18_model/mobile_robot_18_expl_vde_adj.c
+        )
+file(GLOB sim_solver18
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/acados_sim_solver_mobile_robot_18.c
+        )
 
 
 find_package(nlohmann_json 3.2.0 REQUIRED)
@@ -114,10 +132,10 @@ include_directories(
 file(GLOB_RECURSE ALGLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src/*.cpp)
 add_library(alglib SHARED ${ALGLIB_SOURCES})
 
-add_library(ocp_shared_lib SHARED ${ocp_solver} ${casadi_fun} ${ocp_solver50} ${casadi_fun50} ${ocp_solver25} ${casadi_fun25})
+add_library(ocp_shared_lib SHARED ${ocp_solver} ${casadi_fun} ${ocp_solver50} ${casadi_fun50} ${ocp_solver25} ${casadi_fun25} ${ocp_solver18} ${casadi_fun18})
 target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
 
-add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun} ${sim_solver50} ${casadi_fun50} ${sim_solver25} ${casadi_fun25})
+add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun} ${sim_solver50} ${casadi_fun50} ${sim_solver25} ${casadi_fun25} ${sim_solver18} ${casadi_fun18})
 target_link_libraries(sim_shared_lib acados hpipm blasfeo)
 
 add_executable(path_planner src/path_planner.cpp)

@@ -15,7 +15,7 @@ from std_msgs.msg import String
 import os
 from std_srvs.srv import Trigger, TriggerResponse
 from std_srvs.srv import TriggerResponse  # Add this line
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
 import cv2
 
 class Odom():
@@ -62,6 +62,8 @@ class Odom():
         # self.localization_sub = rospy.Subscriber("/automobile/localisation", localisation, self.gps_callback, queue_size=3)
         self.model_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self.gps_callback, queue_size=3)
         self.ekf_sub = rospy.Subscriber("/odometry/filtered", Odometry, self.ekf_callback, queue_size=3)
+        # self.gmapping_sub = rospy.Subscriber("/chassis_pose", PoseWithCovarianceStamped, self.gmapping_callback, queue_size=3)
+        # self.hector_sub = rospy.Subscriber("/poseupdate", PoseWithCovarianceStamped, self.hector_callback, queue_size=3)
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
         # self.odom_sub = rospy.Subscriber("/gps", PoseWithCovarianceStamped, self.odom_callback, queue_size=3)
         self.imu1_sub = rospy.Subscriber("/"+self.name+"/imu", Imu, self.imu1_callback, queue_size=3)
@@ -122,6 +124,12 @@ class Odom():
         self.yaw2 = tf.transformations.euler_from_quaternion([data.pose.pose.orientation.x, data.pose.pose.orientation.y, data.pose.pose.orientation.z, data.pose.pose.orientation.w])[2]
         self.measuredTwist[0] = data.twist.twist.linear.x
         self.measuredTwist[1] = data.twist.twist.linear.y
+    def gmapping_callback(self, data):
+        self.ekfState[0] = data.pose.pose.position.x
+        self.ekfState[1] = data.pose.pose.position.y
+    def hector_callback(self, data):
+        self.ekfState[0] = data.pose.pose.position.x + 11.71
+        self.ekfState[1] = data.pose.pose.position.y +  1.895
     def odom_callback(self, data):
         self.odomState[0] = data.pose.pose.position.x
         self.odomState[1] = data.pose.pose.position.y
@@ -373,13 +381,13 @@ class Odom():
         # plt.show()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--noPlot", action='store_true', help='Boolean for whether to plot the data')
-    parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
-    # example usage: python3 localization_plot.py --plot True --show False
-    args = parser.parse_args()
-    print("plot: ", args.plot, "show: ", args.show)
-    node = Odom(show = args.show, plot = not args.noPlot)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--noPlot", action='store_true', help='Boolean for whether to plot the data')
+    # parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
+    # args = parser.parse_args()
+    show = False
+    plot = True
+    node = Odom(show = show, plot = plot)
     while not rospy.is_shutdown():
         rospy.spin()
         

@@ -259,20 +259,20 @@ class Optimizer(object):
         return solver, integrator, T, N, t_horizon
     
     def update_and_solve(self):
-        # cur_path = os.path.dirname(os.path.realpath(__file__))
-        # path = os.path.join(cur_path, 'paths')
-        # os.makedirs(path, exist_ok=True)
-        # # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
-        # # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
+        cur_path = os.path.dirname(os.path.realpath(__file__))
+        path = os.path.join(cur_path, 'paths')
+        os.makedirs(path, exist_ok=True)
+        # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
+        # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
 
-        # np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
-        # print("stateref shape: ", self.state_refs.shape)
-        # np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
-        # np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
+        np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
+        print("stateref shape: ", self.state_refs.shape)
+        np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
 
-        # # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
-        # exit()
+        # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
+        exit()
 
         self.target_waypoint_index = self.find_next_waypoint()
         idx = self.target_waypoint_index
@@ -547,7 +547,7 @@ if __name__ == '__main__':
 
     mpc.target_waypoint_index = 0
     while True:
-        if mpc.target_waypoint_index >= mpc.num_waypoints-1 or mpc.mpciter > 537:
+        if mpc.target_waypoint_index >= mpc.num_waypoints-1 or mpc.mpciter > 1000:
         # if mpc.target_waypoint_index >= 375:
             break
         t = time.time()

@@ -31,8 +31,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     nlp_in_park = park_acados_get_nlp_in(acados_ocp_capsule_park);
     nlp_out_park = park_acados_get_nlp_out(acados_ocp_capsule_park);
 
-    if (v_ref_int == 50) {
-        std::cout << "reference speed is 50 cm/s" << std::endl;
+    if (v_ref_int >= 40) {
+        std::cout << "reference speed is 40 cm/s" << std::endl;
         // Create a capsule according to the pre-defined model
         acados_ocp_capsule = mobile_robot_acados_create_capsule();
 
@@ -84,6 +84,33 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
         nlp_dims = mobile_robot_25_acados_get_nlp_dims(acados_ocp_capsule_25);
         nlp_in = mobile_robot_25_acados_get_nlp_in(acados_ocp_capsule_25);
         nlp_out = mobile_robot_25_acados_get_nlp_out(acados_ocp_capsule_25);
+    } else if(v_ref_int == 18) {
+        std::cout << "reference speed is 18 cm/s" << std::endl;
+        use18 = true;
+        use25 = false;
+        acados_ocp_capsule_18 = mobile_robot_18_acados_create_capsule();
+        status = mobile_robot_18_acados_create(acados_ocp_capsule_18);
+        if (status) {
+            printf("mobile_robot_18_acados_create() returned status %d. Exiting.\n", status);
+            exit(1);
+        }
+        sim_capsule_18 = mobile_robot_18_acados_sim_solver_create_capsule();
+        status = mobile_robot_18_acados_sim_create(sim_capsule_18);
+        mobile_robot_sim_config = mobile_robot_18_acados_get_sim_config(sim_capsule_18);
+        mobile_robot_sim_dims = mobile_robot_18_acados_get_sim_dims(sim_capsule_18);
+        mobile_robot_sim_in = mobile_robot_18_acados_get_sim_in(sim_capsule_18);
+        mobile_robot_sim_out = mobile_robot_18_acados_get_sim_out(sim_capsule_18);
+        if (status) {
+            printf("acados_create() simulator returned status %d. Exiting.\n", status);
+            exit(1);
+        }
+        nlp_config = mobile_robot_18_acados_get_nlp_config(acados_ocp_capsule_18);
+        nlp_dims = mobile_robot_18_acados_get_nlp_dims(acados_ocp_capsule_18);
+        nlp_in = mobile_robot_18_acados_get_nlp_in(acados_ocp_capsule_18);
+        nlp_out = mobile_robot_18_acados_get_nlp_out(acados_ocp_capsule_18);
+    } else {
+        std::cerr << "Invalid reference speed, please use 18, 25 or 50" << std::endl;
+        exit(1);
     }
 
     // Setting problem dimensions
@@ -246,6 +273,8 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
     // Solve the optimization problem
     if(use25) {
         status = mobile_robot_25_acados_solve(acados_ocp_capsule_25);
+    } else if(use18) {
+        status = mobile_robot_18_acados_solve(acados_ocp_capsule_18);
     } else {
         status = mobile_robot_acados_solve(acados_ocp_capsule);
     }
@@ -491,7 +520,7 @@ void Optimizer::saveToFile(const EigenType &data, const std::string &filename) {
 Eigen::MatrixXd Optimizer::loadTxt(const std::string &filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        throw std::runtime_error("Unable to open file");
+        throw std::runtime_error("Unable to open file: " + filename);
     }
 
     std::string line;

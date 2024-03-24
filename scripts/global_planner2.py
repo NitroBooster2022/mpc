@@ -110,13 +110,15 @@ class GlobalPlanner:
                 if normalized_cross > 0.75: #left
                     # print(f"node {node} is a left turn, cross: ", normalized_cross)
                     x, y = self.pos[node]
+                    x += vec1[0] / mag1 * 0.15
+                    y += vec1[1] / mag1 * 0.15
                     wp_x.append(x)
                     wp_y.append(y)
                     wp_attributes.append(self.attribute.get(node, 0))
                 elif normalized_cross < -0.75:
                     # print(f"node {node} is a right turn, cross: ", normalized_cross)
-                    x = prev_x + vec1[0] / mag1 * 0.15
-                    y = prev_y + vec1[1] / mag1 * 0.15
+                    x = prev_x + vec1[0] / mag1 * 0.357
+                    y = prev_y + vec1[1] / mag1 * 0.357
                     wp_x.append(x)
                     wp_y.append(y)
                     # print("prev: ", prev_x, prev_y, "added: ", x, y)

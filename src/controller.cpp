@@ -11,11 +11,13 @@
 #include <fstream>
 #include <iostream>
 
+using namespace VehicleConstants;
+
 class StateMachine {
 public:
     StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name, double x_init, double y_init, double yaw_init, bool real): 
     nh(nh_), utils(nh, real, x_init, y_init, yaw_init, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
-    state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0)
+    state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0), real(real)
     {
         //initialize parking spots
         for(int i=0; i<5; i++) {
@@ -48,69 +50,6 @@ public:
     ros::NodeHandle& nh;
 
 // private:
-    // Constants
-    const std::array<std::string, 11> state_names = {
-        "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
-        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING"
-    };
-    enum STATE {
-        INIT,
-        MOVING,
-        APPROACHING_INTERSECTION,
-        WAITING_FOR_STOPSIGN,
-        WAITING_FOR_LIGHT,
-        PARKING,
-        PARKED,
-        EXITING_PARKING,
-        DONE,
-        LANE_FOLLOWING,
-        INTERSECTION_MANEUVERING
-    };
-    enum STOPSIGN_FLAGS {
-        NONE,
-        STOP,
-        LIGHT,
-        PRIO
-    };
-    enum OBJECT {
-        ONEWAY,
-        HIGHWAYENTRANCE,
-        STOPSIGN,
-        ROUNDABOUT,
-        PARK,
-        CROSSWALK,
-        NOENTRY,
-        HIGHWAYEXIT,
-        PRIORITY,
-        LIGHTS,
-        BLOCK,
-        PEDESTRIAN,
-        CAR,
-    };
-    
-    static constexpr double CAM_TO_CAR_FRONT = 0.21;
-    static constexpr double CAR_LENGTH = 0.464;
-    static constexpr double MAX_TAILING_DIST = 1.0;
-    static constexpr double MIN_SIGN_DIST = 0.39;  // 0.6 - 0.21
-    // static constexpr double MAX_SIGN_DIST = 1.09;
-    static constexpr double MAX_SIGN_DIST = 0.753;
-    static constexpr double MAX_PARK_DIST = 0.79;  // 1.0 - 0.21
-    static constexpr double MAX_CROSSWALK_DIST = 0.79;  // 1.0 - 0.21
-    static constexpr double PARKSIGN_TO_CAR = 0.51;
-    static constexpr double PARK_OFFSET = 1.31;    // 1.1 + 0.21
-    static constexpr double PARKING_SPOT_LENGTH = 0.723;
-    static constexpr double CROSSWALK_LENGTH = 1.0;
-    static constexpr double OVERTAKE_DIST = 2.0;
-    static constexpr double LANE_OFFSET = 0.36;
-    static constexpr double MIN_DIST_TO_CAR = 0.8;
-    static constexpr double MAX_CAR_DIST = 3.0;
-    static constexpr double SIGN_COOLDOWN = 1.0;
-    static constexpr double TOLERANCE_SQUARED = 0.01;
-    static constexpr double STOP_DURATION = 1.50;
-    static constexpr double NORMAL_SPEED = 0.175;
-    static constexpr double FAST_SPEED = 0.4;
-    std::array<double, 2> PARKING_SPOT_RIGHT = {9.50, 0.372};
-    std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
     // std::array<int, 9> maneuver_indices = {2, 2, 2, 2, 2, 2, 2, 2, 2};
@@ -129,7 +68,7 @@ public:
     Eigen::Vector2d destination;
     Eigen::VectorXd xs;
     int state = 0;
-    bool debug = true, sign, ekf, lane;
+    bool debug = true, sign, ekf, lane, real;
     std::string gaz_bool = "_gazebo_";
 
     ros::Time cooldown_timer;
@@ -152,8 +91,55 @@ public:
             rate->sleep();
         }
     }
-    int parking_maneuver_hardcode(bool right = true, bool exit = false, double rate_val = 10);
+    int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20) {
+        Eigen::VectorXd targets(3);
+        Eigen::VectorXd steerings(3);
+        Eigen::VectorXd speeds(3);
+        Eigen::VectorXd thresholds(3);
+        double base_yaw_target = 0.166 * M_PI;
+        if (!real) base_yaw_target = 0.25 * M_PI;
+        double base_steer = - HARD_MAX_STEERING;
+        double base_speed = -0.2;
+        double base_thresh = 0.1;
+        targets << base_yaw_target, 0.0, 0.0;
+        steerings << -base_steer, base_steer, -base_steer;
+        speeds << base_speed, base_speed, -base_speed;
+        thresholds << base_thresh, base_thresh, base_thresh/3;
+        if (exit) {
+            targets << base_yaw_target, base_yaw_target, 0.0;
+            thresholds(0) = (1 - base_thresh / base_yaw_target) * base_yaw_target;
+            thresholds(1) = base_thresh;
+            thresholds(2) = base_thresh;
+            speeds << base_speed, -base_speed, -base_speed;
+        }
+        if (!right) {
+            steerings *= -1;
+            targets *= -1;
+            std::cout << "targets: " << targets.transpose() << ", steerings: " << steerings.transpose() << ", speeds: " << speeds.transpose() << ", thresholds: " << thresholds.transpose() << std::endl;
+        }
+        ROS_INFO("parking maneuver called. park right: %s, exit: %s", right ? "true" : "false", exit ? "true" : "false");
+        std::cout << "targets: " << targets.transpose() << ", steerings: " << steerings.transpose() << ", speeds: " << speeds.transpose() << ", thresholds: " << thresholds.transpose() << std::endl;
+        return maneuver_hardcode(targets, steerings, speeds, thresholds, rate_val);
+    }
     int change_lane_hardcode(bool right, double rate_val = 20) {
+        Eigen::VectorXd targets(1);
+        targets << 0.15 * M_PI;
+        Eigen::VectorXd steering(1);
+        steering << -23.;
+        if (right) {
+            steering *= -1;
+        }
+        Eigen::VectorXd speeds(1);
+        speeds << 0.2;
+        Eigen::VectorXd thresholds(1);
+        thresholds << 0.05;
+        return maneuver_hardcode(targets, steering, speeds, thresholds, rate_val);
+    }
+    int maneuver_hardcode(const Eigen::VectorXd &targets, const Eigen::VectorXd &steerings, const Eigen::VectorXd &speeds, const Eigen::VectorXd &thresholds, double rate_val = 20) {
+        /* 
+        targets: target yaws or distances
+        thresholds: thresholds for each target        
+        */
         double x0, y0, yaw0;
         // get current states
         utils.get_states(x0, y0, yaw0);
@@ -161,24 +147,24 @@ public:
         yaw0 = mpc.NearestDirection(yaw0);
         while (yaw0 < -M_PI) yaw0 += 2*M_PI;
         while (yaw0 > M_PI) yaw0 -= 2*M_PI;
-        ROS_INFO("changing lane called. nearest direction: %.3f", yaw0);
+        Eigen::VectorXd yaw0_vec = Eigen::VectorXd::Constant(targets.size(), yaw0);
+        Eigen::VectorXd target_yaws = targets + yaw0_vec;
+        std::cout << "target yaws: " << target_yaws.transpose() << std::endl;
+        ROS_INFO("maneuver called. nearest direction: %.3f", yaw0);
         int stage = 1;
-        double steering_angle = -23.;
-        double speed = 0.2;
-        double thresh = 0.1;
-        double yaw_thresh = 0.15 * M_PI;
-        if (right) {
-            steering_angle *= -1;
-        }
-        printf("yaw_0: %3f, steering_angle: %3f, speed: %3f, change right: %s\n", yaw0, steering_angle, speed, right ? "true" : "false");
-
+        int num_stages = targets.size();
         ros::Rate temp_rate(rate_val);
-
+        
+        double steering_angle = steerings(stage-1);
+        double speed = speeds(stage-1);
+        double yaw = utils.get_yaw();
+        double yaw_error = yaw - target_yaws(stage-1);
+        double yaw_error_sign = yaw_error > 0 ? 1 : -1;
         while(1) {
-            double yaw = utils.get_yaw();
+            yaw = utils.get_yaw();
             while (yaw < -M_PI) yaw += 2*M_PI;
             while (yaw > M_PI) yaw -= 2*M_PI;
-            double yaw_error = yaw - yaw0;
+            yaw_error = yaw - target_yaws(stage-1);
             while(std::abs(yaw_error) > M_PI * 1.2) {
                 if(yaw_error > M_PI * 1.2) {
                     yaw_error -= 2*M_PI;
@@ -186,18 +172,36 @@ public:
                     yaw_error += 2*M_PI;
                 }
             }
-            // ROS_INFO("yaw: %3f, yaw0: %.3f, yaw_error: %3f, steering_angle: %3f", yaw, yaw0, yaw_error, steering_angle);
-            if (stage == 1 && std::abs(yaw_error) > yaw_thresh) {
-                ROS_INFO("stage 1 completed. yaw error: %3f pi", yaw_error/M_PI);
-                stage = 2;
-                break;
-                // steering_angle *= -1;
-                // continue;
-            } else if (stage == 2 && std::abs(yaw_error) < thresh) {
-                ROS_INFO("stage 2 completed. yaw error: %3f", yaw_error);
-                break;
+            // ROS_INFO("yaw: %.3f, targ: %.3f, yaw_err: %.3f, steer: %.3f, speed: %.3f", yaw, target_yaws(stage-1), yaw_error, steering_angle, speed);
+            bool exit_cond;
+            if (std::abs(steering_angle) < 0.1) {
+                double x, y, yaw;
+                utils.get_states(x, y, yaw);
+                double dist_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
+                exit_cond = std::abs(dist_sq - targets(stage-1) * targets(stage-1)) < thresholds(stage-1) * thresholds(stage-1);
+                orientation_follow(yaw0, speed);
+            } else {
+                if(yaw_error_sign < 0) {
+                    exit_cond = yaw_error > -thresholds(stage-1);
+                } else {
+                    exit_cond = yaw_error < thresholds(stage-1);
+                }
+                // exit_cond = std::abs(yaw_error) < thresholds(stage-1);
+                utils.publish_cmd_vel(steering_angle, speed);
             }
-            utils.publish_cmd_vel(steering_angle, speed);
+            if (exit_cond) {
+                ROS_INFO("stage %d completed. yaw error: %.3f", stage, yaw_error);
+                stage++;
+                if (stage > num_stages) {
+                    ROS_INFO("maneuver completed.");
+                    break;
+                }
+                steering_angle = steerings(stage-1);
+                speed = speeds(stage-1);
+                yaw_error = yaw - target_yaws(stage-1);
+                yaw_error_sign = yaw_error > 0 ? 1 : -1;
+                continue;
+            }
             temp_rate.sleep();
         }
         return 0;
@@ -252,7 +256,7 @@ public:
                 if (dist < MAX_SIGN_DIST && dist > 0) {
                     std::cout << "stop sign detected at a distance of: " << dist << std::endl;
                     detected_dist = dist;
-                    utils.reset_odom();
+                    if(lane) utils.reset_odom();
                     stopsign_flag = STOPSIGN_FLAGS::STOP;
                 }
             }
@@ -262,7 +266,7 @@ public:
                 if (dist < MAX_SIGN_DIST && dist > 0) {
                     std::cout << "traffic light detected at a distance of: " << dist << std::endl;
                     detected_dist = dist;
-                    utils.reset_odom();
+                    if(lane) utils.reset_odom();
                     stopsign_flag = STOPSIGN_FLAGS::LIGHT;
                 }
             }
@@ -282,7 +286,7 @@ public:
         //     if (ros::Time::now() > cooldown_timer && dist > 0) {
         //         std::cout << "stop sign detected at a distance of: " << dist << std::endl;
         //         // auto box = utils.object_box(stopsign_index);
-        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, utils.CAMERA_PARAMS);
+        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
         //         // std::cout << "world pose: " << world_pose << std::endl;
         //         // utils.add_object("stopsign", world_pose);
         //         detected_dist = dist;
@@ -296,7 +300,7 @@ public:
         //     if (ros::Time::now() > cooldown_timer && dist > 0) {
         //         std::cout << "traffic light detected at a distance of: " << dist << std::endl;
         //         // auto box = utils.object_box(stopsign_index);
-        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, utils.CAMERA_PARAMS);
+        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
         //         // std::cout << "world pose: " << world_pose << std::endl;
         //         // utils.add_object("light", world_pose);
         //         detected_dist = dist;
@@ -335,7 +339,7 @@ public:
             while (true) {
                 if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
                     double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
-                    ROS_INFO("girl detected at a distance of: %3f", dist);
+                    ROS_INFO("girl detected at a distance of: %.3f", dist);
                     stop_for(STOP_DURATION);
                 } else {
                     pedestrian_count ++;
@@ -369,65 +373,6 @@ public:
     }
 };
 
-int StateMachine::parking_maneuver_hardcode(bool right, bool exit, double rate_val) {
-    double x0, y0, yaw0;
-    // get current states
-    utils.get_states(x0, y0, yaw0);
-    // get closest direction
-    yaw0 = mpc.NearestDirection(yaw0);
-    while (yaw0 < -M_PI) yaw0 += 2*M_PI;
-    while (yaw0 > M_PI) yaw0 -= 2*M_PI;
-    ROS_INFO("nearest direction: %.3f", yaw0);
-    int stage = 1;
-    double steering_angle = -23.;
-    double speed = -0.2;
-    double thresh = 0.1;
-    if (right) {
-        steering_angle *= -1;
-    }
-    if (exit) {
-        speed *= -1;
-        steering_angle *= -1;
-        thresh *= 2;
-    }
-    printf("yaw_0: %3f, steering_angle: %3f, speed: %3f, park right: %s\n", yaw0, steering_angle, speed, right ? "true" : "false");
-
-    ros::Rate temp_rate(rate_val);
-
-    while(1) {
-        double yaw = utils.get_yaw();
-        while (yaw < -M_PI) yaw += 2*M_PI;
-        while (yaw > M_PI) yaw -= 2*M_PI;
-        double yaw_error = yaw - yaw0;
-        while(std::abs(yaw_error) > M_PI * 1.2) {
-            if(yaw_error > M_PI * 1.2) {
-                yaw_error -= 2*M_PI;
-            } else {
-                yaw_error += 2*M_PI;
-            }
-        }
-        ROS_INFO("yaw: %3f, yaw0: %.3f, yaw_error: %3f, steering_angle: %3f", yaw, yaw0, yaw_error, steering_angle);
-        if (stage == 1 && std::abs(yaw_error) > M_PI*0.166) {
-            ROS_INFO("stage 1 completed. yaw error: %3f", yaw_error);
-            stage = 2;
-            steering_angle *= -1;
-            continue;
-        } else if (stage == 2 && std::abs(yaw_error) < thresh) {
-            ROS_INFO("stage 2 completed. yaw error: %3f", yaw_error);
-            if(exit) break;
-            speed = std::abs(speed);
-            steering_angle *= -1;
-            thresh /= 3;
-            stage = 3;
-        } else if (stage == 3 && std::abs(yaw_error) < thresh) {
-            ROS_INFO("stage 3 completed. yaw error: %3f", yaw_error);
-            break;
-        }
-        utils.publish_cmd_vel(steering_angle, speed);
-        temp_rate.sleep();
-    }
-    return 0;
-}
 void StateMachine::update_mpc_state() {
     double x, y, yaw;
     // if (ekf) {
@@ -518,8 +463,8 @@ void StateMachine::run() {
                         utils.object_box(car_index, bbox);
                         double x, y, yaw;
                         utils.get_states(x, y, yaw);
-                        auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, utils.CAMERA_PARAMS);
-                        printf("estimated car pose: %3f, %3f\n", car_pose[0], car_pose[1]);
+                        auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, CAMERA_PARAMS);
+                        printf("estimated car pose: %.3f, %.3f\n", car_pose[0], car_pose[1]);
                         // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
                         double look_ahead_dist = dist * 1.5;
                         int look_ahead_index = look_ahead_dist * mpc.density + mpc.closest_waypoint_index;
@@ -582,21 +527,24 @@ void StateMachine::run() {
             rate->sleep();
             continue;
         } else if (state == STATE::APPROACHING_INTERSECTION) {
-            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.7;
-            utils.reset_odom();
+            double offset = std::max(0.0, detected_dist - MIN_SIGN_DIST) * 0.7; //???
+            double x0, y0, yaw0;
+            utils.get_states(x0, y0, yaw0);
+            // utils.reset_odom();
             double orientation = mpc.NearestDirection(utils.get_yaw());
-            ROS_INFO("sign detected at a distance of: %3f, offset: %3f, resetting odom...", detected_dist, offset);
+            ROS_INFO("sign detected at a distance of: %.3f, offset: %.3f, resetting odom...", detected_dist, offset);
             while(1) {
-                double norm = utils.odomX * utils.odomX + utils.odomY * utils.odomY;
-                // ROS_INFO("norm: %3f", norm);
-                if (norm >= offset)
+                double x, y, yaw;
+                utils.get_states(x, y, yaw);
+                double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
+                if (norm_sq >= offset * offset)
                 {
                     ROS_INFO("intersection reached, stopping...");
                     utils.publish_cmd_vel(0.0, 0.0);
                     break;
                 }
                 if (lane) {
-                    if (norm > offset*0.2) {
+                    if (norm_sq > offset * offset * 0.2) {
                         // double yaw_error = orientation - utils.get_yaw();
                         // if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
                         // else if(yaw_error < -M_PI * 1.5) yaw_error += 2 * M_PI;
@@ -660,7 +608,7 @@ void StateMachine::run() {
                 if(crosswalk_dist > 0) {
                     double cd = (crosswalk_dist + CROSSWALK_LENGTH) / 0.15;
                     cooldown_timer = ros::Time::now() + ros::Duration(cd);
-                    ROS_INFO("crosswalk detected at a distance of: %3f, slowing down for %3f", crosswalk_dist, cd);
+                    ROS_INFO("crosswalk detected at a distance of: %.3f, slowing down for %.3f", crosswalk_dist, cd);
                     continue;
                 }
                 check_stop_sign();
@@ -680,13 +628,13 @@ void StateMachine::run() {
                         // utils.object_box(car_index, bbox);
                         // double x, y, yaw;
                         // utils.get_states(x, y, yaw);
-                        // auto car_pose = utils.estimate_object_pose2d(0, 0, yaw, bbox, dist, utils.CAMERA_PARAMS);
-                        // printf("estimated relative car pose: %3f, %3f\n", car_pose[0], car_pose[1]);
+                        // auto car_pose = utils.estimate_object_pose2d(0, 0, yaw, bbox, dist, CAMERA_PARAMS);
+                        // printf("estimated relative car pose: %.3f, %.3f\n", car_pose[0], car_pose[1]);
                         // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
                         bool same_lane = true;
                         if (same_lane) {
-                            static bool dotted = false;
-                            if (maneuver_index > 2)  dotted = true;
+                            static bool dotted = true;
+                            if (maneuver_index > 2)  dotted = false;
                             if (!dotted) {
                                 if (dist < MAX_TAILING_DIST) {
                                     std::cout << "detected car is in oneway or non-dotted region, dist =" << dist << std::endl;
@@ -702,8 +650,8 @@ void StateMachine::run() {
                                 bool right = false;
                                 wrong_lane = true;
                                 std::cout << wrong_lane << ", " << (overtake_cd - ros::Time::now()).toSec() << std::endl;
-                                ROS_INFO("detected car at a distance of: %3f, changing lane, right: %s", dist, right ? "true" : "false");
-                                ROS_INFO("overtake cooldown: %3f", (dist + 0.35) / NORMAL_SPEED);
+                                ROS_INFO("detected car at a distance of: %.3f, changing lane, right: %s", dist, right ? "true" : "false");
+                                ROS_INFO("overtake cooldown: %.3f", (dist + 0.35) / NORMAL_SPEED);
                                 change_lane_hardcode(right);
                             }
                         }
@@ -742,19 +690,23 @@ void StateMachine::run() {
             stop_for(STOP_DURATION/2);
             double offset_thresh = 0.1;
             double base_offset = detected_dist + PARKING_SPOT_LENGTH * 1.5 + offset_thresh;
-            base_offset *= 1.4; // temporary fix for gazebo
-            ROS_INFO("parking offset is: %3f", base_offset);
+            double offset = base_offset;
+            // base_offset *= 1.4; // temporary fix for gazebo
+            ROS_INFO("parking offset is: %.3f", base_offset);
             // base_offset = 0;
             right_park = true;
             bool hard_code = true;
             if (!lane) {
-                xs << base_offset, 0., 0., 0., 0.;
-                ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
-                // move_to(xs);
-                ros::Rate temp_rate(1/T_park);
-                std::cout << "park rate: " << 1/T_park << std::endl;
-                mpc.set_up_park(xs);
-                int status, i = 0;
+                double orientation = mpc.NearestDirection(utils.get_yaw());
+                ROS_INFO("orientation: %.3f", orientation);
+                double x0, y0, yaw0;
+                utils.get_states(x0, y0, yaw0);
+                // xs << base_offset, 0., 0., 0., 0.;
+                // ROS_INFO("moving to: %.3f, %.3f, %.3f", xs[0], xs[1], xs[2]);
+                // ros::Rate temp_rate(1/T_park);
+                // std::cout << "park rate: " << 1/T_park << std::endl;
+                // mpc.set_up_park(xs);
+                // int status, i = 0;
                 int target_spot = 0;
                 std::cout << "target spot: " << target_spot << std::endl;
                 while(1) {
@@ -771,7 +723,7 @@ void StateMachine::run() {
                             // double dist = utils.object_distance(cars[i]);
                             // double x, y, yaw;
                             // utils.get_states(x, y, yaw);
-                            // auto world_pose = utils.estimate_object_pose2d(x, y, yaw, box, dist, utils.CAMERA_PARAMS);
+                            // auto world_pose = utils.estimate_object_pose2d(x, y, yaw, box, dist, CAMERA_PARAMS);
                             Eigen::Vector2d world_pose = utils.detected_cars[i];
                             Eigen::Vector2d spot = PARKING_SPOTS[target_spot];
                             // double detected_x = world_pose[0];
@@ -791,36 +743,56 @@ void StateMachine::run() {
                         if (!car_in_spot) break;
                     }
                     if (changed) {
-                        xs[0] = base_offset + target_spot/2 * PARKING_SPOT_LENGTH;
+                        // xs[0] = base_offset + target_spot/2 * PARKING_SPOT_LENGTH;
+                        offset = base_offset + target_spot/2 * PARKING_SPOT_LENGTH;
                         right_park = target_spot % 2 == 0;
-                        ROS_INFO("car in spot, changing to target spot %d at (%3f, %3f), right: %s", target_spot, PARKING_SPOTS[target_spot][0], PARKING_SPOTS[target_spot][1], right_park ? "true" : "false");
-                        mpc.set_up_park(xs);
+                        ROS_INFO("car in spot, changing to target spot %d at (%.3f, %.3f), right: %s", target_spot, PARKING_SPOTS[target_spot][0], PARKING_SPOTS[target_spot][1], right_park ? "true" : "false");
+                        // mpc.set_up_park(xs);
                     }
-                    update_mpc_state();
-                    status = mpc.update_and_solve_park(xs, offset_thresh*offset_thresh);
-                    publish_commands();
-                    if (status == 2 || i>200) {
-                        break;
-                    }
-                    i++;
-                    temp_rate.sleep();
-                }
-            } else {
-                double orientation = mpc.NearestDirection(utils.get_yaw());
-                ROS_INFO("orientation: %.3f", orientation);
-                utils.reset_odom();
-                while(1) {
-                    pedestrian_detected();
-                    exit_detected();
-                    double norm = utils.odomX * utils.odomX + utils.odomY * utils.odomY;
-                    ROS_INFO("norm: %3f", norm);
-                    if (norm >= base_offset)
+                    // update_mpc_state();
+                    // status = mpc.update_and_solve_park(xs, offset_thresh*offset_thresh);
+                    // publish_commands();
+                    // if (status == 2 || i>200) {
+                    //     break;
+                    // }
+                    // i++;
+                    // temp_rate.sleep();
+                    double x, y, yaw;
+                    utils.get_states(x, y, yaw);
+                    double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
+                    if (norm_sq >= offset * offset)
                     {
                         ROS_INFO("parking spot reached, stopping...");
                         utils.publish_cmd_vel(0.0, 0.0);
                         break;
                     }
-                    if (norm > base_offset*0.2) {
+                    orientation_follow(orientation);
+                    // if (norm_sq > offset * offset * 0.2) {
+                    //     orientation_follow(orientation);
+                    // } else {
+                    //     update_mpc_state();
+                    //     solve();
+                    // }
+                    rate->sleep();
+                }
+            } else {
+                double orientation = mpc.NearestDirection(utils.get_yaw());
+                ROS_INFO("orientation: %.3f", orientation);
+                double x0, y0, yaw0;
+                utils.get_states(x0, y0, yaw0);
+                // utils.reset_odom();
+                while(1) {
+                    pedestrian_detected();
+                    exit_detected();
+                    double norm_sq = std::pow(utils.odomX - x0, 2) + std::pow(utils.odomY - y0, 2);
+                    ROS_INFO("norm: %.3f", std::sqrt(norm_sq));
+                    if (norm_sq >= offset * offset)
+                    {
+                        ROS_INFO("parking spot reached, stopping...");
+                        utils.publish_cmd_vel(0.0, 0.0);
+                        break;
+                    }
+                    if (norm_sq > offset * offset * 0.2) {
                         orientation_follow(orientation);
                     } else {
                         lane_follow();
@@ -830,11 +802,11 @@ void StateMachine::run() {
             }
             stop_for(STOP_DURATION/2);
             if (hard_code) {
-                right_park = true; //temp
+                // right_park = true; //temp
                 parking_maneuver_hardcode(right_park, false, 1/T_park);
             } else {
                 xs << -0.63, -0.35, 0. , 0., 0.;
-                ROS_INFO("moving to: %3f, %3f, %3f", xs[0], xs[1], xs[2]);
+                ROS_INFO("moving to: %.3f, %.3f, %.3f", xs[0], xs[1], xs[2]);
                 move_to(xs);
             }
             change_state(STATE::PARKED);
@@ -844,11 +816,11 @@ void StateMachine::run() {
         } else if (state == STATE::EXITING_PARKING) {
             bool hard_code = true;
             if (hard_code) {
-                right_park = true;
+                // right_park = true;
                 parking_maneuver_hardcode(right_park, true, 1/T_park);
             } else {
                 xs << -0.2, 0., 0. , 0., 0.;
-                ROS_INFO("moving back for %3f", xs[0]);
+                ROS_INFO("moving back for %.3f", xs[0]);
                 move_to(xs, 0.05);
                 xs << 0.63, 0.4, 0., 0., 0.;
                 move_to(xs, 0.15);
@@ -901,7 +873,7 @@ void StateMachine::run() {
                     if (error_sq < TOLERANCE_SQUARED) {
                         break;
                     }
-                    // ROS_INFO("error_sq: %3f", error_sq);
+                    // ROS_INFO("error_sq: %.3f", error_sq);
                     int status = mpc.update_and_solve(mpc.x_current_transformed, maneuver_direction);
                     publish_commands();
                     rate->sleep();
@@ -918,7 +890,7 @@ void StateMachine::run() {
                 double target_yaw = directions[target_index];
                 while(target_yaw > M_PI) target_yaw -= 2*M_PI;
                 while(target_yaw < -M_PI) target_yaw += 2*M_PI;
-                ROS_INFO("target_yaw: %.3f, cur_yaw: %.3f, direction_index: %d, target_index: %d", target_yaw, yaw0, direction_index, target_index);
+                // ROS_INFO("target_yaw: %.3f, cur_yaw: %.3f, direction_index: %d, target_index: %d", target_yaw, yaw0, direction_index, target_index);
                 static const std::array<Eigen::Matrix2d, 4> rotation_matrices = {
                     Eigen::Matrix2d::Identity(),
                     (Eigen::Matrix2d() << 0, -1, 1, 0).finished(), 
@@ -948,7 +920,7 @@ void StateMachine::run() {
                     double referenceY = utils.computeTrajectory(transformedFrame[0]);
                     double error = (referenceY - transformedFrame[1]);
                     double steer = -utils.computeTrajectoryPid(error);
-                    // ROS_INFO("target_yaw: %2f, cur_yaw: %2f, yaw_err: %3f, tar y: %3f, cur y: %3f, err: %3f, steer: %3f", target_yaw, utils.get_yaw(), yaw_error, referenceY, transformedFrame[1], error, steer);
+                    // ROS_INFO("target_yaw: %2f, cur_yaw: %2f, yaw_err: %.3f, tar y: %.3f, cur y: %.3f, err: %.3f, steer: %.3f", target_yaw, utils.get_yaw(), yaw_error, referenceY, transformedFrame[1], error, steer);
                     // ROS_INFO("x:%.3f, trans x:%.3f, tar y:%.3f, cur y:%.3f, err:%.3f, steer:%.3f", odomFrame[0], transformedFrame[0], referenceY, transformedFrame[1], error, steer);
                     utils.publish_cmd_vel(steer, 0.25);
                     rate->sleep();
