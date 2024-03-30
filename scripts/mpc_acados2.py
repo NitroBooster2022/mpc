@@ -53,7 +53,8 @@ class Optimizer(object):
         self.gazebo = gazebo
         self.solver, self.integrator, self.T, self.N, self.t_horizon = self.create_solver()
 
-        name = 'path3'
+        name = 'path1'
+        # name = 'speedrun'
         # name = 'path2'
         self.path = Path(v_ref = self.v_ref, N = self.N, T = self.T, name=name, x0=x0)
         self.waypoints_x = self.path.waypoints_x
@@ -108,7 +109,7 @@ class Optimizer(object):
                                        + '_T'+str(self.T))
         self.obstacle = []
         
-    def create_solver(self, config_path='config/mpc_config50.yaml'):
+    def create_solver(self, config_path='config/mpc_config18.yaml'):
         # extract the number from config_path (50 in this case)
         self.v_ref_int = int(''.join(filter(str.isdigit, config_path)))
         print("number: ", self.v_ref_int)
@@ -265,11 +266,11 @@ class Optimizer(object):
         # np.savetxt(os.path.join(path,'straight_states25.txt'), self.state_refs, fmt='%.8f')
         # np.savetxt(os.path.join(path,'straight_inputs25.txt'), self.input_refs, fmt='%.8f')
 
-        np.savetxt(os.path.join(path,'state_refs'+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'state_refs_'+self.path.name+str(self.v_ref_int)+'.txt'), self.state_refs, fmt='%.8f')
         print("stateref shape: ", self.state_refs.shape)
-        np.savetxt(os.path.join(path,'input_refs'+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_normals'+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_attributes'+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
+        np.savetxt(os.path.join(path,'input_refs_'+self.path.name+str(self.v_ref_int)+'.txt'), self.input_refs, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_normals_'+self.path.name+str(self.v_ref_int)+'.txt'), self.wp_normals, fmt='%.8f')
+        np.savetxt(os.path.join(path,'wp_attributes_'+self.path.name+str(self.v_ref_int)+'.txt'), self.path.attributes, fmt='%.8f')
 
         # np.savetxt(os.path.join(path,'kappa2.txt'), self.kappa, fmt='%.8f')
         exit()
@@ -526,58 +527,46 @@ if __name__ == '__main__':
     argparser.add_argument('--save_path', action='store_true', help='save path')
     args = argparser.parse_args()
 
+    running = False
+
     x0 = np.array([10, 13.29, np.pi])
     # mpc = Optimizer(x0=x0)
     mpc = Optimizer()
-    if args.save_path:
-        cur_path = os.path.dirname(os.path.realpath(__file__))
-        path = os.path.join(cur_path, 'paths')
-        os.makedirs(path, exist_ok=True)
-        name1 = os.path.join(path, 'waypoints_x.txt')
-        np.savetxt(name1, mpc.waypoints_x, fmt='%.8f')
-        print("saved to ", name1)
-        np.savetxt(os.path.join(path,'waypoints_y.txt'), mpc.waypoints_y, fmt='%.8f')
-        np.savetxt(os.path.join(path,'state_refs.txt'), mpc.state_refs, fmt='%.8f')
-        print("stateref shape: ", mpc.state_refs.shape)
-        np.savetxt(os.path.join(path,'input_refs.txt'), mpc.input_refs, fmt='%.8f')
-        np.savetxt(os.path.join(path,'kappa.txt'), mpc.kappa, fmt='%.8f')
-        np.savetxt(os.path.join(path,'wp_normals.txt'), mpc.wp_normals, fmt='%.8f')
-        exit()
-    # stop when last waypoint is reached
-
-    mpc.target_waypoint_index = 0
-    while True:
-        if mpc.target_waypoint_index >= mpc.num_waypoints-1 or mpc.mpciter > 1000:
-        # if mpc.target_waypoint_index >= 375:
-            break
-        t = time.time()
-        mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
-        mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
-        mpc.x_refs.append(mpc.next_trajectories[0, :])
-        mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
-        # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
-        t_ = time.time()
-        u_res = mpc.update_and_solve()
-        t2 = time.time()- t_
-        if u_res is None:
-            break
-        mpc.index_t.append(t2)
-        mpc.t_c.append(mpc.t0)
-        mpc.u_c.append(u_res)
-        mpc.integrate_next_states(u_res)
-        # u_res = u_res[0]
-        # print("time: ", t2, "u_res: ", u_res)
-        mpc.xx.append(mpc.current_state)
-        mpc.mpciter = mpc.mpciter + 1
-    stats = mpc.compute_stats()
-    # save current states and controls as txt
-    # np.savetxt('x.txt', mpc.xx, fmt='%.8f')
-    # np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
-    # park_offset = 0.#95
-    # mpc.current_state = np.array([park_offset, 0, np.pi])
-    # mpc.go_straight(park_offset)
-    # mpc.park()
-    # mpc.exit_park()
-    print("done")
-    mpc.draw_result(stats, 0, 22, 0, 15)
-    # mpc.draw_result(stats, -1, 5, -1, 2)
+    
+    if running:
+        mpc.target_waypoint_index = 0
+        while True:
+            if mpc.target_waypoint_index >= mpc.num_waypoints-1 or mpc.mpciter > 1000:
+            # if mpc.target_waypoint_index >= 375:
+                break
+            t = time.time()
+            mpc.x_errors.append(mpc.current_state[0] - mpc.next_trajectories[0, 0])
+            mpc.y_errors.append(mpc.current_state[1] - mpc.next_trajectories[0, 1])
+            mpc.x_refs.append(mpc.next_trajectories[0, :])
+            mpc.yaw_errors.append(mpc.current_state[2] - mpc.next_trajectories[0, 2])
+            # print("cur: ", np.around(mpc.current_state, decimals=2), ", ref: ", np.around(mpc.next_trajectories[0, :], decimals=2), ", ctrl: ", np.around(mpc.next_controls[0, :], decimals=2), ", idx: ", mpc.target_waypoint_index)
+            t_ = time.time()
+            u_res = mpc.update_and_solve()
+            t2 = time.time()- t_
+            if u_res is None:
+                break
+            mpc.index_t.append(t2)
+            mpc.t_c.append(mpc.t0)
+            mpc.u_c.append(u_res)
+            mpc.integrate_next_states(u_res)
+            # u_res = u_res[0]
+            # print("time: ", t2, "u_res: ", u_res)
+            mpc.xx.append(mpc.current_state)
+            mpc.mpciter = mpc.mpciter + 1
+        stats = mpc.compute_stats()
+        # save current states and controls as txt
+        # np.savetxt('x.txt', mpc.xx, fmt='%.8f')
+        # np.savetxt('u.txt', mpc.u_c, fmt='%.8f')
+        # park_offset = 0.#95
+        # mpc.current_state = np.array([park_offset, 0, np.pi])
+        # mpc.go_straight(park_offset)
+        # mpc.park()
+        # mpc.exit_park()
+        print("done")
+        mpc.draw_result(stats, 0, 22, 0, 15)
+        # mpc.draw_result(stats, -1, 5, -1, 2)

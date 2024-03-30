@@ -167,12 +167,12 @@ def interpolate_waypoints2(waypoints, num_points):
     return new_waypoints
 
 class Path:
-    def __init__(self, v_ref, N, T, x0=None, name="path3"):
+    def __init__(self, v_ref, N, T, x0=None, name="speedrun"):
         self.v_ref = v_ref
         print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
         self.N = N
         self.global_planner = GlobalPlanner()
-
+        self.name = name
         current_path = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(current_path, 'config/paths.yaml'), 'r') as stream:
             data = yaml.safe_load(stream)
@@ -264,20 +264,23 @@ class Path:
         self.attributes_hw = np.hstack(attributes_hw)
         self.attributes_cw = np.hstack(attributes_cw)
 
-        self.waypoints, self.attributes = replace_segments(
-            self.waypoints, 
-            self.waypoints_cw, 
-            self.attributes, 
-            self.attributes_cw
-        )
-        self.waypoints, self.attributes = replace_segments(
-            self.waypoints, 
-            self.waypoints_hw, 
-            self.attributes, 
-            self.attributes_hw,
-            density_factor= 1/1.33,
-            values = [4,5]
-        )
+        speedrun = False
+        if not speedrun:
+            self.waypoints, self.attributes = replace_segments(
+                self.waypoints, 
+                self.waypoints_cw, 
+                self.attributes, 
+                self.attributes_cw
+            )
+            self.waypoints, self.attributes = replace_segments(
+                self.waypoints, 
+                self.waypoints_hw, 
+                self.attributes, 
+                self.attributes_hw,
+                density_factor= 1/1.33,
+                values = [4,5]
+            )
+
         # self.waypoints = filter_waypoints(self.waypoints, 0.01).T
         self.waypoints, self.attributes = filter_waypoints_and_attributes(self.waypoints, self.attributes, 0.01)
         self.waypoints = self.waypoints.T
@@ -349,4 +352,17 @@ class Path:
         plt.show()
 
 if __name__ == "__main__":
-    path = Path(v_ref = 1.3, N=40, T=0.125)
+    current_path = os.path.dirname(os.path.realpath(__file__))
+    config_path='config/mpc_config18.yaml'
+    path = os.path.join(current_path, config_path)
+    with open(path, 'r') as f:
+        config = yaml.safe_load(f)
+    T = config['T']
+    N = config['N']
+    constraint_name = 'constraints'
+    cost_name = 'costs'
+    t_horizon = T * N
+
+    v_ref = config[constraint_name]['v_ref']
+    print("v_ref: ", v_ref)
+    path = Path(v_ref = v_ref, N = N, T = T)

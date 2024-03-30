@@ -5,6 +5,8 @@
 #include <array>
 
 namespace VehicleConstants {
+    const std::array<std::string, 3> MANEUVER_DIRECTIONS = {"left", "straight", "right"};
+
     const std::array<std::string, 11> state_names = {
         "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
         "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING"
@@ -58,6 +60,8 @@ namespace VehicleConstants {
     static constexpr double PARKSIGN_TO_CAR = 0.51;
     static constexpr double PARK_OFFSET = 1.31;    // 1.1 + 0.21
     static constexpr double PARKING_SPOT_LENGTH = 0.723;
+    static constexpr double PARKING_SPOT_WIDTH = 0.362;
+    static constexpr double MAX_PARKING_Y_ERROR = 0.0775;
     static constexpr double CROSSWALK_LENGTH = 1.0;
     static constexpr double OVERTAKE_DIST = 2.0;
     static constexpr double LANE_OFFSET = 0.36;

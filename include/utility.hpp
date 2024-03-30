@@ -57,7 +57,7 @@ public:
         double z;
     } const CAMERA_POSE = {0, 0, 0.2};
 
-    int num_obj;
+    int num_obj = 0;
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
     bool real;
@@ -93,6 +93,8 @@ public:
     ros::Publisher cmd_vel_pub;
     ros::Publisher car_pose_pub;
     ros::Publisher pose_pub;
+    ros::Publisher waypoints_pub;
+    ros::Publisher detected_cars_pub;
 
     // messages
     nav_msgs::Odometry odom_msg;

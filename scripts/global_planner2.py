@@ -31,6 +31,8 @@ class GlobalPlanner:
             "roundabout_exit_north": 332,
             "roundabout_entrance_south": 357,
             "roundabout_exit_south": 372,
+            "roundabout_west": 365,
+            "nomarking_entrance": 302,
             "uniri_square_entrance": 480,
             "uniri_square_exit": 486,
             "ferdinand_entrance_left": 490,

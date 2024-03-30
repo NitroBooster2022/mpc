@@ -373,6 +373,9 @@ public:
     int get_current_attribute() {
         return state_attributes(target_waypoint_index);
     }
+    void get_current_waypoints(Eigen::MatrixXd& output) {
+        output = state_refs.block(target_waypoint_index, 0, N, 3);
+    }
 };
 
 #endif // OPTIMIZER_HPP
