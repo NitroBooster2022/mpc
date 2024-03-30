@@ -110,6 +110,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     // }
     std::cout << "namespace: " << robot_name << std::endl;
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
+    waypoints_pub = nh.advertise<std_msgs::Float64MultiArray>("/waypoints", 3);
+    detected_cars_pub = nh.advertise<std_msgs::Float64MultiArray>("/detected_cars", 3);
     std::string imu_topic_name;
     if(robot_name == "automobile") {
         imu_topic_name = "/realsense/imu";
@@ -267,6 +269,12 @@ void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
             }
             while (recent_car_indices.size() > 5) {
                 recent_car_indices.pop_back(); // keep only 4 most recent cars
+            }
+            static bool publish_cars = true;
+            if(publish_cars) {
+                std_msgs::Float64MultiArray car_msg;
+                car_msg.data = car_pose_msg.data;
+                car_pose_pub.publish(car_msg);
             }
         }
     }
@@ -643,6 +651,7 @@ void Utility::update_states_rk4 (double speed, double steering_angle, double dt)
     // printf("dt: %.3f, v: %.3f, yaw: %.3f, steer: %.3f, dx: %.3f, dy: %.3f, dyaw: %.3f\n", dt, speed, yaw, steering_angle, dx, dy, dyaw);
 }
 void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip) {
+    static bool use_toggle = false;
     static int toggle = 0;
     // static bool real = true;
     if (velocity < -3.5) velocity = maxspeed;
@@ -665,18 +674,26 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
         send_steer(steer);
         // ROS_INFO("publishing steer: %.3f, speed: %.3f", steer, vel);
     } else {
-	    //ROS_INFO("publishing, steer: %.3f, speed: %.3f", steer, vel);
-	    if (toggle % 2) {
-		// ROS_INFO("publishing speed: %.3f", vel);
-		msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
-		cmd_vel_pub.publish(msg);
-	    } else {
-		//ros::Duration(0.03).sleep();
-		// ROS_INFO("publishing steer: %.3f", steer);
-		msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
-		cmd_vel_pub.publish(msg2);
-	    }
-	    toggle = (toggle + 1) % 100;
+        if(use_toggle) {
+            //ROS_INFO("publishing, steer: %.3f, speed: %.3f", steer, vel);
+            if (toggle % 2) {
+            // ROS_INFO("publishing speed: %.3f", vel);
+            msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
+            cmd_vel_pub.publish(msg);
+            } else {
+            //ros::Duration(0.03).sleep();
+            // ROS_INFO("publishing steer: %.3f", steer);
+            msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
+            cmd_vel_pub.publish(msg2);
+            }
+            toggle = (toggle + 1) % 100;
+        } else {
+            msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
+            cmd_vel_pub.publish(msg2);
+            // ros::Duration(0.03).sleep();
+            msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
+            cmd_vel_pub.publish(msg);
+        }
     }
 }
 void Utility::lane_follow() {

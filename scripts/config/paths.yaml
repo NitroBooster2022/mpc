@@ -1,17 +1,28 @@
-path1:
-  - start
-  - highway1_start
-  - highway1_mid
-  - highway2_start
-  - highway2_mid
-  - parallel_parking1
+# path1:
+#   - start
+#   - highway1_start
+#   - highway1_mid
+#   - highway2_start
+#   - highway2_mid
+#   - parallel_parking1
 
 speedrun:
   - start
-  - speedrun2
-  - speedrun3
-  - speedrun4
-  - speedrun5
+  - roundabout_entrance_south
+  - roundabout_west
+  - nomarking_entrance
+  - highway_entrance_east
+  - speed_entrance_west
+  - end
+
+path1:
+  - start
+  - roundabout_entrance_south
+  - roundabout_west
+  - nomarking_entrance
+  - highway_entrance_east
+  - speed_entrance_west
+  - end
 
 # new track
 path2:

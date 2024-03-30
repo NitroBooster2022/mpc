@@ -62,7 +62,6 @@ public:
     int park_count = 0;
     int stopsign_flag = 0;
     int maneuver_direction = 0; // 0: left, 1: straight, 2: right
-    const std::array<std::string, 3> MANEUVER_DIRECTIONS = {"left", "straight", "right"};
     ros::Time cd_timer = ros::Time::now();
     int detected_index = 0;
     Eigen::Vector2d destination;
@@ -91,14 +90,19 @@ public:
             rate->sleep();
         }
     }
-    int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20) {
+    int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20, double initial_y_error = 0, double initial_yaw_error = 0) {
         Eigen::VectorXd targets(3);
         Eigen::VectorXd steerings(3);
         Eigen::VectorXd speeds(3);
         Eigen::VectorXd thresholds(3);
         double base_yaw_target = 0.166 * M_PI;
-        if (!real) base_yaw_target = 0.25 * M_PI;
+        if (!real) base_yaw_target = 0.29 * M_PI;
+        base_yaw_target = base_yaw_target + 0.02 / (0.29 * M_PI) * base_yaw_target * initial_y_error / MAX_PARKING_Y_ERROR * (right ? 1 : -1);
+        ROS_INFO("initial y error: %.3f, initial yaw error: %.3f, base yaw target: %.3f PI", initial_y_error, initial_yaw_error, base_yaw_target / M_PI);
+        // if (!real) base_yaw_target = 0.31 * M_PI;
+        // if (!real) base_yaw_target = 0.27 * M_PI;
         double base_steer = - HARD_MAX_STEERING;
+        // base_steer = - 20;
         double base_speed = -0.2;
         double base_thresh = 0.1;
         targets << base_yaw_target, 0.0, 0.0;
@@ -106,6 +110,7 @@ public:
         speeds << base_speed, base_speed, -base_speed;
         thresholds << base_thresh, base_thresh, base_thresh/3;
         if (exit) {
+            base_yaw_target *= 0.95;
             targets << base_yaw_target, base_yaw_target, 0.0;
             thresholds(0) = (1 - base_thresh / base_yaw_target) * base_yaw_target;
             thresholds(1) = base_thresh;
@@ -403,6 +408,19 @@ void StateMachine::publish_commands() {
     /*
     Publishes the commands of the MPC controller to the car
     */
+
+    static bool publish_waypoints = true;
+    if(publish_waypoints) {
+        static Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(mpc.N, 3);
+        mpc.get_current_waypoints(waypoints);
+        std_msgs::Float64MultiArray msg;
+        for (int i = 0; i < waypoints.rows(); ++i) {
+            msg.data.push_back(waypoints(i, 0)); // x
+            msg.data.push_back(waypoints(i, 1)); // y
+        }
+        utils.waypoints_pub.publish(msg);
+    }
+    
     double steer = -mpc.u_current[1] * 180 / M_PI; // convert to degrees
     double speed = mpc.u_current[0];
     // steer = 23;
@@ -423,7 +441,7 @@ void StateMachine::run() {
         }
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
-            if(intersection_reached()) {
+            if(intersection_reached() && sign) {
                 change_state(STATE::WAITING_FOR_STOPSIGN);
                 continue;
             }
@@ -502,17 +520,20 @@ void StateMachine::run() {
                                 dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
                                 bool right = false;
                                 double density = mpc.density;
+                                double lane_offset = LANE_OFFSET * 1.1;
                                 if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
                                     density *= 1/1.33;
+                                    // lane_offset *= 1.25;
                                 }
                                 else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
                                     right = true; 
                                     density *= 1/1.33;
+                                    // lane_offset *= 1.25;
                                 }
                                 int offset = static_cast<int>(dist * density);
                                 detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * density);
                                 std::cout << "detected car at a distance of: " << dist << ", changing lane, right: " << right << ", current index: " << mpc.target_waypoint_index << ", detected index: " << detected_index << ", offset: " << offset << std::endl;
-                                mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, right, LANE_OFFSET);
+                                mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, right, lane_offset);
                             }
                         }
                     }
@@ -691,11 +712,11 @@ void StateMachine::run() {
             double offset_thresh = 0.1;
             double base_offset = detected_dist + PARKING_SPOT_LENGTH * 1.5 + offset_thresh;
             double offset = base_offset;
-            // base_offset *= 1.4; // temporary fix for gazebo
-            ROS_INFO("parking offset is: %.3f", base_offset);
+            ROS_INFO("park sign detected at a distance of: %.3f, parking offset is: %.3f", detected_dist, offset);
             // base_offset = 0;
             right_park = true;
             bool hard_code = true;
+            int target_spot = 0;
             if (!lane) {
                 double orientation = mpc.NearestDirection(utils.get_yaw());
                 ROS_INFO("orientation: %.3f", orientation);
@@ -707,12 +728,14 @@ void StateMachine::run() {
                 // std::cout << "park rate: " << 1/T_park << std::endl;
                 // mpc.set_up_park(xs);
                 // int status, i = 0;
-                int target_spot = 0;
                 std::cout << "target spot: " << target_spot << std::endl;
                 while(1) {
                     pedestrian_detected();
                     exit_detected();
+                    // check utils.recent_car_indices
+                    // std::cout << "recent car indices size: " << utils.recent_car_indices.size() << std::endl;
                     std::list<int> cars = utils.recent_car_indices;
+                    // std::cout << "number of cars detected: " << cars.size() << std::endl;
                     // iterate through all cars and check if any are in the parking spot
                     bool changed = false;
                     bool car_in_spot = false;
@@ -725,6 +748,7 @@ void StateMachine::run() {
                             // utils.get_states(x, y, yaw);
                             // auto world_pose = utils.estimate_object_pose2d(x, y, yaw, box, dist, CAMERA_PARAMS);
                             Eigen::Vector2d world_pose = utils.detected_cars[i];
+                            // std::cout << "world pose: " << world_pose[0] << ", " << world_pose[1] << std::endl;
                             Eigen::Vector2d spot = PARKING_SPOTS[target_spot];
                             // double detected_x = world_pose[0];
                             // double detected_y = world_pose[1];
@@ -784,7 +808,9 @@ void StateMachine::run() {
                 while(1) {
                     pedestrian_detected();
                     exit_detected();
-                    double norm_sq = std::pow(utils.odomX - x0, 2) + std::pow(utils.odomY - y0, 2);
+                    double x, y, yaw;
+                    utils.get_states(x, y, yaw);
+                    double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
                     ROS_INFO("norm: %.3f", std::sqrt(norm_sq));
                     if (norm_sq >= offset * offset)
                     {
@@ -803,11 +829,42 @@ void StateMachine::run() {
             stop_for(STOP_DURATION/2);
             if (hard_code) {
                 // right_park = true; //temp
-                parking_maneuver_hardcode(right_park, false, 1/T_park);
+                double orientation = mpc.NearestDirection(utils.get_yaw());
+                double x, y, yaw;
+                utils.get_states(x, y, yaw);
+                double initial_y_error = y - (PARKING_SPOTS[target_spot][1] + PARKING_SPOT_WIDTH * (right_park ? 1 : -1));
+                double initial_yaw_error = orientation - yaw;
+                // ROS_INFO("initial y error: %.3f, initial yaw error: %.3f", initial_y_error, initial_yaw_error);
+                // exit(0);
+                parking_maneuver_hardcode(right_park, false, 1/T_park, initial_y_error, initial_yaw_error);
             } else {
                 xs << -0.63, -0.35, 0. , 0., 0.;
                 ROS_INFO("moving to: %.3f, %.3f, %.3f", xs[0], xs[1], xs[2]);
                 move_to(xs);
+            }
+            double x, y, yaw;
+            utils.get_states(x, y, yaw);
+            double x_error = x - PARKING_SPOTS[target_spot][0];
+            if (std::abs(x_error) > 0.15) {
+                double orientation = mpc.NearestDirection(utils.get_yaw());
+                ROS_INFO("parked but x offset too large: %.3f, adjusting... orientation: %.3f", x_error, orientation);
+                double x0, y0, yaw0;
+                utils.get_states(x0, y0, yaw0);
+                while(1) {
+                    x_error = x - PARKING_SPOTS[target_spot][0];
+                    pedestrian_detected();
+                    exit_detected();
+                    utils.get_states(x, y, yaw);
+                    double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
+                    if (x_error > 0 && x_error < 0.05 || x_error < 0 && x_error > -0.05)
+                    {
+                        ROS_INFO("parking spot reached, stopping...");
+                        utils.publish_cmd_vel(0.0, 0.0);
+                        break;
+                    }
+                    orientation_follow(orientation);
+                    rate->sleep();
+                }
             }
             change_state(STATE::PARKED);
         } else if (state == STATE::PARKED) {
@@ -880,8 +937,8 @@ void StateMachine::run() {
                 }
                 mpc.last_waypoint_index = last_history;
             } else {
-                utils.reset_odom();
                 double x0, y0, yaw0;
+                utils.get_states(x0, y0, yaw0);
                 yaw0 = mpc.NearestDirection(utils.get_yaw());
                 static const double directions[5] = {0, M_PI / 2, M_PI, 3 * M_PI / 2, 2 * M_PI};
                 int direction_index = mpc.NearestDirectionIndex(yaw0);
@@ -903,8 +960,10 @@ void StateMachine::run() {
                 while(true) {
                     pedestrian_detected();
                     exit_detected();
+                    double x, y, yaw;
+                    utils.get_states(x, y, yaw);
                     if (maneuver_direction == 1) { // if straight
-                        double distance_traveled = std::sqrt(utils.odomX * utils.odomX + utils.odomY * utils.odomY);
+                        double distance_traveled = std::sqrt(std::pow(x - x0, 2) + std::pow(y - y0, 2));
                         if (distance_traveled > 0.57) {
                             break;
                         }
@@ -914,7 +973,7 @@ void StateMachine::run() {
                             break;
                         }
                     }
-                    odomFrame << utils.odomX, utils.odomY;
+                    odomFrame << x - x0, y - y0;
                     // transformedFrame = rotation_matrices[direction_index] * odomFrame;
                     transformedFrame = odomFrame.transpose() * rotation_matrices[direction_index];
                     double referenceY = utils.computeTrajectory(transformedFrame[0]);

@@ -16,6 +16,7 @@ import os
 from std_srvs.srv import Trigger, TriggerResponse
 from std_srvs.srv import TriggerResponse  # Add this line
 from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
+from std_msgs.msg import Float64MultiArray
 import cv2
 
 class Odom():
@@ -26,7 +27,9 @@ class Odom():
         print("plot: ", self.plot, "show: ", self.show)
         self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
         #shape is (8107, 12223, 3)
-        self.map = cv2.resize(self.map, (700, int(self.map.shape[0]/self.map.shape[1]*700)))
+        # self.map = cv2.resize(self.map, (700, int(self.map.shape[0]/self.map.shape[1]*700)))
+        self.map = cv2.resize(self.map, (700, int(1/1.38342246*700)))
+        # self.map = cv2.resize(self.map, (700, int(1/1.*700)))
         self.name = 'car1'
         self.odomState = np.zeros(2)
         self.gpsState = np.zeros(2)
@@ -34,6 +37,8 @@ class Odom():
         self.gpsValuesList = []
         self.ekfValuesList = []
         self.odomValuesList = []
+        self.waypoints = None
+        self.detected_cars = None
 
         self.yaw1 = 0.0
         self.yaw2 = 0.0
@@ -67,6 +72,8 @@ class Odom():
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback, queue_size=3)
         # self.odom_sub = rospy.Subscriber("/gps", PoseWithCovarianceStamped, self.odom_callback, queue_size=3)
         self.imu1_sub = rospy.Subscriber("/"+self.name+"/imu", Imu, self.imu1_callback, queue_size=3)
+        self.waypoint_sub = rospy.Subscriber("/waypoints", Float64MultiArray, self.waypoint_callback, queue_size=3)
+        self.cars_sub = rospy.Subscriber("/car_locations", Float64MultiArray, self.cars_callback, queue_size=3)
         if self.plot:
             self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
@@ -76,23 +83,34 @@ class Odom():
             self.timer2 = rospy.Timer(rospy.Duration(1.0 / 10.0), self.display)
     
     def display(self, event):
-        img_map = np.copy(self.map)
+        img_map = self.map.copy()
         
         # ekf
-        img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((14.96-self.ekfState[1])/14.96*self.map.shape[0])),
-                    ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((14.96- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/14.96*self.map.shape[0]))), color=(255,0,255), thickness=2)
-        cv2.circle(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((14.96-self.ekfState[1])/14.96*self.map.shape[0])), radius=5, color=(0, 0, 255), thickness=-1)
+        img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])),
+                    ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
+        cv2.circle(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])), radius=6, color=(0, 0, 255), thickness=-1)
 
         # odom 
-        img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((14.96-self.odomState[1])/14.96*self.map.shape[0])),
-                    ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((14.96- (self.odomState[1]+0.75*math.sin(self.yaw1)))/14.96*self.map.shape[0]))), color=(255,0,255), thickness=2)
-        cv2.circle(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((14.96-self.odomState[1])/14.96*self.map.shape[0])), radius=5, color=(0, 255, 0), thickness=-1)
+        img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])),
+                    ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.odomState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
+        cv2.circle(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), radius=6, color=(0, 255, 0), thickness=-1)
+        # cv2.addText(img_map, "Odom", (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), "Arial", 1, (0, 255, 0))
 
+        # display the waypoints
+        if self.waypoints is not None:
+            for i in range(0, len(self.waypoints), 8):
+                cv2.circle(img_map, (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0])), radius=1, color=(0, 255, 255), thickness=-1)
+
+        # display the detected cars
+        if self.detected_cars is not None:
+            for i in range(2, len(self.detected_cars), 2):
+                cv2.circle(img_map, (int(self.detected_cars[i]/20.541*self.map.shape[1]),int((13.656-self.detected_cars[i+1])/13.656*self.map.shape[0])), radius=5, color=(255, 255, 0), thickness=-1)
+        
         windowName = 'track'
         cv2.namedWindow(windowName,cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(windowName, 700, int(700*img_map.shape[0]/img_map.shape[1]))
+        cv2.resizeWindow(windowName, 753, int(753/1.38342246))
         cv2.imshow(windowName, img_map)
-        key = cv2.waitKey(10)
+        cv2.waitKey(10)
 
     def handle_trigger(self, req):
         print("Service has been triggered. Plotting data...")
@@ -103,6 +121,10 @@ class Odom():
         rospy.signal_shutdown("Service has been triggered. Shutting down.")
         return response
     
+    def waypoint_callback(self, data):
+        self.waypoints = data.data
+    def cars_callback(self, data):
+        self.detected_cars = data.data
     def gps_callback(self, data):
         # self.gpsState[0] = data.posA
         # self.gpsState[1] = 15.0 - data.posB
@@ -156,10 +178,10 @@ class Odom():
         odom_error_x = self.odomState[0] - self.gpsState[0]
         odom_error_y = self.odomState[1] - self.gpsState[1]
 
-        print("GPS State: [{:.3f}, {:.3f}]".format(self.gpsState[0], self.gpsState[1]))
-        print("EKF State: [{:.3f}, {:.3f}] | X Error: {:.3f} | Y Error: {:.3f}".format(self.ekfState[0], self.ekfState[1], ekf_error_x, ekf_error_y))
-        print("Odom State: [{:.3f}, {:.3f}] | X Error: {:.3f} | Y Error: {:.3f}".format(self.odomState[0], self.odomState[1], odom_error_x, odom_error_y))
-        print("----------")
+        # print("GPS State: [{:.3f}, {:.3f}]".format(self.gpsState[0], self.gpsState[1]))
+        # print("EKF State: [{:.3f}, {:.3f}] | X Error: {:.3f} | Y Error: {:.3f}".format(self.ekfState[0], self.ekfState[1], ekf_error_x, ekf_error_y))
+        # print("Odom State: [{:.3f}, {:.3f}] | X Error: {:.3f} | Y Error: {:.3f}".format(self.odomState[0], self.odomState[1], odom_error_x, odom_error_y))
+        # print("----------")
     
     def plot_data(self):
         if not self.plot:
@@ -385,7 +407,7 @@ if __name__ == '__main__':
     # parser.add_argument("--noPlot", action='store_true', help='Boolean for whether to plot the data')
     # parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
     # args = parser.parse_args()
-    show = False
+    show = True
     plot = True
     node = Odom(show = show, plot = plot)
     while not rospy.is_shutdown():

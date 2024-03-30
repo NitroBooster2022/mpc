@@ -140,13 +140,16 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     std::string dir = getSourceDirectory();
     dir.replace(dir.rfind("src"), 3, "scripts");
     std::string v_ref_int_str = std::to_string(v_ref_int);
+    std::string path_name = "_speedrun";
+    // path_name = "";
+    path_name = "_path1";
     std::cout << "state ref path: " << dir + "/paths/state_refs" +v_ref_int_str+ ".txt" << std::endl;
-    state_refs = loadTxt(dir + "/paths/state_refs" +v_ref_int_str+ ".txt");
-    input_refs = loadTxt(dir + "/paths/input_refs" +v_ref_int_str+ ".txt");
-    state_attributes = loadTxt(dir + "/paths/wp_attributes" +v_ref_int_str+ ".txt");
-    left_turn_states = loadTxt(dir + "/paths/left_turn_states" +v_ref_int_str+ ".txt");
-    right_turn_states = loadTxt(dir + "/paths/right_turn_states" +v_ref_int_str+ ".txt");
-    straight_states = loadTxt(dir + "/paths/straight_states" +v_ref_int_str+ ".txt");
+    state_refs = loadTxt(dir + "/paths/state_refs" + path_name +v_ref_int_str+ ".txt");
+    input_refs = loadTxt(dir + "/paths/input_refs" + path_name +v_ref_int_str+ ".txt");
+    state_attributes = loadTxt(dir + "/paths/wp_attributes" + path_name +v_ref_int_str+ ".txt");
+    // left_turn_states = loadTxt(dir + "/paths/left_turn_states" + path_name +v_ref_int_str+ ".txt");
+    // right_turn_states = loadTxt(dir + "/paths/right_turn_states" + path_name +v_ref_int_str+ ".txt");
+    // straight_states = loadTxt(dir + "/paths/straight_states" + path_name +v_ref_int_str+ ".txt");
     // state_refs = state_refs.block(3026, 0, 98, 3);
     std::vector<int> indices;
     for(int i=0; i<state_attributes.rows(); i++) {
@@ -156,7 +159,7 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     }
     state_refs_ptr = &state_refs;
     // normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
-    normals = loadTxt(dir + "/paths/wp_normals2.txt");
+    normals = loadTxt(dir + "/paths/wp_normals"+ path_name +v_ref_int_str+ ".txt");
     num_waypoints = state_refs.rows();
     std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
 
