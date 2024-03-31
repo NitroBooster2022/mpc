@@ -7,6 +7,9 @@ from scipy.interpolate import UnivariateSpline, splprep, splev
 from global_planner2 import GlobalPlanner
 import yaml
 import math
+import rospy
+from std_msgs.msg import Float64MultiArray
+from utils.srv import waypoints, waypointsResponse
 
 def smooth_yaw_angles(yaw_angles):
     # Calculate the differences between adjacent angles
@@ -264,8 +267,7 @@ class Path:
         self.attributes_hw = np.hstack(attributes_hw)
         self.attributes_cw = np.hstack(attributes_cw)
 
-        speedrun = False
-        if not speedrun:
+        if name != "speedrun":
             self.waypoints, self.attributes = replace_segments(
                 self.waypoints, 
                 self.waypoints_cw, 
@@ -351,18 +353,58 @@ class Path:
         plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
         plt.show()
 
-if __name__ == "__main__":
+def handle_array_service(req):
+    """
+    Service callback function to return numpy arrays a, b, and c.
+    """
     current_path = os.path.dirname(os.path.realpath(__file__))
-    config_path='config/mpc_config18.yaml'
+    config_path='config/mpc_config' + req.vrefName + '.yaml'
+    print("config_path: ", config_path)
     path = os.path.join(current_path, config_path)
     with open(path, 'r') as f:
         config = yaml.safe_load(f)
     T = config['T']
     N = config['N']
     constraint_name = 'constraints'
-    cost_name = 'costs'
-    t_horizon = T * N
 
     v_ref = config[constraint_name]['v_ref']
     print("v_ref: ", v_ref)
-    path = Path(v_ref = v_ref, N = N, T = T)
+    path = Path(v_ref = v_ref, N = N, T = T, name = req.pathName)
+
+    state_refs = Float64MultiArray(data = path.state_refs.flatten())
+    input_refs = Float64MultiArray(data = path.input_refs.flatten())
+    attributes = Float64MultiArray(data = path.attributes.flatten())
+    normals = Float64MultiArray(data = path.wp_normals.flatten())
+    
+    print("sizes: ", len(state_refs.data), len(input_refs.data), len(attributes.data), len(normals.data))
+    import threading
+    threading.Thread(target=initiate_shutdown).start()
+    return waypointsResponse(state_refs, input_refs, attributes, normals)
+
+def initiate_shutdown():
+    """
+    Initiates node shutdown with a short delay to ensure service response is sent.
+    """
+    rospy.sleep(1)  # Short delay
+    rospy.signal_shutdown("Service request processed. Shutting down.")
+
+if __name__ == "__main__":
+    rospy.init_node('waypointPathServer')
+    s = rospy.Service('waypoint_path', waypoints, handle_array_service)
+    rospy.loginfo("Ready to return path.")
+    while not rospy.is_shutdown():
+        rospy.spin()
+    # current_path = os.path.dirname(os.path.realpath(__file__))
+    # config_path='config/mpc_config18.yaml'
+    # path = os.path.join(current_path, config_path)
+    # with open(path, 'r') as f:
+    #     config = yaml.safe_load(f)
+    # T = config['T']
+    # N = config['N']
+    # constraint_name = 'constraints'
+    # cost_name = 'costs'
+    # t_horizon = T * N
+
+    # v_ref = config[constraint_name]['v_ref']
+    # print("v_ref: ", v_ref)
+    # path = Path(v_ref = v_ref, N = N, T = T)

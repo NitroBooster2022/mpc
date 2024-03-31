@@ -2,19 +2,24 @@
 
   <!-- <rosparam command="load" file="$(find control)/config/gps_config.yaml" /> -->
   <!-- <node pkg="control" type="bridge" name="localization_bridge" output="screen"> </node> -->
-  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config50.yaml" />
-  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
   <arg name="sign" default="false"/>
   <arg name="ekf" default="false"/>
   <arg name="lane" default="false"/>
   <arg name="name" default="car1"/>
-  <arg name="vref" default="0.50"/>
+  <arg name="v" default="50"/>
+  <arg name="vref" default="0.$(arg v)"/>
   <arg name="x0" default="11.88"/>
   <arg name="y0" default="1.91"/>
   <arg name="yaw0" default="0"/>
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
+  <arg name = "path" default="path1"/>
+  <param name="pathName" value="$(arg path)"/>
+  <param name="vrefInt" value="$(arg v)"/>
+  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
+  <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
 
+  <node pkg="mpc" type="path2.py" name="path_planner" output="screen"></node> 
   <node pkg="mpc" type="controller" name="$(anon mpc_controller)" output="screen"> 
     <param name="sign" value="$(arg sign)"/>
     <param name="ekf" value="$(arg ekf)"/>
