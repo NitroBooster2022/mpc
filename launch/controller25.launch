@@ -14,6 +14,9 @@
   <arg name="yaw0" default="0"/>
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
+  <arg name = "path" default="path1"/>
+  <param name="pathName" value="$(arg path)"/>
+  <param name="vrefName" value="$(arg vref)"/>
 
   <node pkg="mpc" type="controller" name="$(anon mpc_controller)" output="screen"> 
     <param name="sign" value="$(arg sign)"/>
@@ -25,7 +28,6 @@
     <param name="y0" value="$(arg y0)"/>
     <param name="yaw0" value="$(arg yaw0)"/>
     <param name="real" value="$(arg real)"/>
-    <param name="/real" value="$(arg real)"/>
-    <param name="/subModel" value="$(arg subModel)"/>
+    <param name="subModel" value="$(arg subModel)"/>
   </node>
 </launch>

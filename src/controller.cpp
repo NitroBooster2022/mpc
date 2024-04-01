@@ -10,6 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <iostream>
+#include "utils/waypoints.h"
 
 using namespace VehicleConstants;
 
@@ -19,6 +20,42 @@ public:
     nh(nh_), utils(nh, real, x_init, y_init, yaw_init, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
     state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0), real(real)
     {
+        ros::ServiceClient waypoints_client = nh.serviceClient<utils::waypoints>("/waypoint_path");
+        utils::waypoints srv;
+        std::string pathName;
+        if(!nh.getParam("/pathName", pathName)) {
+            ROS_ERROR("Failed to get param 'pathName'");
+            pathName = "path1";
+        }
+        srv.request.pathName = pathName;
+        //convert v_ref to string
+        int vrefInt;
+        if(!nh.getParam("/vrefInt", vrefInt)) {
+            ROS_ERROR("Failed to get param 'vrefInt'");
+            vrefInt = 25;
+        }
+        srv.request.vrefName = std::to_string(vrefInt);
+        ROS_INFO("waiting for waypoints service");
+        waypoints_client.waitForExistence(ros::Duration(5));
+        if(waypoints_client.call(srv)) {
+            std::vector<double> state_refs(srv.response.state_refs.data.begin(), srv.response.state_refs.data.end()); // N by 3
+            std::vector<double> input_refs(srv.response.input_refs.data.begin(), srv.response.input_refs.data.end()); // N by 2
+            std::vector<double> wp_attributes(srv.response.wp_attributes.data.begin(), srv.response.wp_attributes.data.end()); // N by 1
+            std::vector<double> wp_normals(srv.response.wp_normals.data.begin(), srv.response.wp_normals.data.end()); // N by 2
+            int N = state_refs.size() / 3;
+            mpc.state_refs = Eigen::Map<Eigen::MatrixXd>(state_refs.data(), 3, N).transpose();
+            mpc.input_refs = Eigen::Map<Eigen::MatrixXd>(input_refs.data(), 2, N).transpose();
+            mpc.state_attributes = Eigen::Map<Eigen::VectorXd>(wp_attributes.data(), N);
+            mpc.normals = Eigen::Map<Eigen::MatrixXd>(wp_normals.data(), 2, N).transpose();
+            // for (int i = 0; i < N/5; i++) {
+            //     std::cout << "state refs " << i << ": " << mpc.state_refs.row(i) << std::endl;
+            // }
+            // exit(0);
+            ROS_INFO("Received waypoints of size %d", N);
+        } else {
+            ROS_ERROR("Failed to call service waypoints");
+        }
+
         //initialize parking spots
         for(int i=0; i<5; i++) {
             Eigen::Vector2d spot_right = {PARKING_SPOT_RIGHT[0] + i*PARKING_SPOT_LENGTH, PARKING_SPOT_RIGHT[1]};
