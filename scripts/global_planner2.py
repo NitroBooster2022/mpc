@@ -68,13 +68,13 @@ class GlobalPlanner:
                 max_y = max(max_y, float(data['y']))
 
         # Print out the maximum x and y values
-        print(f"The maximum x value is: {max_x}")
-        print(f"The maximum y value is: {max_y}")
+        # print(f"The maximum x value is: {max_x}")
+        # print(f"The maximum y value is: {max_y}")
         
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
-        print("path: ", path)
+        # print("path: ", path)
         wp_x = []
         wp_y = []
         wp_attributes = []
@@ -133,7 +133,7 @@ class GlobalPlanner:
         _, path_edges, _ = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         # img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
-        print("img: ", img.shape)
+        # print("img: ", img.shape)
         # Create the plot
         fig, ax = plt.subplots()
 

@@ -43,3 +43,9 @@ path3:
   - uniri_square_entrance
   - ferdinand_exit
   - end
+
+path4:
+  - start
+  - roundabout_entrance_south
+  - bus_lane_entrance
+  - end

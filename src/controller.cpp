@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include "utils/waypoints.h"
+#include <std_srvs/Trigger.h>
 
 using namespace VehicleConstants;
 
@@ -69,6 +70,7 @@ public:
         std::cout << "rate: " << rateVal << std::endl;
         x0 = {0, 0, 0};
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
+        ROS_INFO("destination: %.3f, %.3f", destination(0), destination(1));
         // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
         while(!utils.initializationFlag) {
             ros::spinOnce();
@@ -115,6 +117,11 @@ public:
     Utility utils;
     Optimizer mpc;
 
+    void call_trigger_service() {
+        ros::ServiceClient client = nh.serviceClient<std_srvs::Trigger>("/trigger_service");
+        std_srvs::Trigger srv;
+        client.call(srv);
+    }
     void solve();
     void publish_commands();
     void update_mpc_state();
@@ -1046,7 +1053,10 @@ void signalHandler(int signum) {
         globalStateMachinePtr->utils.stop_car();
         //globalStateMachinePtr->mpc.computeStats(357);
         //globalStateMachinePtr->utils.print_detected_cars();
+
+        globalStateMachinePtr->call_trigger_service();
     }
+
     ros::shutdown();
     exit(signum);
 }

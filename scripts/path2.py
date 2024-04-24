@@ -8,7 +8,7 @@ from global_planner2 import GlobalPlanner
 import yaml
 import math
 import rospy
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float32MultiArray
 from utils.srv import waypoints, waypointsResponse
 
 def smooth_yaw_angles(yaw_angles):
@@ -172,7 +172,7 @@ def interpolate_waypoints2(waypoints, num_points):
 class Path:
     def __init__(self, v_ref, N, T, x0=None, name="speedrun"):
         self.v_ref = v_ref
-        print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
+        # print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
         self.N = N
         self.global_planner = GlobalPlanner()
         self.name = name
@@ -349,7 +349,7 @@ class Path:
 
     def illustrate_path(self, state_refs):
         import matplotlib.pyplot as plt
-        print("shape: ", state_refs.shape)
+        # print("shape: ", state_refs.shape)
         plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
         plt.show()
 
@@ -359,7 +359,7 @@ def handle_array_service(req):
     """
     current_path = os.path.dirname(os.path.realpath(__file__))
     config_path='config/mpc_config' + req.vrefName + '.yaml'
-    print("config_path: ", config_path)
+    # print("config_path: ", config_path)
     path = os.path.join(current_path, config_path)
     with open(path, 'r') as f:
         config = yaml.safe_load(f)
@@ -368,15 +368,15 @@ def handle_array_service(req):
     constraint_name = 'constraints'
 
     v_ref = config[constraint_name]['v_ref']
-    print("v_ref: ", v_ref)
+    # print("v_ref: ", v_ref)
     path = Path(v_ref = v_ref, N = N, T = T, name = req.pathName)
 
-    state_refs = Float64MultiArray(data = path.state_refs.flatten())
-    input_refs = Float64MultiArray(data = path.input_refs.flatten())
-    attributes = Float64MultiArray(data = path.attributes.flatten())
-    normals = Float64MultiArray(data = path.wp_normals.flatten())
+    state_refs = Float32MultiArray(data = path.state_refs.flatten())
+    input_refs = Float32MultiArray(data = path.input_refs.flatten())
+    attributes = Float32MultiArray(data = path.attributes.flatten())
+    normals = Float32MultiArray(data = path.wp_normals.flatten())
     
-    print("sizes: ", len(state_refs.data), len(input_refs.data), len(attributes.data), len(normals.data))
+    # print("sizes: ", len(state_refs.data), len(input_refs.data), len(attributes.data), len(normals.data))
     import threading
     threading.Thread(target=initiate_shutdown).start()
     return waypointsResponse(state_refs, input_refs, attributes, normals)

@@ -8,14 +8,18 @@
   <arg name="name" default="car1"/>
   <arg name="v" default="50"/>
   <arg name="vref" default="0.$(arg v)"/>
-  <arg name="x0" default="11.88"/>
-  <arg name="y0" default="1.91"/>
+  <arg name="x0" default="11.71"/>
+  <arg name="y0" default="1.896"/>
   <arg name="yaw0" default="0"/>
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
   <arg name = "path" default="path1"/>
   <param name="pathName" value="$(arg path)"/>
   <param name="vrefInt" value="$(arg v)"/>
+  <arg name = "gmapping" default="false"/>
+  <param name="gmapping" value="$(arg gmapping)"/>
+  <arg name = "lidarOdom" default="false"/>
+  <param name="lidarOdom" value="$(arg lidarOdom)"/>
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
 
