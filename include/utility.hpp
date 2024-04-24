@@ -3,7 +3,6 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Odometry.h>
-#include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Header.h>
@@ -61,15 +60,17 @@ public:
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
     bool real;
-    bool useTf = true;
+    bool useGmapping = true, useLidarOdom = false;
     double rateVal;
     ros::Rate* rate;
 
     double wheelbase, odomRatio, maxspeed, center, image_center, p, d, last;
     bool stopline = false;
-    double yaw, velocity, odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, ekf_yaw, gps_x, gps_y, steer_command, velocity_command, x_speed, y_speed;
+    double yaw, velocity, steer_command, velocity_command, x_speed, y_speed;
+    double odomX, odomY, odomYaw, dx, dy, dyaw, ekf_x, ekf_y, ekf_yaw, gps_x, gps_y, gmapping_x, gmapping_y, odomX_lidar, odomY_lidar;
     double initial_yaw = 0;
     double x_offset, y_offset;
+    double x0 = -1, y0 = -1, yaw0 = 0;
     double gps_state[3];
     double ekf_state[3];
     std::optional<size_t> car_idx;
@@ -89,7 +90,7 @@ public:
 
     // publishers
     ros::Publisher odom_pub;
-    // ros::Publisher odom1_pub;
+    ros::Publisher odom_lidar_pub;
     ros::Publisher cmd_vel_pub;
     ros::Publisher car_pose_pub;
     ros::Publisher pose_pub;
@@ -98,11 +99,12 @@ public:
 
     // messages
     nav_msgs::Odometry odom_msg;
+    nav_msgs::Odometry odom_lidar_msg;
     // nav_msgs::Odometry odom1_msg;
     nav_msgs::Odometry ekf_msg;
     std_msgs::String msg;
     std_msgs::String msg2;
-    std_msgs::Float64MultiArray car_pose_msg;
+    std_msgs::Float32MultiArray car_pose_msg;
 
     gazebo_msgs::ModelStates model;
     std_msgs::Float32MultiArray sign;
@@ -122,6 +124,7 @@ public:
     ros::Subscriber imu_sub;
     ros::Subscriber ekf_sub;
     ros::Subscriber tf_sub;
+    ros::Subscriber odom_lidar_sub;
 
     ros::Timer odom_pub_timer;
     void odom_pub_timer_callback(const ros::TimerEvent&);
@@ -133,6 +136,7 @@ public:
     void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
     void ekf_callback(const nav_msgs::Odometry::ConstPtr& msg);
     void tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg);
+    void odom_lidar_callback(const nav_msgs::Odometry::ConstPtr& msg);
     void spin();
     // Methods
     void stop_car();
@@ -161,7 +165,11 @@ public:
     double get_yaw() {
         return yaw;
     }
-    void get_states(double &x_, double &y_, double &yaw_) {
+    int get_states(double &x_, double &y_, double &yaw_) {
+        if(!initializationFlag || !imuInitialized || x0 < 0 || y0 < 0) {
+            ROS_INFO("get_states: Initialization not done");
+            return -1;
+        }
         yaw_ = yaw;
         if(useEkf) {
             // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
@@ -171,11 +179,20 @@ public:
             // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
             x_ = gps_x;
             y_ = gps_y;
+        } else if(useGmapping) {
+            ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
+            x_ = gmapping_x;
+            y_ = gmapping_y;
+        } else if(useLidarOdom) {
+            // ROS_INFO("Using lidar odom: %.3f, %.3f", odomX_lidar, odomY_lidar);
+            x_ = odomX_lidar + x0;
+            y_ = odomY_lidar + y0;
         } else {
             // ROS_INFO("Using odom: %.3f, %.3f", odomX, odomY);
-            x_ = odomX;
-            y_ = odomY;
+            x_ = odomX + x0;
+            y_ = odomY + y0;
         }
+        return 0;
     }
     void get_gps_states(double &x_, double &y_, double &yaw_) {
         x_ = gps_x;
