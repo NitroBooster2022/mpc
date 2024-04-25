@@ -277,22 +277,26 @@ public:
         if(lane) {
             return utils.stopline;
         }
-        auto attribute3 = mpc.state_attributes(mpc.target_waypoint_index+3); // check 3 waypoints ahead
-        if(attribute3 == mpc.ATTRIBUTE::STOPLINE) {
-            std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
-            if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
-                cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
-                if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
-                    if (stopsign_flag) {
-                        stopsign_flag = 0;
+        double lookahead_dist = 0.15;
+        int num_index = static_cast<int>(lookahead_dist * mpc.density);
+        for (int i = 0; i < num_index; i++) {
+            auto attribute_i = mpc.state_attributes(mpc.target_waypoint_index+i); // check 3 waypoints ahead
+            if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
+                std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
+                if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
+                    cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
+                    if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
+                        if (stopsign_flag) {
+                            stopsign_flag = 0;
+                            return true;
+                        }
+                    } else { 
                         return true;
                     }
-                } else { 
-                    return true;
+                } else {
+                    std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
+                    return false;
                 }
-            } else {
-                std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
-                return false;
             }
         }
         return false;
@@ -305,7 +309,7 @@ public:
                 if (dist < MAX_SIGN_DIST && dist > 0) {
                     std::cout << "stop sign detected at a distance of: " << dist << std::endl;
                     detected_dist = dist;
-                    if(lane) utils.reset_odom();
+                    // if(lane) utils.reset_odom();
                     stopsign_flag = STOPSIGN_FLAGS::STOP;
                 }
             }
@@ -315,7 +319,7 @@ public:
                 if (dist < MAX_SIGN_DIST && dist > 0) {
                     std::cout << "traffic light detected at a distance of: " << dist << std::endl;
                     detected_dist = dist;
-                    if(lane) utils.reset_odom();
+                    // if(lane) utils.reset_odom();
                     stopsign_flag = STOPSIGN_FLAGS::LIGHT;
                 }
             }
@@ -384,10 +388,18 @@ public:
     }
     void pedestrian_detected() {
         int pedestrian_count = 0;
-        if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
+        bool detected;
+        if (real) {
+            detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0;
+        } else {
+            detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0;
+        }
+        if (detected) {
             while (true) {
-                if (utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0) {
-                    double dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
+                if (detected) {
+                    double dist;
+                    if (real) dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
+                    else dist = utils.object_distance(utils.object_index(OBJECT::PEDESTRIAN));
                     ROS_INFO("girl detected at a distance of: %.3f", dist);
                     stop_for(STOP_DURATION);
                 } else {
@@ -424,12 +436,6 @@ public:
 
 void StateMachine::update_mpc_state() {
     double x, y, yaw;
-    // if (ekf) {
-    //     utils.get_ekf_states(x, y, yaw);
-    //     mpc.update_current_states(utils.gps_x, utils.gps_y, utils.yaw, mpc.x_real); // update real states as well
-    // } else {
-    //     utils.get_gps_states(x, y, yaw);
-    // }
     utils.get_states(x, y, yaw);
     mpc.update_current_states(x, y, yaw); // no argument means use current states
     if(debug) {
@@ -457,7 +463,8 @@ void StateMachine::publish_commands() {
     if(publish_waypoints) {
         static Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(mpc.N, 3);
         mpc.get_current_waypoints(waypoints);
-        std_msgs::Float64MultiArray msg;
+        static std_msgs::Float64MultiArray msg;
+        msg.data.clear();
         for (int i = 0; i < waypoints.rows(); ++i) {
             msg.data.push_back(waypoints(i, 0)); // x
             msg.data.push_back(waypoints(i, 1)); // y
@@ -485,12 +492,12 @@ void StateMachine::run() {
         }
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
-            if(intersection_reached() && sign) {
+            if(sign && intersection_reached()) {
                 change_state(STATE::WAITING_FOR_STOPSIGN);
                 continue;
             }
-            // auto attribute3 = mpc.state_attributes(mpc.target_waypoint_index+3); // check 3 waypoints ahead
-            // if(attribute3 == mpc.ATTRIBUTE::STOPLINE) {
+            // auto attribute_i = mpc.state_attributes(mpc.target_waypoint_index+3); // check 3 waypoints ahead
+            // if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
             //     std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
             //     if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
             //         cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
@@ -749,8 +756,8 @@ void StateMachine::run() {
         } else if (state == STATE::WAITING_FOR_LIGHT) {
             stop_for(STOP_DURATION);
             cooldown_timer = ros::Time::now() + ros::Duration(SIGN_COOLDOWN);
-            change_state(STATE::MOVING);
             if(lane) change_state(STATE::LANE_FOLLOWING);
+            else change_state(STATE::MOVING);
         } else if (state == STATE::PARKING) {
             stop_for(STOP_DURATION/2);
             double offset_thresh = 0.1;
@@ -812,7 +819,7 @@ void StateMachine::run() {
                     }
                     if (changed) {
                         // xs[0] = base_offset + target_spot/2 * PARKING_SPOT_LENGTH;
-                        offset = base_offset + target_spot/2 * PARKING_SPOT_LENGTH;
+                        offset = base_offset + target_spot / 2 * PARKING_SPOT_LENGTH;
                         right_park = target_spot % 2 == 0;
                         ROS_INFO("car in spot, changing to target spot %d at (%.3f, %.3f), right: %s", target_spot, PARKING_SPOTS[target_spot][0], PARKING_SPOTS[target_spot][1], right_park ? "true" : "false");
                         // mpc.set_up_park(xs);
