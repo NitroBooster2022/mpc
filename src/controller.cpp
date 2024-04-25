@@ -463,7 +463,7 @@ void StateMachine::publish_commands() {
     if(publish_waypoints) {
         static Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(mpc.N, 3);
         mpc.get_current_waypoints(waypoints);
-        static std_msgs::Float64MultiArray msg;
+        static std_msgs::Float32MultiArray msg;
         msg.data.clear();
         for (int i = 0; i < waypoints.rows(); ++i) {
             msg.data.push_back(waypoints(i, 0)); // x
