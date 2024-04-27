@@ -20,6 +20,7 @@
 #include "acados_solver_mobile_robot_18.h"
 #include "acados_solver_park.h"
 #include "acados_sim_solver_park.h"
+#include "constants.h"
 
 class Optimizer {
 public:
@@ -320,17 +321,59 @@ public:
 
     void change_lane(int start_index, int end_index, bool shift_right = false, double shift_distance = 0.36-0.1) {
         if (shift_right) shift_distance *= -1;
-        state_refs.block(start_index, 0, end_index-start_index, 2) += normals.block(start_index, 0, end_index-start_index, 2) * shift_distance;
-        
-        // Calculate the vectors for the gaps
-        // Eigen::Vector2d start_gap_vector = state_refs.row(start_index) - state_refs.row(start_index - 1);
-        // Eigen::Vector2d end_gap_vector = state_refs.row(end_index + 1) - state_refs.row(end_index);
+        // state_refs.block(start_index, 0, end_index-start_index, 2) += normals.block(start_index, 0, end_index-start_index, 2) * shift_distance;
+
+        // Total number of points
+        int total_points = end_index - start_index;
+        // int ramp_length = static_cast<int>(density * VehicleConstants::CAR_LENGTH / 2);
+        int ramp_length = static_cast<int>(density * 0.125);
+        std::cout << "ramp_length (#wpts): " << ramp_length << std::endl;
+
+        // Define the start and end indices of the constant shift phase
+        int ramp_up_end = start_index + ramp_length;
+        int ramp_down_start = end_index - ramp_length;
+
+        // Iterate over each point from start_index to end_index
+        for (int i = start_index; i < end_index; i++) {
+            double current_shift = 0.0;
+
+            // Ramp up phase
+            if (i < ramp_up_end) {
+                // Adjust the progress calculation to start shifting immediately after start_index
+                double progress = static_cast<double>(i - start_index + 1) / ramp_length;
+                current_shift = shift_distance * progress;
+            }
+            // Constant shift phase
+            else if (i >= ramp_up_end && i < ramp_down_start) {
+                current_shift = shift_distance;
+            }
+            // Ramp down phase
+            else {
+                // Adjust progress calculation for a smoother transition to zero at the end
+                double progress = static_cast<double>(end_index - i) / ramp_length;
+                current_shift = shift_distance * progress;
+            }
+
+            // Apply the shift to the current waypoint
+            state_refs.block(i, 0, 1, 2) += normals.block(i, 0, 1, 2) * current_shift;
+        }
+
+        // // Calculate the vectors for the gaps
+        // Eigen::Vector2d start_gap_vector = state_refs.row(start_index).head(2) - state_refs.row(start_index - 1).head(2);
+        // Eigen::Vector2d end_gap_vector = state_refs.row(end_index + 1).head(2) - state_refs.row(end_index).head(2);
+        // std::cout << "start_gap_vector: " << start_gap_vector.transpose() << std::endl;
+        // std::cout << "start: " << state_refs.row(start_index) << ", start - 1: " << state_refs.row(start_index - 1) << std::endl;
         // double start_gap_yaw = std::atan2(start_gap_vector.y(), start_gap_vector.x());
         // double end_gap_yaw = std::atan2(end_gap_vector.y(), end_gap_vector.x());
+
+        // std::cout << "start_gap_yaw: " << start_gap_yaw << std::endl;
 
         // // Calculate the number of points to interpolate based on the actual length of the gap
         // int num_start_points = static_cast<int>(density * start_gap_vector.norm() / 2);
         // int num_end_points = static_cast<int>(density * end_gap_vector.norm() / 2);
+
+        // std::cout << "num_start_points: " << num_start_points << std::endl;
+        // std::cout << "num_end_points: " << num_end_points << std::endl;
 
         // // Create matrices to hold the new interpolated waypoints for the start and end gaps
         // Eigen::MatrixXd start_gap_filler(num_start_points, 3);
@@ -344,6 +387,7 @@ public:
         //     start_gap_filler.row(i).head(2) = interpolated_position;
         //     start_gap_filler(i, 2) = start_gap_yaw;
         // }
+        // std::cout << "start_gap_filler: " << start_gap_filler << std::endl;
         // // Interpolate for the end gap
         // for (int i = 0; i < num_end_points; ++i) {
         //     double t = static_cast<double>(i + 1) / (num_end_points + 1);
@@ -354,21 +398,31 @@ public:
         // }
         // int original_size = state_refs.rows();
         // int new_size = original_size + start_gap_filler.rows() + end_gap_filler.rows();
+        // std::cout << "original_size: " << original_size << std::endl;
+        // std::cout << "new_size: " << new_size << std::endl;
         // state_refs.conservativeResize(new_size, Eigen::NoChange); 
 
+        // std::cout << "state_refs size: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
         // // Shift the end part of the matrix to make space for the 'end_gap_filler'
         // state_refs.block(end_index + 1 + end_gap_filler.rows(), 0, original_size - end_index - 1, 3) =
         //     state_refs.block(end_index + 1, 0, original_size - end_index - 1, 3);
 
+        // std::cout << "state_refs size2: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
         // // Insert 'end_gap_filler' into 'state_refs'
         // state_refs.block(end_index + 1, 0, end_gap_filler.rows(), 3) = end_gap_filler;
 
+        // std::cout << "state_refs size3: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
         // // Shift the middle part of the matrix to make space for the 'start_gap_filler'
         // state_refs.block(start_index + start_gap_filler.rows(), 0, new_size - start_index - start_gap_filler.rows(), 3) =
         //     state_refs.block(start_index, 0, new_size - start_index - start_gap_filler.rows(), 3);
 
+        // std::cout << "state_refs size4: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
         // // Insert 'start_gap_filler' into 'state_refs'
         // state_refs.block(start_index, 0, start_gap_filler.rows(), 3) = start_gap_filler;
+        // std::cout << "state_refs size5: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
+        // for (int i = start_index -10; i < start_index + 30; ++i) {
+        //     std::cout << "state_refs(" << i << "): " << state_refs(i + start_index -10, 0) << ", " << state_refs(i + start_index -10, 1) << ", " << state_refs(i + start_index -10, 2) << std::endl;
+        // }
     }
     int get_current_attribute() {
         return state_attributes(target_waypoint_index);
