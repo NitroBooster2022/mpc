@@ -12,6 +12,7 @@
 #include <iostream>
 #include "utils/waypoints.h"
 #include <std_srvs/Trigger.h>
+#include <std_srvs/SetBool.h>
 
 using namespace VehicleConstants;
 
@@ -71,6 +72,8 @@ public:
         x0 = {0, 0, 0};
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
         ROS_INFO("destination: %.3f, %.3f", destination(0), destination(1));
+        start_trigger = nh.advertiseService("/start_bool", &StateMachine::start_bool_callback, this);
+        ROS_INFO("server ready");
         // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
         while(!utils.initializationFlag) {
             ros::spinOnce();
@@ -122,6 +125,24 @@ public:
         std_srvs::Trigger srv;
         client.call(srv);
     }
+    bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
+        if (req.data && state == STATE::INIT) {
+            if (lane) {
+                change_state(STATE::LANE_FOLLOWING);
+            } else {
+                change_state(STATE::MOVING);
+            }
+            res.success = true;
+            res.message = "Started";
+        } else {
+            change_state(STATE::INIT);
+            res.success = true;
+            res.message = "Stopped";
+        }
+        return true;
+        
+    }
+    ros::ServiceServer start_trigger;
     void solve();
     void publish_commands();
     void update_mpc_state();
@@ -1051,8 +1072,9 @@ void StateMachine::run() {
             }
             change_state(STATE::LANE_FOLLOWING);
         } else if (state == STATE::INIT) {
-            change_state(STATE::MOVING);
-            if (lane) change_state(STATE::LANE_FOLLOWING);
+            rate->sleep();
+            // change_state(STATE::MOVING);
+            // if (lane) change_state(STATE::LANE_FOLLOWING);
             // change_state(STATE::INTERSECTION_MANEUVERING);
             // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
