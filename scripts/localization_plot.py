@@ -421,8 +421,8 @@ if __name__ == '__main__':
     # parser.add_argument("--noPlot", action='store_true', help='Boolean for whether to plot the data')
     # parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
     # args = parser.parse_args()
-    show = False
-    plot = True
+    show = True
+    plot = False
     node = Odom(show = show, plot = plot)
     while not rospy.is_shutdown():
         rospy.spin()

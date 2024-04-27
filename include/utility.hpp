@@ -180,7 +180,7 @@ public:
             x_ = gps_x;
             y_ = gps_y;
         } else if(useGmapping) {
-            ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
+            // ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
             x_ = gmapping_x;
             y_ = gmapping_y;
         } else if(useLidarOdom) {

@@ -4,6 +4,7 @@ import psutil
 def get_ros_nodes():
     """ Retrieves a list of active ROS nodes. """
     try:
+        print("Listing ROS nodes...")
         nodes = subprocess.check_output("rosnode list", shell=True).decode().splitlines()
     except subprocess.CalledProcessError as e:
         print("Failed to list ROS nodes:", e)
@@ -13,6 +14,7 @@ def get_ros_nodes():
 def get_node_pid(node_name):
     """ Retrieves the PID of a given ROS node by its name. """
     try:
+        print(f"Getting info for node {node_name}...")
         node_info = subprocess.check_output(f"rosnode info {node_name}", shell=True).decode()
     except subprocess.CalledProcessError as e:
         print(f"Failed to get info for node {node_name}:", e)
@@ -26,6 +28,7 @@ def get_node_pid(node_name):
 def get_process_metrics(pid):
     """ Retrieves various usage statistics for a given PID. """
     try:
+        print(f"Getting metrics for PID {pid}...")
         p = psutil.Process(pid)
         cpu_percent = p.cpu_percent(interval=1)  # measure CPU usage over 1 second
         mem_info = p.memory_info()

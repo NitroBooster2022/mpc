@@ -65,7 +65,7 @@ namespace VehicleConstants {
     static constexpr double CROSSWALK_LENGTH = 1.0;
     static constexpr double OVERTAKE_DIST = 2.0;
     static constexpr double LANE_OFFSET = 0.36;
-    static constexpr double MIN_DIST_TO_CAR = 0.8;
+    static constexpr double MIN_DIST_TO_CAR = 0.3;
     static constexpr double MAX_CAR_DIST = 3.0;
     static constexpr double SIGN_COOLDOWN = 1.0;
     static constexpr double TOLERANCE_SQUARED = 0.01;

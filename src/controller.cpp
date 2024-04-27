@@ -19,7 +19,7 @@ class StateMachine {
 public:
     StateMachine(ros::NodeHandle& nh_, double T, int N, double v_ref, bool sign, bool ekf, bool lane, double T_park, std::string robot_name, double x_init, double y_init, double yaw_init, bool real): 
     nh(nh_), utils(nh, real, x_init, y_init, yaw_init, sign, ekf, lane, robot_name), mpc(T,N,v_ref), cooldown_timer(ros::Time::now()), xs(5),
-    state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), detected_index(0), real(real)
+    state(STATE::INIT), sign(sign), ekf(ekf), lane(lane), T_park(T_park), T(T), end_index(0), real(real)
     {
         ros::ServiceClient waypoints_client = nh.serviceClient<utils::waypoints>("/waypoint_path");
         utils::waypoints srv;
@@ -102,7 +102,7 @@ public:
     int stopsign_flag = 0;
     int maneuver_direction = 0; // 0: left, 1: straight, 2: right
     ros::Time cd_timer = ros::Time::now();
-    int detected_index = 0;
+    int end_index = 0;
     Eigen::Vector2d destination;
     Eigen::VectorXd xs;
     int state = 0;
@@ -396,6 +396,11 @@ public:
         }
         if (detected) {
             while (true) {
+                if (real) {
+                    detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0;
+                } else {
+                    detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0;
+                }
                 if (detected) {
                     double dist;
                     if (real) dist = utils.object_distance(utils.object_index(OBJECT::HIGHWAYEXIT));
@@ -404,6 +409,7 @@ public:
                     stop_for(STOP_DURATION);
                 } else {
                     pedestrian_count ++;
+                    ROS_INFO("pedestrian count: %d", pedestrian_count);
                     stop_for(STOP_DURATION/15);
                 }
                 if (pedestrian_count > 10) break;
@@ -474,6 +480,7 @@ void StateMachine::publish_commands() {
     
     double steer = -mpc.u_current[1] * 180 / M_PI; // convert to degrees
     double speed = mpc.u_current[0];
+    // ROS_INFO("publish_commands: steer: %.3f, speed: %.3f", steer, speed);
     // steer = 23;
     // speed = 0.573;
     utils.publish_cmd_vel(steer, speed);
@@ -482,6 +489,7 @@ void StateMachine::change_state(STATE new_state) {
     std::cout << "Changing from " << state_names[state] << " to " << state_names[new_state] << std::endl;
     state = new_state;
 }
+
 void StateMachine::run() {
     static ros::Time overtake_cd = ros::Time::now();
     static bool wrong_lane = false;
@@ -526,14 +534,13 @@ void StateMachine::run() {
                 int car_index = utils.object_index(OBJECT::CAR);
                 if(car_index >= 0) { // if car detected
                     dist = utils.object_distance(car_index); // compute distance to back of car
-                    if (dist < MAX_CAR_DIST && dist > 0 && mpc.closest_waypoint_index >= detected_index * 1.2) {
-                        std::cout << "a car is detected at a distance of " << dist << ", at index: " << mpc.closest_waypoint_index << ", detected_index: " << detected_index << std::endl;
-                        // std::array<double, 4> car_bbox = utils.object_box(car_index);
+                    if (dist < MAX_CAR_DIST && dist > 0 && mpc.closest_waypoint_index >= end_index * 1.2) {
+                        std::cout << "a car is detected at a distance of " << dist << ", at index: " << mpc.closest_waypoint_index << ", end_index: " << end_index << std::endl;
                         utils.object_box(car_index, bbox);
                         double x, y, yaw;
                         utils.get_states(x, y, yaw);
                         auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, CAMERA_PARAMS);
-                        printf("estimated car pose: %.3f, %.3f\n", car_pose[0], car_pose[1]);
+                        // printf("estimated car pose: %.3f, %.3f\n", car_pose[0], car_pose[1]);
                         // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
                         double look_ahead_dist = dist * 1.5;
                         int look_ahead_index = look_ahead_dist * mpc.density + mpc.closest_waypoint_index;
@@ -551,40 +558,46 @@ void StateMachine::run() {
                         double min_dist = std::sqrt(min_dist_sq);
                         bool same_lane = false;
                         if (min_dist < LANE_OFFSET * 0.25) {
-                            std::cout << "closest index: " << min_index << ", closest dist: " << min_dist << ", closest waypoint: (" << mpc.state_refs(min_index, 0) << ", " << mpc.state_refs(min_index, 1) << ")" << std::endl;
+                            // std::cout << "closest index: " << min_index << ", closest dist: " << min_dist << ", closest waypoint: (" << mpc.state_refs(min_index, 0) << ", " << mpc.state_refs(min_index, 1) << ")" << std::endl;
                             same_lane = true;
                         }
-                        std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << same_lane << std::endl;
+                        // std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << same_lane << std::endl;
                         if (same_lane) {
                             int idx = mpc.closest_waypoint_index + dist * mpc.density * 0.75; // compute index of midpoint between detected car and ego car
                             int attribute = mpc.state_attributes(idx);
-                            std::cout << "attribute: " << attribute << std::endl;
+                            // std::cout << "attribute: " << attribute << std::endl;
                             if (attribute != mpc.ATTRIBUTE::DOTTED && attribute != mpc.ATTRIBUTE::DOTTED_CROSSWALK && attribute != mpc.ATTRIBUTE::HIGHWAYLEFT && attribute != mpc.ATTRIBUTE::HIGHWAYRIGHT) {
                                 if (dist < MAX_TAILING_DIST) {
-                                    std::cout << "detected car is in oneway or non-dotted region, dist =" << dist << std::endl;
-                                    stop_for(T);
+                                    ROS_INFO("detected car is in oneway or non-dotted region, dist = %.3f, stopping...", dist);
+                                    stop_for(20*T);
                                     continue;
                                 } else {
-                                    std::cout << "car on oneway pretty far and within safety margin, keep tailing: " << dist << std::endl;
+                                    ROS_INFO("car on oneway pretty far and within safety margin, keep tailing: %.3f", dist);
                                 }
                             } else {
-                                dist = std::max(dist + CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
+                                double start_dist = std::max(dist - CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
                                 bool right = false;
                                 double density = mpc.density;
-                                double lane_offset = LANE_OFFSET * 1.1;
+                                double lane_offset = LANE_OFFSET * 1.5;
+                                int end_index_scaler = 1;
                                 if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
                                     density *= 1/1.33;
-                                    // lane_offset *= 1.25;
+                                    end_index_scaler *= 1.5;
+                                    ROS_INFO("in highway right, overtake on left");
                                 }
                                 else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
                                     right = true; 
                                     density *= 1/1.33;
-                                    // lane_offset *= 1.25;
+                                    end_index_scaler *= 1.5;
+                                    ROS_INFO("in highway left, overtake on right");
                                 }
-                                int offset = static_cast<int>(dist * density);
-                                detected_index = mpc.target_waypoint_index + static_cast<int>(OVERTAKE_DIST * density);
-                                std::cout << "detected car at a distance of: " << dist << ", changing lane, right: " << right << ", current index: " << mpc.target_waypoint_index << ", detected index: " << detected_index << ", offset: " << offset << std::endl;
-                                mpc.change_lane(mpc.target_waypoint_index+offset, detected_index+offset, right, lane_offset);
+                                int start_index = mpc.target_waypoint_index + static_cast<int>(start_dist * density);
+                                end_index = start_index + static_cast<int>((CAR_LENGTH * 2 + MIN_DIST_TO_CAR * 2) * density * end_index_scaler);
+                                
+                                mpc.change_lane(start_index, end_index, right, lane_offset);
+                                ROS_INFO("changing lane to the %s in %.3f meters. start pose: (%.2f,%.2f), end: (%.2f, %.2f), cur: (%.2f, %.2f)", start_dist, right ? "right" : "left", mpc.state_refs(start_index, 0), mpc.state_refs(start_index, 1), mpc.state_refs(end_index, 0), mpc.state_refs(end_index, 1), x, y);
+                                // stop_for(2*T);
+                                // exit(0);
                             }
                         }
                     }
