@@ -126,15 +126,22 @@ public:
         client.call(srv);
     }
     bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
+        static int history = -1;
         if (req.data && state == STATE::INIT) {
-            if (lane) {
-                change_state(STATE::LANE_FOLLOWING);
+            if (history == -1) {
+                if (lane) {
+                    change_state(STATE::LANE_FOLLOWING);
+                } else {
+                    change_state(STATE::MOVING);
+                }
             } else {
-                change_state(STATE::MOVING);
+                change_state(static_cast<STATE>(history));
             }
             res.success = true;
             res.message = "Started";
         } else {
+            history = state;
+            stop_for(10*T);
             change_state(STATE::INIT);
             res.success = true;
             res.message = "Stopped";
