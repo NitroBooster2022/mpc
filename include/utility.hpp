@@ -366,4 +366,19 @@ public:
         strs << "#" << "2" << ":" << buff;
         boost::asio::write(*serial, boost::asio::buffer(strs.str()));
     }
+
+    void send_speed_and_steer(float f_velocity, float f_angle) {
+        ROS_INFO("speed: %.3f, angle: %.3f, yaw: %.3f", f_velocity, f_angle, yaw * 180 / M_PI);
+        if (serial == nullptr) {
+            ROS_INFO("Serial is null");
+            return;
+        }
+        std::stringstream strs;
+        char buff[100];
+        snprintf(buff, sizeof(buff), "%.2f:%.2f;;\r\n", f_velocity * 100, f_angle);
+        strs << "#" << "8" << ":" << buff;
+        boost::asio::write(*serial, boost::asio::buffer(strs.str()));
+        // std::cout << strs.str() << std::endl;
+    }
+
 };

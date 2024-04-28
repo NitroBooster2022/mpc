@@ -123,9 +123,9 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         imu_topic_name = "/realsense/imu";
         // imu_topic_name = "/car1/data";
     } else {
-        imu_topic_name = "/" + robot_name + "/imu";
+        // imu_topic_name = "/" + robot_name + "/imu";
         // imu_topic_name = "/realsense/imu";
-        // imu_topic_name = "/car1/data";
+        imu_topic_name = "/car1/data";
     }
     ROS_INFO("imu topic: %s", imu_topic_name.c_str());
     std::cout << "waiting for Imu message" << std::endl;
@@ -359,6 +359,7 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
 
     m_chassis.getRPY(roll, pitch, yaw);
 
+    if (real) yaw *= -1;
     // ROS_INFO("yaw: %.3f", yaw * 180 / M_PI);
     // ROS_INFO("yaw: %.3f\n, angular velocity: %.3f\n, acceleration: %.3f, %.3f, %.3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
     if (!imuInitialized) {
@@ -690,15 +691,17 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     float vel = velocity;
     lock.lock();
     steer_command = steering_angle;
-    if(std::abs(velocity_command-velocity)>0.001) {
-        velocity_command = velocity;
-        if(real) send_speed(vel);
-    }
+    velocity_command = velocity;
+    // if(std::abs(velocity_command-velocity)>0.001) {
+    //     velocity_command = velocity;
+    //     if(real) send_speed(vel);
+    // }
     lock.unlock();
     float steer = steering_angle;
     if(real) {
         // send_speed(vel);
-        send_steer(steer);
+        // send_steer(steer);
+        send_speed_and_steer(vel, steer);
         // ROS_INFO("publishing steer: %.3f, speed: %.3f", steer, vel);
     } else {
         if(use_toggle) {
