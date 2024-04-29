@@ -22,7 +22,8 @@ namespace VehicleConstants {
         EXITING_PARKING,
         DONE,
         LANE_FOLLOWING,
-        INTERSECTION_MANEUVERING
+        INTERSECTION_MANEUVERING,
+        KEYBOARD_CONTROL
     };
     enum STOPSIGN_FLAGS {
         NONE,

@@ -417,7 +417,8 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
     // return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
-void Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state) {
+int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state, bool safety_check) {
+    int success = 1;
     if(target_waypoint_index < state_refs.rows()) {
         double ref_yaw = state_refs(target_waypoint_index, 2);
         while (ref_yaw - yaw > M_PI) {
@@ -427,9 +428,26 @@ void Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vec
             yaw -= 2 * M_PI;
         }
     }
+    if (safety_check) {
+        double difference_mag_sq = (state[0] - x) * (state[0] - x) + (state[1] - y) * (state[1] - y);
+        if (difference_mag_sq > std::pow(v_ref * T * 5, 2)) {
+            std::cout << "difference is too large, initial: " << state[0] << ", " << state[1] << ", " << state[2] << ", current: " << x << ", " << y << ", " << yaw << ", norm sq: " << difference_mag_sq << std::endl;
+            int reset_status;
+            if(use25) {
+                reset_status = mobile_robot_25_acados_reset(acados_ocp_capsule_25, 1);
+            } else if(use18) {
+                reset_status = mobile_robot_18_acados_reset(acados_ocp_capsule_18, 1);
+            } else {
+                reset_status = mobile_robot_acados_reset(acados_ocp_capsule, 1);
+            }
+            
+            success = 0;
+        }
+    }
     state[0] = x;
     state[1] = y;
     state[2] = yaw;
+    return success;
 }
 // void Optimizer::update_current_states(double* state) {
 //     double yaw = state[2];

@@ -13,6 +13,7 @@
 #include "utils/waypoints.h"
 #include <std_srvs/Trigger.h>
 #include <std_srvs/SetBool.h>
+#include <ncurses.h>
 
 using namespace VehicleConstants;
 
@@ -28,6 +29,12 @@ public:
         if(!nh.getParam("/pathName", pathName)) {
             ROS_ERROR("Failed to get param 'pathName'");
             pathName = "path1";
+        }
+        nh.param("/dashboard", dashboard, true);
+        nh.param("/kb", keyboardControl, false);
+        if (keyboardControl) {
+            std::cout << "keyboard control enabled" << std::endl;
+            change_state(STATE::KEYBOARD_CONTROL);
         }
         srv.request.pathName = pathName;
         //convert v_ref to string
@@ -83,7 +90,7 @@ public:
         utils.get_states(x, y, yaw);
         std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
         if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
-        mpc.update_current_states(x, y, utils.yaw);
+        mpc.initialize_current_states(x, y, utils.yaw);
         mpc.target_waypoint_index = mpc.find_next_waypoint(mpc.x_current, 0, static_cast<int>(mpc.state_refs.rows() - 1));
     }
     ~StateMachine() {
@@ -109,7 +116,7 @@ public:
     Eigen::Vector2d destination;
     Eigen::VectorXd xs;
     int state = 0;
-    bool debug = true, sign, ekf, lane, real;
+    bool debug = true, sign, ekf, lane, real, dashboard, keyboardControl;
     std::string gaz_bool = "_gazebo_";
 
     ros::Time cooldown_timer;
@@ -302,6 +309,8 @@ public:
         return status;
     }
     bool intersection_reached(bool lane = false) {
+        static Eigen::Vector2d last_intersection_point = {0, 0};
+        static const double INTERSECTION_DISTANCE_THRESHOLD = 0.753; // minimum distance between two intersections
         if(lane) {
             return utils.stopline;
         }
@@ -311,20 +320,29 @@ public:
             auto attribute_i = mpc.state_attributes(mpc.target_waypoint_index+i); // check 3 waypoints ahead
             if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
                 std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
-                if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
-                    cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
-                    if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
-                        if (stopsign_flag) {
-                            stopsign_flag = 0;
-                            return true;
-                        }
-                    } else { 
-                        return true;
-                    }
-                } else {
-                    std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
+                double x, y, yaw;
+                utils.get_states(x, y, yaw);
+                double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
+                if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
+                    ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
                     return false;
                 }
+                last_intersection_point = {x, y};
+                return true;
+                // if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
+                //     cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
+                //     if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
+                //         if (stopsign_flag) {
+                //             stopsign_flag = 0;
+                //             return true;
+                //         }
+                //     } else { 
+                //         return true;
+                //     }
+                // } else {
+                //     std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
+                //     return false;
+                // }
             }
         }
         return false;
@@ -395,7 +413,7 @@ public:
         if(park_index >= 0) {
             double dist = utils.object_distance(park_index);
             if (dist < MAX_PARK_DIST && dist > 0) {
-                std::cout << "parking sign detected at a distance of: " << dist << std::endl;
+                // std::cout << "parking sign detected at a distance of: " << dist << std::endl;
                 detected_dist = dist;
                 return true;
             }
@@ -471,7 +489,10 @@ public:
 void StateMachine::update_mpc_state() {
     double x, y, yaw;
     utils.get_states(x, y, yaw);
-    mpc.update_current_states(x, y, yaw); // no argument means use current states
+    if(!mpc.update_current_states(x, y, yaw)) {
+        ROS_WARN("update_current_states failed, stopping briefly...");
+        stop_for(T);
+    }
     if(debug) {
         ;
     }
@@ -528,29 +549,21 @@ void StateMachine::run() {
         }
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
-            if(sign && intersection_reached()) {
-                change_state(STATE::WAITING_FOR_STOPSIGN);
-                continue;
+            if(intersection_reached()) {
+                if(sign) {
+                    if (stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
+                        stopsign_flag = 0;
+                        change_state(STATE::WAITING_FOR_STOPSIGN);
+                        continue;
+                    } else if (stopsign_flag == STOPSIGN_FLAGS::PRIO) {
+                        stopsign_flag = 0;
+                        ROS_INFO("priority sign detected, keep moving...");
+                    }
+                } else {
+                    change_state(STATE::WAITING_FOR_STOPSIGN);
+                    continue;
+                }
             }
-            // auto attribute_i = mpc.state_attributes(mpc.target_waypoint_index+3); // check 3 waypoints ahead
-            // if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
-            //     std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
-            //     if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
-            //         cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
-            //         if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
-            //             if (stopsign_flag) {
-            //                 stopsign_flag = false;
-            //                 change_state(STATE::WAITING_FOR_LIGHT);
-            //                 continue;
-            //             }
-            //         } else { 
-            //             change_state(STATE::WAITING_FOR_LIGHT);
-            //             continue;
-            //         }
-            //     } else {
-            //         std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
-            //     }
-            // }
             if (sign) {
                 check_stop_sign();
                 if(park_sign_detected() && park_count < 1) {
@@ -559,15 +572,17 @@ void StateMachine::run() {
                     continue;
                 }
                 double dist;
-                int car_index = utils.object_index(OBJECT::CAR);
-                if(car_index >= 0) { // if car detected
+                std::list<int> cars = utils.recent_car_indices;
+                // int car_index = utils.object_index(OBJECT::CAR);
+                // if(car_index >= 0) { // if car detected
+                for (int car_index: cars) {
                     dist = utils.object_distance(car_index); // compute distance to back of car
                     if (dist < MAX_CAR_DIST && dist > 0 && mpc.closest_waypoint_index >= end_index * 1.2) {
-                        std::cout << "a car is detected at a distance of " << dist << ", at index: " << mpc.closest_waypoint_index << ", end_index: " << end_index << std::endl;
-                        utils.object_box(car_index, bbox);
+                        // utils.object_box(car_index, bbox);
                         double x, y, yaw;
                         utils.get_states(x, y, yaw);
-                        auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, CAMERA_PARAMS);
+                        // auto car_pose = utils.estimate_object_pose2d(x, y, yaw, bbox, dist, CAMERA_PARAMS);
+                        auto car_pose = utils.detected_cars[car_index];
                         // printf("estimated car pose: %.3f, %.3f\n", car_pose[0], car_pose[1]);
                         // compute distance from detected car to closest waypoint in front of car to assess whether car is in same lane
                         double look_ahead_dist = dist * 1.5;
@@ -607,7 +622,7 @@ void StateMachine::run() {
                                 bool right = false;
                                 double density = mpc.density;
                                 double lane_offset = LANE_OFFSET * 1.5;
-                                int end_index_scaler = 1;
+                                int end_index_scaler = 1.2;
                                 if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
                                     density *= 1/1.33;
                                     end_index_scaler *= 1.5;
@@ -627,6 +642,8 @@ void StateMachine::run() {
                                 // stop_for(2*T);
                                 // exit(0);
                             }
+                        } else {
+                            ROS_INFO("detected car is not in the same lane, ignoring...");
                         }
                     }
                 }
@@ -878,8 +895,8 @@ void StateMachine::run() {
                     double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
                     if (norm_sq >= offset * offset)
                     {
-                        ROS_INFO("parking spot reached, stopping...");
-                        utils.publish_cmd_vel(0.0, 0.0);
+                        ROS_INFO("x offset reached: (%.2f, %.2f), ready for parking maneuver...", x, y);
+                        stop_for(STOP_DURATION/2);
                         break;
                     }
                     orientation_follow(orientation);
@@ -1079,9 +1096,16 @@ void StateMachine::run() {
             }
             change_state(STATE::LANE_FOLLOWING);
         } else if (state == STATE::INIT) {
-            rate->sleep();
-            // change_state(STATE::MOVING);
-            // if (lane) change_state(STATE::LANE_FOLLOWING);
+            if (dashboard) {
+                utils.publish_cmd_vel(0, 0);
+                rate->sleep();
+            } else {
+                if (lane) {
+                    change_state(STATE::LANE_FOLLOWING);
+                } else {
+                    change_state(STATE::MOVING);
+                }
+            }
             // change_state(STATE::INTERSECTION_MANEUVERING);
             // change_state(STATE::PARKING);
         } else if (state == STATE::DONE) {
@@ -1091,6 +1115,91 @@ void StateMachine::run() {
             //     mpc.computeStats(357);
             // }
             break;
+        } else if (state == STATE::KEYBOARD_CONTROL) {
+            // Constants for steering and speed
+            const double STEERING_INCREMENT = 2;  
+            const double VELOCITY_INCREMENT = 0.05;   
+            const double MAX_VELOCITY = 0.45;     
+            const double MIN_VELOCITY = -0.45;    
+            const double HARD_MAX_STEERING = 25.0;
+            const double STEERING_DECAY = 1.25;
+            const double VELOCITY_DECAY = 0; //0.0025;
+            double velocity = 0.0;
+            double steering_angle = 0.0;
+
+            // Initialize ncurses mode
+            initscr();
+            cbreak();
+            noecho();
+            keypad(stdscr, TRUE);  // Enable keyboard mapping
+            timeout(100);          // Non-blocking delay to allow continuous updates
+
+            // Information display
+            printw("Use 'w' and 's' to increase or decrease speed.\n");
+            printw("Use 'a' and 'd' to control steering.\n");
+            printw("'q' to quit.\n");
+
+            int ch;
+            bool running = true;
+
+            while (running) {
+                ch = getch();
+                
+                switch (ch) {
+                    case 'w':
+                        velocity += VELOCITY_INCREMENT;
+                        if (velocity > MAX_VELOCITY) velocity = MAX_VELOCITY;
+                        break;
+                    case 's':
+                        velocity -= VELOCITY_INCREMENT;
+                        if (velocity < MIN_VELOCITY) velocity = MIN_VELOCITY;
+                        break;
+                    case 'a':
+                        steering_angle -= STEERING_INCREMENT;
+                        if (steering_angle < -HARD_MAX_STEERING) steering_angle = -HARD_MAX_STEERING;
+                        break;
+                    case 'd':
+                        steering_angle += STEERING_INCREMENT;
+                        if (steering_angle > HARD_MAX_STEERING) steering_angle = HARD_MAX_STEERING;
+                        break;
+                    case 'b':
+                        velocity = 0;
+                        break;
+                    case 'q':
+                        running = false;
+                        break;
+                    default:
+                        // Gradually return the steering towards zero if no steering keys are pressed
+                        if (steering_angle > 0) {
+                            steering_angle -= STEERING_DECAY;
+                            if (steering_angle < 0) steering_angle = 0;
+                        } else if (steering_angle < 0) {
+                            steering_angle += STEERING_DECAY;
+                            if (steering_angle > 0) steering_angle = 0;
+                        }
+                        if (velocity > 0) {
+                            velocity -= VELOCITY_DECAY;
+                            if (velocity < 0) velocity = 0;
+                        } else if (velocity < 0) {
+                            velocity += VELOCITY_DECAY;
+                            if (velocity > 0) velocity = 0;
+                        }
+                        break;
+                }
+
+                // Clear previous outputs
+                clear();
+                printw("Velocity: %f\n", velocity);
+                printw("Steering angle: %f\n", steering_angle);
+                printw("Press 'q' to quit.");
+                utils.publish_cmd_vel(steering_angle, velocity);
+
+            }
+
+            // Clean up ncurses
+            endwin();
+            utils.stop_car();
+            change_state(STATE::INIT);
         }
     }
 }

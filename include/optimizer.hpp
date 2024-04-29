@@ -54,9 +54,12 @@ public:
     int update_and_solve(Eigen::Vector3d &i_current_state, int mode = -1);
     void integrate_next_states();
     int find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index = -1, int max_index = -1);
-    void update_current_states(double x, double y, double yaw, Eigen::Vector3d& state);
-    void update_current_states(double x, double y, double yaw) {
-        update_current_states(x, y, yaw, x_current);
+    int update_current_states(double x, double y, double yaw, Eigen::Vector3d& state, bool safety_check = true);
+    int update_current_states(double x, double y, double yaw, bool safety_check = true) {
+        return update_current_states(x, y, yaw, x_current, safety_check);
+    }
+    int initialize_current_states(double x, double y, double yaw) {
+        return update_current_states(x, y, yaw, x_current, false);
     }
     // void update_current_states(double* state);
     Eigen::VectorXd computeStats(int hsy);
