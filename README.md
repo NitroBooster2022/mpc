@@ -85,6 +85,7 @@ http://www.autolabor.com.cn/book/ROSTutorials/chapter1/12-roskai-fa-gong-ju-an-z
 ### Other Stuff
     ```bash
     sudo apt install nlohmann-json3-dev
+    sudo apt-get install libncurses5-dev libncursesw5-dev
     ```
 
 ## Running the Example

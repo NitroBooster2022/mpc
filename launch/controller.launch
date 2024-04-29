@@ -20,6 +20,12 @@
   <param name="gmapping" value="$(arg gmapping)"/>
   <arg name = "lidarOdom" default="false"/>
   <param name="lidarOdom" value="$(arg lidarOdom)"/>
+  <arg name = "dashboard" default="true"/>
+  <param name="dashboard" value="$(arg dashboard)"/>
+  <arg name = "realsense_imu" default="false"/>
+  <param name="realsense_imu" value="$(arg realsense_imu)"/>
+  <arg name = "kb" default="false"/>
+  <param name="kb" value="$(arg kb)"/>
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
 

@@ -87,7 +87,7 @@ file(GLOB sim_solver18
         ${CMAKE_CURRENT_SOURCE_DIR}/src/c_generated_code_18/acados_sim_solver_mobile_robot_18.c
         )
 
-
+find_package(Curses REQUIRED)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
@@ -108,7 +108,7 @@ catkin_package(
  CATKIN_DEPENDS message_runtime
 #  LIBRARIES mpc
 #  CATKIN_DEPENDS geometry_msgs roscpp rospy sensor_msgs std_msgs tf2 tf2_geometry_msgs tf2_ros
-#  DEPENDS system_lib
+ DEPENDS system_lib
 )
 
 ###########
@@ -122,6 +122,7 @@ include_directories(
   # /usr/lib/gcc/x86_64-linux-gnu/9/include/
   # /usr/include/c++/9/
   ${CMAKE_CURRENT_SOURCE_DIR}/include/alglib-cpp/src
+  ${CURSES_INCLUDE_DIR}
 )
 
 # link_directories(
@@ -167,11 +168,11 @@ src/optimizer.cpp
 src/utility.cpp
 )
 target_link_libraries(controller
-alglib
 ocp_shared_lib 
 sim_shared_lib
 ${catkin_LIBRARIES}
 nlohmann_json::nlohmann_json
+${CURSES_LIBRARIES}
 )
 
 add_executable(bridge1
