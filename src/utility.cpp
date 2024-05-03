@@ -49,7 +49,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     } else {
         std::cout << "failed to get subModel from param server, using default: " << this->subModel << std::endl;
     }
-    rateVal = 50;
+    std::string nodeName = ros::this_node::getName();
+    nh.param<double>(nodeName + "/rate", rateVal, 500);
     rate = new ros::Rate(rateVal);
     wheelbase = 0.27;
     odomRatio = 1.0;
@@ -772,9 +773,15 @@ std::array<double, 3> Utility::get_real_states() const {
     return {gps_x, gps_y, yaw};
 }
 void Utility::spin() {
+    // auto start = std::chrono::high_resolution_clock::now();
+    ROS_INFO("Utility node spinning at a rate of %f", rateVal);
     while (ros::ok()) {
+        // auto end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double> elapsed = end - start;
+        // start = end;
+        // ROS_INFO("utility_node loop time elapsed: %fs, rate: %f", elapsed.count(), 1 / elapsed.count());
         ros::spinOnce();
-        // rate->sleep();
+        rate->sleep();
     }
 }
 

@@ -80,7 +80,7 @@ public:
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
         ROS_INFO("destination: %.3f, %.3f", destination(0), destination(1));
         start_trigger = nh.advertiseService("/start_bool", &StateMachine::start_bool_callback, this);
-        ROS_INFO("server ready");
+        ROS_INFO("server ready, mpc time step T = %.3f", T);
         // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
         while(!utils.initializationFlag) {
             ros::spinOnce();
@@ -489,9 +489,10 @@ public:
 void StateMachine::update_mpc_state() {
     double x, y, yaw;
     utils.get_states(x, y, yaw);
-    if(!mpc.update_current_states(x, y, yaw)) {
+    while(!mpc.update_current_states(x, y, yaw)) {
         ROS_WARN("update_current_states failed, stopping briefly...");
-        stop_for(T);
+        stop_for(STOP_DURATION / 3);
+        utils.get_states(x, y, yaw);
     }
     if(debug) {
         ;
