@@ -28,7 +28,7 @@ class Odom():
         self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
         #shape is (8107, 12223, 3)
         # self.map = cv2.resize(self.map, (700, int(self.map.shape[0]/self.map.shape[1]*700)))
-        self.map = cv2.resize(self.map, (700, int(1/1.38342246*700)))
+        self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
         # self.map = cv2.resize(self.map, (700, int(1/1.*700)))
         self.name = 'car1'
         self.odomState = np.zeros(2)
@@ -85,21 +85,22 @@ class Odom():
     def display(self, event):
         img_map = self.map.copy()
         
+        radius = int(6/700 * self.map.shape[1])
         # ekf: color is red
         img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])),
                     ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])), radius=6, color=(0, 0, 255), thickness=-1)
+        cv2.circle(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])), radius=radius, color=(0, 0, 255), thickness=-1)
 
         # odom: color is green
         img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])),
                     ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.odomState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), radius=6, color=(0, 255, 0), thickness=-1)
+        cv2.circle(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), radius=radius, color=(0, 255, 0), thickness=-1)
         # cv2.addText(img_map, "Odom", (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), "Arial", 1, (0, 255, 0))
 
         # gps: color is blue
         img_map = cv2.arrowedLine(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])),
                     ((int((self.gpsState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.gpsState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])), radius=6, color=(255, 0, 0), thickness=-1)
+        cv2.circle(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])), radius=radius, color=(255, 0, 0), thickness=-1)
 
         # display the waypoints: color is yellow
         if self.waypoints is not None:
@@ -109,12 +110,12 @@ class Odom():
                     continue
                 # center = (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0]))
                 # print("center: ", center)
-                cv2.circle(img_map, (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0])), radius=1, color=(0, 255, 255), thickness=-1)
+                cv2.circle(img_map, (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0])), radius=int(radius/6), color=(0, 255, 255), thickness=-1)
 
         # display the detected cars: color is cyan
         if self.detected_cars is not None:
             for i in range(2, len(self.detected_cars), 2):
-                cv2.circle(img_map, (int(self.detected_cars[i]/20.541*self.map.shape[1]),int((13.656-self.detected_cars[i+1])/13.656*self.map.shape[0])), radius=5, color=(255, 255, 0), thickness=-1)
+                cv2.circle(img_map, (int(self.detected_cars[i]/20.541*self.map.shape[1]),int((13.656-self.detected_cars[i+1])/13.656*self.map.shape[0])), radius=int(radius/6*5), color=(255, 255, 0), thickness=-1)
         
         windowName = 'track'
         cv2.namedWindow(windowName,cv2.WINDOW_NORMAL)

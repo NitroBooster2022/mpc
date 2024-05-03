@@ -9,7 +9,6 @@ import yaml
 import math
 import rospy
 from std_msgs.msg import Float32MultiArray
-from utils.srv import waypoints, waypointsResponse
 
 def smooth_yaw_angles(yaw_angles):
     # Calculate the differences between adjacent angles
@@ -104,6 +103,7 @@ def interpolate_attributes(waypoints, attributes, new_waypoints):
 def replace_segments(waypoints, waypoints_cw, attributes, attributes_cw, density_factor=1.5, values = [1]):
     # Find segments where attribute is 1 in 'attributes'
     segments = find_segments(attributes, values=values)
+    print("segments: ", segments)
 
     new_waypoints = []
     new_attributes = []
@@ -241,7 +241,7 @@ class Path:
         attributes_cw = []
         for i, length in enumerate(path_lengths):
             # print(i, ") path length: ", length)
-            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/hw_density_factor))))
+            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/1.33))))
             runs_cw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density*1.5))))
             old_run = runs[i].copy()
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
@@ -295,7 +295,7 @@ class Path:
                 if attribute == 1:
                     density_factor = 1.5
                 elif attribute == 4 or attribute == 5:
-                    density_factor = 1/hw_density_factor
+                    density_factor = 1/1.33
                 starts_cw.append(int(math.floor(start * density_factor)))
                 ends_cw.append(int(math.ceil(end * density_factor)))
             self.starts_cw = starts_cw
@@ -356,6 +356,21 @@ class Path:
             self.waypoints = np.array(new_waypoints)
             self.attributes = np.array(new_attributes)
 
+            # self.waypoints, self.attributes = replace_segments(
+            #     self.waypoints, 
+            #     self.waypoints_cw, 
+            #     self.attributes, 
+            #     self.attributes_cw
+            # )
+            # self.waypoints, self.attributes = replace_segments(
+            #     self.waypoints, 
+            #     self.waypoints_hw, 
+            #     self.attributes, 
+            #     self.attributes_hw,
+            #     density_factor= 1/1.33,
+            #     values = [4,5]
+            # )
+
         # self.waypoints = filter_waypoints(self.waypoints, 0.01).T
         self.waypoints, self.attributes = filter_waypoints_and_attributes(self.waypoints, self.attributes, 0.01)
         self.waypoints = self.waypoints.T
@@ -376,8 +391,8 @@ class Path:
         mask_hw1 = (self.attributes == 4)
         mask_hw2 = (self.attributes == 5)
         self.v_refs[mask_cw] *= 1/1.5
-        self.v_refs[mask_hw1] *= hw_density_factor
-        self.v_refs[mask_hw2] *= hw_density_factor
+        self.v_refs[mask_hw1] *= 1.33
+        self.v_refs[mask_hw2] *= 1.33
         # print("v_refs: \n", self.v_refs, ", wpts: ", self.waypoints.shape, ", attributes: ", self.attributes.shape)
         
         #nonlinear speed profile
@@ -422,9 +437,117 @@ class Path:
 
     def illustrate_path(self, state_refs):
         import matplotlib.pyplot as plt
-        # print("shape: ", state_refs.shape)
-        plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
-        plt.show()
+        import cv2
+        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
+        self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
+        print("state_refs: ", state_refs.shape)
+        # for i in range(0, state_refs.shape[1], 8):
+        for i in self.true_starts:
+            print("true start: ", i, state_refs[0, i], state_refs[1, i])
+            cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=5, color=(255, 0, 255), thickness=-1)
+        for i in self.true_ends:
+            print("true end: ", i, state_refs[0, i], state_refs[1, i])
+            cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=5, color=(0, 0, 255), thickness=-1)
+        
+        for i in range(0, state_refs.shape[1], 8):
+            radius = 2
+            color = (0, 255, 255)
+            if self.attributes[i] == 4 or self.attributes[i] == 5: # hard waypoints
+                color = (0, 0, 255)
+            if self.attributes[i] == 1: # crosswalk
+                color = (0, 255, 0)
+            # if self.attributes[i] == 10: # start, use a deep magenta color
+            #     color = (255, 0, 255)
+            #     radius *= 3
+            #     print("start: ", i)
+            # if self.attributes[i] == 11: # end
+            #     color = (0, 0, 255)
+            #     radius *= 3
+            #     print("end: ", i)
+            cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+
+        # for i in range(0, state_refs.shape[1], 8):
+        print("initial segment length: ", len(self.segments))
+        for seg in self.segments:
+            # for i in range(self.true_starts[1]-32, self.true_ends[1], 8):
+            for i in range(seg[0], seg[1], 8):
+                radius = 2
+                color = (0, 255, 255)
+                if self.attributes[i] == 4 or self.attributes[i] == 5: # hard waypoints
+                    color = (0, 0, 255)
+                if self.attributes[i] == 1: # crosswalk
+                    color = (0, 255, 0)
+                # if self.attributes[i] == 10: # start, use a deep magenta color
+                #     color = (255, 0, 255)
+                #     radius *= 3
+                #     print("start: ", i)
+                # if self.attributes[i] == 11: # end
+                #     color = (0, 0, 255)
+                #     radius *= 3
+                #     print("end: ", i)
+                # cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+
+        print("hw segment length: ", len(self.starts_cw))
+        for j in range(len(self.starts_cw)):
+            # for i in range(self.true_starts[1]-32, self.true_ends[1], 8):
+            for i in range(self.starts_cw[j], self.ends_cw[j], 8):
+                attributes = self.attributes_cw
+                waypoints = self.waypoints_cw
+                if j == 1:
+                    attributes = self.attributes_hw
+                    waypoints = self.waypoints_hw
+                else:
+                    attributes = self.attributes_cw
+                    waypoints = self.waypoints_cw
+                radius = 2
+                color = (0, 255, 255)
+                if attributes[i] == 4 or attributes[i] == 5: # hard waypoints
+                    color = (0, 0, 255)
+                if attributes[i] == 1: # crosswalk
+                    color = (0, 255, 0)
+                # if self.attributes[i] == 10: # start, use a deep magenta color
+                #     color = (255, 0, 255)
+                #     radius *= 3
+                #     print("start: ", i)
+                # if self.attributes[i] == 11: # end
+                #     color = (0, 0, 255)
+                #     radius *= 3
+                #     print("end: ", i)
+                # cv2.circle(self.map, (int(waypoints[i,0]/20.541*self.map.shape[1]),int((13.656-waypoints[i,1])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+        
+        exclusion = []
+        for j in range(len(self.starts)):
+            # for i in range(self.true_starts[1]-32, self.true_ends[1], 8):
+            for i in range(self.starts[j], self.ends[j]):
+                exclusion.append(i)
+        for i in range(0, state_refs.shape[1], 8):
+            if i in exclusion:
+                continue
+            radius = 2
+            color = (0, 255, 255)
+            if self.attributes[i] == 4 or self.attributes[i] == 5: # hard waypoints
+                color = (0, 0, 255)
+            if self.attributes[i] == 1: # crosswalk
+                color = (0, 255, 0)
+            # if self.attributes[i] == 10: # start, use a deep magenta color
+            #     color = (255, 0, 255)
+            #     radius *= 3
+            #     print("start: ", i)
+            # if self.attributes[i] == 11: # end
+            #     color = (0, 0, 255)
+            #     radius *= 3
+            #     print("end: ", i)
+            # cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+
+        #find all indices in attributes where value = 10
+        starts = np.where(self.attributes == 10)[0]
+        ends = np.where(self.attributes == 11)[0]
+        print("starts: ", starts)
+        print("ends: ", ends)
+        cv2.imshow('map', self.map)
+        cv2.waitKey(0)
+        # plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
+        # plt.show()
 
 def handle_array_service(req):
     """
@@ -462,27 +585,18 @@ def initiate_shutdown():
     rospy.signal_shutdown("Service request processed. Shutting down.")
 
 if __name__ == "__main__":
-    rospy.init_node('waypointPathServer')
-    s = rospy.Service('waypoint_path', waypoints, handle_array_service)
-    rospy.loginfo("Ready to return path.")
-    global hw_density_factor
-    hw_density_factor = rospy.get_param('hw', 1.33)
-    print("hw_density_factor: ", hw_density_factor)
-    rate = rospy.Rate(10)
-    while not rospy.is_shutdown():
-        rospy.spin()
-        rate.sleep()
-    # current_path = os.path.dirname(os.path.realpath(__file__))
-    # config_path='config/mpc_config18.yaml'
-    # path = os.path.join(current_path, config_path)
-    # with open(path, 'r') as f:
-    #     config = yaml.safe_load(f)
-    # T = config['T']
-    # N = config['N']
-    # constraint_name = 'constraints'
-    # cost_name = 'costs'
-    # t_horizon = T * N
+    current_path = os.path.dirname(os.path.realpath(__file__))
+    config_path='config/mpc_config50.yaml'
+    path = os.path.join(current_path, config_path)
+    with open(path, 'r') as f:
+        config = yaml.safe_load(f)
+    T = config['T']
+    N = config['N']
+    constraint_name = 'constraints'
+    cost_name = 'costs'
+    t_horizon = T * N
 
-    # v_ref = config[constraint_name]['v_ref']
-    # print("v_ref: ", v_ref)
-    # path = Path(v_ref = v_ref, N = N, T = T)
+    v_ref = config[constraint_name]['v_ref']
+    print("v_ref: ", v_ref)
+    path = Path(v_ref = v_ref, N = N, T = T, name = "path1")
+    path.illustrate_path(path.state_refs.T)
