@@ -306,7 +306,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
             simX(iter, ii) = i_current_state[ii];
         }
         // std::cout << iter<< ") x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
-        printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
+        // printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
         iter++;
     }
     return 0;
@@ -377,7 +377,8 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     static Eigen::Vector3d last_state = i_current_state;
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
     static bool first = true;
-
+    
+    std::cout << "closest: " << closest_waypoint_index << ", target: " << target_waypoint_index << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
     if ((closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
         closest_waypoint_index + lookahead + limit/3 < target_waypoint_index)) {
         auto target_attribute = state_attributes[closest_waypoint_index];
@@ -394,6 +395,7 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
             target_waypoint_index = closest_waypoint_index + lookahead;
         }
     } else {
+        first = false;
         target_waypoint_index = closest_waypoint_index + lookahead;
     }
 

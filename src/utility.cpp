@@ -79,6 +79,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     ekf_x = x0;
     ekf_y = y0;
     ekf_yaw = yaw0;
+    gmapping_x = x0;
+    gmapping_y = y0;
     if (x0 > 0 && y0 > 0) {
         set_pose_using_service(x0, y0, yaw0);
     }
@@ -183,9 +185,14 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
 
     nh.param<bool>("/gmapping", useGmapping, false);
     nh.param<bool>("/lidarOdom", useLidarOdom, false);
+    nh.param<bool>("/amcl", useAmcl, false);
     if (useGmapping) {
         ROS_INFO("using gmapping");
         tf_sub = nh.subscribe("/tf", 3, &Utility::tf_callback, this);
+        pose_pub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("/chassis_pose", 3);
+    } else if(useAmcl) {
+        ROS_INFO("using amcl");
+        amcl_sub = nh.subscribe("/amcl_pose", 3, &Utility::amcl_callback, this);
         pose_pub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("/chassis_pose", 3);
     }
     timerodom = ros::Time::now();
@@ -234,8 +241,10 @@ void Utility::tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg) {
                 odomX1 = this->odomX;
                 odomY1 = this->odomY;
             }
+            lock.lock();
             gmapping_x = dx + odomX1 + x0;
             gmapping_y = dy + odomY1 + y0;
+            lock.unlock();
             pose_msg.pose.pose.position.x = gmapping_x;
             pose_msg.pose.pose.position.y = gmapping_y;
             pose_msg.pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw));
@@ -244,6 +253,26 @@ void Utility::tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg) {
             pose_pub.publish(pose_msg);
         }
     }
+}
+void Utility::amcl_callback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg) {
+    if (x0 < 0 || y0 < 0) {
+        ROS_WARN("amcl_callback: x0 or y0 is less than 0");
+        return;
+    }
+    double dx = msg->pose.pose.position.x;
+    double dy = msg->pose.pose.position.y;
+    // ROS_INFO("amcl_callback: dx: %.3f, dy: %.3f", dx, dy);
+    lock.lock();
+    gmapping_x = dx + x0;
+    gmapping_y = dy + y0;
+    lock.unlock();
+    geometry_msgs::PoseWithCovarianceStamped pose_msg;
+    pose_msg.header.stamp = ros::Time::now();
+    pose_msg.pose.pose.position.x = gmapping_x;
+    pose_msg.pose.pose.position.y = gmapping_y;
+    pose_msg.pose.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), yaw));
+    pose_msg.pose.covariance = odom_msg.pose.covariance;
+    pose_pub.publish(pose_msg);
 }
 void Utility::odom_pub_timer_callback(const ros::TimerEvent&) {
     publish_odom();
@@ -399,8 +428,8 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
                 std::cout << "using ekf but haven't received data yet. ekf_x: " << ekf_x << ", ekf_y: " << ekf_y << std::endl;
                 x0 = ekf_x;
                 y0 = ekf_y;
-                lock.unlock();
-                return;
+                gmapping_x = ekf_x;
+                gmapping_y = ekf_y;
             } else {
                 ROS_INFO("Initializing... ekf_x: %.3f, ekf_y: %.3f", ekf_x, ekf_y);
             }

@@ -60,7 +60,7 @@ public:
     std::mutex lock;
     bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
     bool real;
-    bool useGmapping = true, useLidarOdom = false;
+    bool useGmapping = true, useLidarOdom = false, useAmcl = false;
     double rateVal;
     ros::Rate* rate;
 
@@ -125,6 +125,7 @@ public:
     ros::Subscriber ekf_sub;
     ros::Subscriber tf_sub;
     ros::Subscriber odom_lidar_sub;
+    ros::Subscriber amcl_sub;
 
     ros::Timer odom_pub_timer;
     void odom_pub_timer_callback(const ros::TimerEvent&);
@@ -136,6 +137,7 @@ public:
     void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
     void ekf_callback(const nav_msgs::Odometry::ConstPtr& msg);
     void tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg);
+    void amcl_callback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
     void odom_lidar_callback(const nav_msgs::Odometry::ConstPtr& msg);
     void spin();
     // Methods
@@ -179,7 +181,7 @@ public:
             // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
             x_ = gps_x;
             y_ = gps_y;
-        } else if(useGmapping) {
+        } else if(useGmapping || useAmcl) {
             // ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
             x_ = gmapping_x;
             y_ = gmapping_y;
