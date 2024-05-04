@@ -7,9 +7,9 @@
 namespace VehicleConstants {
     const std::array<std::string, 3> MANEUVER_DIRECTIONS = {"left", "straight", "right"};
 
-    const std::array<std::string, 11> state_names = {
+    const std::array<std::string, 12> state_names = {
         "INIT", "MOVING", "APPROACHING_INTERSECTION", "WAITING_FOR_STOPSIGN",
-        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING"
+        "WAITING_FOR_LIGHT", "PARKING", "PARKED", "EXITING_PARKING", "DONE", "LANE_FOLLOWING", "INTERSECTION_MANEUVERING", "KEYBOARD"
     };
     enum STATE {
         INIT,

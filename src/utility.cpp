@@ -145,11 +145,11 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         this->subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
         std::cout << "waiting for ekf message" << std::endl;
-        for (int i = 0; i < 10; i++) {
-            publish_odom(); // publish odom once to initialize
-            rate->sleep();
-        }
-        ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
+        // for (int i = 0; i < 10; i++) {
+        //     publish_odom(); // publish odom once to initialize
+        //     rate->sleep();
+        // }
+        // ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
         // if (x0  < -1 || y0 < -1) {
         //     ekf_x = 
         // }
@@ -392,22 +392,22 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
 
     if (real) yaw *= -1;
     // ROS_INFO("yaw: %.3f", yaw * 180 / M_PI);
-    // ROS_INFO("yaw: %.3f\n, angular velocity: %.3f\n, acceleration: %.3f, %.3f, %.3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+    // ROS_INFO("yaw: %.3f, angular velocity: %.3f, acceleration: %.3f, %.3f, %.3f", yaw * 180 / M_PI, msg->angular_velocity.z, msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
     if (!imuInitialized) {
         imuInitialized = true;
         if (real) initial_yaw = yaw;
         std::cout << "imu initialized" << ", intial yaw is " << yaw * 180 / M_PI << " degrees" << std::endl;
-    } else {
-        if (!initializationFlag && x0 > 0 && y0 > 0) {
-            initializationFlag = true;
-        }
-        yaw -= initial_yaw;
-        while(yaw < -M_PI) {
-            yaw += 2*M_PI;
-        }
-        while(yaw > M_PI) {
-            yaw -= 2*M_PI;
-        }
+    }
+    if (!initializationFlag && x0 > 0 && y0 > 0) {
+        initializationFlag = true;
+        ROS_INFO("initialized in imu callback");
+    }
+    // yaw = yaw - initial_yaw + yaw0;
+    while(yaw < -M_PI) {
+        yaw += 2*M_PI;
+    }
+    while(yaw > M_PI) {
+        yaw -= 2*M_PI;
     }
     lock.unlock();
 }
@@ -756,7 +756,7 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_camera = add_static_link(0, 0, 0.2, 0, 0, 0, "chassis", "camera");
     static_transforms.push_back(t_camera);
 
-    geometry_msgs::TransformStamped t_laser = add_static_link(0, 0, 0.3, 0, 0, 0, "chassis", "laser");
+    geometry_msgs::TransformStamped t_laser = add_static_link(0, 0, 0.2, 0, 0, M_PI/2, "chassis", "laser");
     static_transforms.push_back(t_laser);
 
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");

@@ -168,10 +168,10 @@ public:
         return yaw;
     }
     int get_states(double &x_, double &y_, double &yaw_) {
-        if(!initializationFlag || !imuInitialized || x0 < 0 || y0 < 0) {
-            ROS_INFO("get_states: Initialization not done");
-            return -1;
-        }
+        // if(!initializationFlag || !imuInitialized || x0 < 0 || y0 < 0) {
+        //     ROS_INFO("get_states: Initialization not done");
+        //     return -1;
+        // }
         yaw_ = yaw;
         if(useEkf) {
             // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);

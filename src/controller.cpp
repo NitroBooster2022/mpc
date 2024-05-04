@@ -82,10 +82,11 @@ public:
         start_trigger = nh.advertiseService("/start_bool", &StateMachine::start_bool_callback, this);
         ROS_INFO("server ready, mpc time step T = %.3f", T);
         // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
-        while(!utils.initializationFlag) {
-            ros::spinOnce();
-            rate->sleep();
-        }
+        // while(!utils.initializationFlag) {
+        //     ros::spinOnce();
+        //     ROS_WARN("waiting for initialization flag");
+        //     rate->sleep();
+        // }
         double x, y, yaw;
         utils.get_states(x, y, yaw);
         std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
@@ -543,6 +544,7 @@ void StateMachine::change_state(STATE new_state) {
 void StateMachine::run() {
     static ros::Time overtake_cd = ros::Time::now();
     static bool wrong_lane = false;
+    ROS_INFO("start running");
     while (ros::ok()) {
         if (sign) {
             pedestrian_detected();
@@ -1268,9 +1270,9 @@ int main(int argc, char **argv) {
 
     // std::thread t(&StateMachine::run, &sm);
     std::thread t2(&Utility::spin, &sm.utils);
-    while(!sm.utils.initializationFlag) {
-        ros::Duration(0.1).sleep();
-    }
+    // while(!sm.utils.initializationFlag) {
+    //     ros::Duration(0.1).sleep();
+    // }
     
     sm.run();
 
