@@ -19,6 +19,8 @@
   <param name="vrefInt" value="$(arg v)"/>
   <arg name = "gmapping" default="false"/>
   <param name="gmapping" value="$(arg gmapping)"/>
+  <arg name = "amcl" default="false"/>
+  <param name="amcl" value="$(arg amcl)"/>
   <arg name = "lidarOdom" default="false"/>
   <param name="lidarOdom" value="$(arg lidarOdom)"/>
   <arg name = "dashboard" default="true"/>
@@ -27,7 +29,7 @@
   <param name="realsense_imu" value="$(arg realsense_imu)"/>
   <arg name = "kb" default="false"/>
   <param name="kb" value="$(arg kb)"/>
-  <arg name = "hw" default="false"/>
+  <arg name = "hw" default="1.33"/>
   <param name="hw" value="$(arg hw)"/>
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />

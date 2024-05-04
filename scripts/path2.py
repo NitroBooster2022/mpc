@@ -330,7 +330,6 @@ class Path:
                 end_cw = ends_cw[i]
 
                 true_start = start
-                print("true_start: ", true_start)
                 self.true_starts.append(true_start)
                 # if i == 1:
                 #     break
@@ -466,12 +465,12 @@ if __name__ == "__main__":
     s = rospy.Service('waypoint_path', waypoints, handle_array_service)
     rospy.loginfo("Ready to return path.")
     global hw_density_factor
-    hw_density_factor = rospy.get_param('hw', 1.33)
+    hw_density_factor = rospy.get_param('hw', default=1.33)
     print("hw_density_factor: ", hw_density_factor)
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
         rospy.spin()
-        rate.sleep()
+        # rate.sleep()
     # current_path = os.path.dirname(os.path.realpath(__file__))
     # config_path='config/mpc_config18.yaml'
     # path = os.path.join(current_path, config_path)
