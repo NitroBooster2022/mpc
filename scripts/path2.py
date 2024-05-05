@@ -463,10 +463,9 @@ def initiate_shutdown():
 if __name__ == "__main__":
     rospy.init_node('waypointPathServer')
     s = rospy.Service('waypoint_path', waypoints, handle_array_service)
-    rospy.loginfo("Ready to return path.")
+    rospy.loginfo("waypoint_path service is ready.")
     global hw_density_factor
     hw_density_factor = rospy.get_param('hw', default=1.33)
-    print("hw_density_factor: ", hw_density_factor)
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
         rospy.spin()

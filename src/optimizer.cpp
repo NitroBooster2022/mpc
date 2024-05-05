@@ -117,12 +117,10 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     N = nlp_dims->N;
     nx = *nlp_dims->nx;
     nu = *nlp_dims->nu;
-    printf("N = %d, nx = %d, nu = %d\n", N, nx, nu);
 
     N_park = nlp_dims_park->N;
     nx_park = *nlp_dims_park->nx;
     nu_park = *nlp_dims_park->nu;
-    printf("N_park = %d, nx_park = %d, nu_park = %d\n", N_park, nx_park, nu_park);
 
     // Initialize target, current state and state variables
     x_current[0] = x_init;
@@ -143,7 +141,6 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     std::string path_name = "_speedrun";
     // path_name = "";
     path_name = "_path1";
-    std::cout << "state ref path: " << dir + "/paths/state_refs" +v_ref_int_str+ ".txt" << std::endl;
     state_refs = loadTxt(dir + "/paths/state_refs" + path_name +v_ref_int_str+ ".txt");
     input_refs = loadTxt(dir + "/paths/input_refs" + path_name +v_ref_int_str+ ".txt");
     state_attributes = loadTxt(dir + "/paths/wp_attributes" + path_name +v_ref_int_str+ ".txt");
@@ -161,7 +158,6 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     // normals = loadTxt("/home/simonli/bfmc_pkgs/mpc/scripts/paths/wp_normals2.txt");
     normals = loadTxt(dir + "/paths/wp_normals"+ path_name +v_ref_int_str+ ".txt");
     num_waypoints = state_refs.rows();
-    std::cout << "state_refs shape: " << state_refs.rows() << ", " << state_refs.cols() << std::endl;
 
     target_waypoint_index = 0;
     last_waypoint_index = target_waypoint_index;
@@ -335,6 +331,7 @@ void Optimizer::integrate_next_states() {
 }
 
 int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index, int max_index) {
+    int target = 0;
     // auto start = std::chrono::high_resolution_clock::now();
     double current_norm = i_current_state.head(2).squaredNorm();
 
@@ -378,7 +375,7 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
     static bool first = true;
     
-    std::cout << "closest: " << closest_waypoint_index << ", target: " << target_waypoint_index << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
+    // std::cout << "closest: " << closest_waypoint_index << ", target: " << target_waypoint_index << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
     if ((closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
         closest_waypoint_index + lookahead + limit/3 < target_waypoint_index)) {
         auto target_attribute = state_attributes[closest_waypoint_index];
@@ -386,17 +383,17 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
         if (first) {
             first = false;
             std::cout << "discontinuity, but first, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
-            target_waypoint_index = closest_waypoint_index + lookahead;
+            target = closest_waypoint_index + lookahead;
         } else if (distance_travelled_sq <  std::pow(T * v_ref * 15, 2) || target_attribute == ATTRIBUTE::ROUNDABOUT || closest_attribute == ATTRIBUTE::ROUNDABOUT) {
             std::cout << "waypoint jump, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
-            target_waypoint_index ++;
+            target = target_waypoint_index + 1;
         } else {
             std::cout << "spatial discontinuity, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
-            target_waypoint_index = closest_waypoint_index + lookahead;
+            target = closest_waypoint_index + lookahead;
         }
     } else {
         first = false;
-        target_waypoint_index = closest_waypoint_index + lookahead;
+        target = closest_waypoint_index + lookahead;
     }
 
     last_state = i_current_state;
@@ -404,7 +401,7 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     // double dist = sqrt(min_distance_sq);
     // std::cout << "cur:" << i_current_state[0] << "," << i_current_state[1] << "," << i_current_state[2] << ", closest_waypoint_index:" << closest_waypoint_index << ", closest:" << state_refs(closest_waypoint_index, 0) << "," << state_refs(closest_waypoint_index, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
     // std::cout << "closest_waypoint_index:" << closest_waypoint_index <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
-    return std::min(target_waypoint_index, static_cast<int>((*state_refs_ptr).rows()) - 1);
+    return std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
 
     // Determine the next waypoint
     // if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
@@ -446,15 +443,7 @@ int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vect
         double difference_mag_sq = (state[0] - x) * (state[0] - x) + (state[1] - y) * (state[1] - y);
         if (difference_mag_sq > std::pow(v_ref * T * 5, 2)) {
             std::cout << "difference is too large, initial: " << state[0] << ", " << state[1] << ", " << state[2] << ", current: " << x << ", " << y << ", " << yaw << ", norm sq: " << difference_mag_sq << std::endl;
-            int reset_status;
-            if(use25) {
-                reset_status = mobile_robot_25_acados_reset(acados_ocp_capsule_25, 1);
-            } else if(use18) {
-                reset_status = mobile_robot_18_acados_reset(acados_ocp_capsule_18, 1);
-            } else {
-                reset_status = mobile_robot_acados_reset(acados_ocp_capsule, 1);
-            }
-            
+            reset_solver();
             success = 0;
         }
     }
