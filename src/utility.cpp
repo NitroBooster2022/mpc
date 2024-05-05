@@ -31,7 +31,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     
     if (real) {
         serial = std::make_unique<boost::asio::serial_port>(io, "/dev/ttyACM0");
-        serial->set_option(boost::asio::serial_port_base::baud_rate(19200));
+        serial->set_option(boost::asio::serial_port_base::baud_rate(115200));
     }
     q_transform.setRPY(REALSENSE_TF[3], REALSENSE_TF[4], REALSENSE_TF[5]); // 3 values are roll, pitch, yaw of the imu
     // q_transform.setRPY(0, 0.0, 0);
@@ -217,7 +217,7 @@ void Utility::odom_lidar_callback(const nav_msgs::Odometry::ConstPtr& msg) {
 }
 void Utility::tf_callback(const tf2_msgs::TFMessage::ConstPtr& msg) {
     for(const auto& transform : msg->transforms) {
-        if (imuInitialized && x0 > 0 && y0 > 0 && transform.child_frame_id == "odom" && transform.header.frame_id == "map") {
+        if (x0 > 0 && y0 > 0 && transform.child_frame_id == "odom" && transform.header.frame_id == "map") {
             double dx = transform.transform.translation.x;
             double dy = transform.transform.translation.y;
             geometry_msgs::PoseWithCovarianceStamped pose_msg;
@@ -269,14 +269,16 @@ void Utility::odom_pub_timer_callback(const ros::TimerEvent&) {
     publish_odom();
 }
 void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
+    // auto start = std::chrono::high_resolution_clock::now();
     static char data[256]; // Buffer to store data
     static size_t length = 0;
     static std::string buffer; // Buffer to accumulate the received data
-    // Read until '@7' is found
-    do {
-        length = serial->read_some(boost::asio::mutable_buffer(data, 256)); // Read data from serial port
-        buffer.append(data, length);
-    } while (buffer.find("@7") == std::string::npos);
+    length = serial->read_some(boost::asio::mutable_buffer(data, 256)); // Read data from serial port
+    buffer.append(data, length);
+    if (buffer.find("@7") == std::string::npos) {
+        // ROS_WARN("cant find @7");
+        return;
+    }
 
     // Find the end of line
     size_t end_pos = buffer.find('\n');
@@ -343,24 +345,51 @@ void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
             }
 
             // Convert substrings to floating-point numbers
-            double roll = stod(roll_str);
-            double pitch = stod(pitch_str);
-            this->yaw = stod(yaw_str);
-            double accelx = stod(accelx_str);
-            double accely = stod(accely_str);
-            double accelz = stod(accelz_str);
-            double gyrox = stod(gyrox_str);
-            double gyroy = stod(gyroy_str);
-            double gyroz = stod(gyroz_str);
+            static double roll;
+            static double pitch;
+            static double yaw_deg;
+            static double accelx;
+            static double accely;
+            static double accelz;
+            static double gyrox;
+            static double gyroy;
+            static double gyroz;
+            try {
+                roll = stod(roll_str);
+                pitch = stod(pitch_str);
+                yaw_deg = stod(yaw_str);
+                accelx = stod(accely_str);
+                accely = stod(accelx_str);
+                accelz = stod(accelz_str);
+                gyrox = stod(gyrox_str);
+                gyroy = stod(gyroy_str);
+                gyroz = stod(gyroz_str);
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "Error: Failed to convert string to floating-point number." << std::endl;
+                return;
+            }
 
-            static bool debug_imu = true;
+            static double accel_mag;
+
+
+            lock.lock();
+            this->yaw = -yaw_deg * M_PI/180;
+            while(this->yaw < -M_PI) {
+                this->yaw += 2*M_PI;
+            }
+            while(this->yaw > M_PI) {
+                this->yaw -= 2*M_PI;
+            }
+            lock.unlock();
+
+            static bool debug_imu = false;
             if (debug_imu) {
-                printf("roll: %.2f, pitch: %.2f, yaw: %.2f, accelx: %.2f, accely: %.2f, accelz: %.2f, gyrox: %.2f, gyroy: %.2f, gyroz: %.2f\n", roll, pitch, yaw, accelx, accely, accelz, gyrox, gyroy, gyroz);
+                printf("roll: %.2f, pitch: %.2f, yaw: %.2f, accelx: %.2f, accely: %.2f, accelz: %.2f, gyrox: %.2f, gyroy: %.2f, gyroz: %.2f\n", roll, pitch, yaw_deg, accelx, accely, accelz, gyrox, gyroy, gyroz);
             }
 
             // Convert Euler angles to quaternion
             tf2::Quaternion q;
-            q.setRPY(roll*M_PI/180, pitch*M_PI/180, yaw*M_PI/180);
+            q.setRPY(roll*M_PI/180, pitch*M_PI/180, yaw_deg*M_PI/180);
             imu_msg.orientation.x = q.x();
             imu_msg.orientation.y = q.y();
             imu_msg.orientation.z = q.z();
@@ -376,8 +405,17 @@ void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
             imu_msg.angular_velocity.z = gyroz*2*M_PI;
 
             imu_pub.publish(imu_msg); // Publish the IMU message
-        }
-    }
+            // auto end = std::chrono::high_resolution_clock::now();
+            // std::chrono::duration<double> elapsed = end - start;
+            // ROS_INFO("imu_pub_timer_callback time elapsed: %fs, rate = %fhz", elapsed.count(), 1/elapsed.count());
+        } 
+        // else {
+        //     ROS_INFO("line.find(@7) == std::string::npos");
+        // }
+    } 
+    // else {
+    //     ROS_WARN("end_pos == std::string::npos");
+    // }
 }
 void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
     lock.lock();
@@ -637,11 +675,11 @@ void Utility::set_pose_using_service(double x, double y, double yaw) {
 }
 
 void Utility::publish_odom() {
-    if (!imuInitialized || x0 < 0 || y0 < 0) {
-        ROS_WARN("publish_odom: not initialized");
-        timerodom = ros::Time::now();
-        return;
-    }
+    // if (!imuInitialized || x0 < 0 || y0 < 0) {
+    //     ROS_WARN("publish_odom: not initialized");
+    //     timerodom = ros::Time::now();
+    //     return;
+    // }
     
     yaw = fmod(yaw, 2 * M_PI);
 
@@ -651,7 +689,7 @@ void Utility::publish_odom() {
     odomX += dx;
     odomY += dy;
     // ROS_INFO("odomX: %.3f, gps_x: %.3f, odomY: %.3f, gps_y: %.3f, error: %.3f", odomX, gps_x, odomY, gps_y, sqrt((odomX - gps_x) * (odomX - gps_x) + (odomY - gps_y) * (odomY - gps_y))); // works
-
+    
     auto current_time = ros::Time::now();
     odom_msg.header.stamp = current_time;
     odom_msg.pose.pose.position.x = odomX + x0;
@@ -820,6 +858,11 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     if(real) {
         send_speed_and_steer(vel, steer);
         // ROS_INFO("publishing steer: %.3f, speed: %.3f", steer, vel);
+        msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
+        cmd_vel_pub.publish(msg2);
+        // ros::Duration(0.03).sleep();
+        msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
+        cmd_vel_pub.publish(msg);
     } else {
         msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
         cmd_vel_pub.publish(msg2);

@@ -54,6 +54,7 @@ class GlobalPlanner:
             "2022_south": 124,
             "2021_north": 134,
             "2021_south": 131,
+            "top_left": 235,
         }
         max_x = float('-inf')
         max_y = float('-inf')

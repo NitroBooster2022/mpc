@@ -49,3 +49,9 @@ path4:
   - roundabout_entrance_south
   - bus_lane_entrance
   - end
+
+test1:
+  - top_left
+  - roundabout_west
+  - roundabout_exit_east
+  - end
