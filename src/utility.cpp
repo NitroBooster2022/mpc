@@ -29,7 +29,6 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
 {
     std::cout << "Utility constructor" << std::endl;
     
-    std::cout << "real: " << real << std::endl;
     if (real) {
         serial = std::make_unique<boost::asio::serial_port>(io, "/dev/ttyACM0");
         serial->set_option(boost::asio::serial_port_base::baud_rate(19200));
@@ -44,7 +43,6 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     bool model;
     auto ns = ros::this_node::getName();
     if(nh.getParam(ns + "/subModel", model)) {
-        std::cout << "got subModel from " << ns + "/subModel" << ": " << model << std::endl;
         this->subModel = model;
     } else {
         std::cout << "failed to get subModel from param server, using default: " << this->subModel << std::endl;
@@ -117,24 +115,9 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     // if (robot_name[0] != '/') {
     //     robot_name = "/" + robot_name;
     // }
-    std::cout << "namespace: " << robot_name << std::endl;
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
     waypoints_pub = nh.advertise<std_msgs::Float32MultiArray>("/waypoints", 3);
     detected_cars_pub = nh.advertise<std_msgs::Float32MultiArray>("/detected_cars", 3);
-    std::string imu_topic_name;
-    bool realsense_imu;
-    nh.param<bool>("/realsense_imu", realsense_imu, false);
-    std::string car_imu_topic = "/" + robot_name + "/imu";
-    if (real) car_imu_topic = "/" + robot_name + "/data";
-    if (realsense_imu) {
-        imu_topic_name = "/realsense/imu";
-    } else {
-        imu_topic_name = car_imu_topic;
-    }
-    ROS_INFO("imu topic: %s", imu_topic_name.c_str());
-    std::cout << "waiting for Imu message" << std::endl;
-    ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
-    std::cout << "received message from Imu" << std::endl;
     
     odom_lidar_sub = nh.subscribe("/odom_lidar", 3, &Utility::odom_lidar_callback, this);
     if (pubOdom) {
@@ -144,26 +127,34 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     if (useEkf) {
         this->subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
-        std::cout << "waiting for ekf message" << std::endl;
-        // for (int i = 0; i < 10; i++) {
-        //     publish_odom(); // publish odom once to initialize
-        //     rate->sleep();
-        // }
-        // ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
-        // if (x0  < -1 || y0 < -1) {
-        //     ekf_x = 
-        // }
-        std::cout << "received message from ekf" << std::endl;
     } 
     if (this->subModel) {
-        std::cout << "waiting for model_states message" << std::endl;
-        ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
-        std::cout << "received message from model_states" << std::endl;
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
     }
+    std::string imu_topic_name;
+    bool realsense_imu;
+    nh.param<bool>("/realsense_imu", realsense_imu, false);
+    std::string car_imu_topic = "/" + robot_name + "/imu";
+    if (real) car_imu_topic = "/" + robot_name + "/imu";
+    if (realsense_imu) {
+        imu_topic_name = "/realsense/imu";
+    } else {
+        imu_topic_name = car_imu_topic;
+    }
+    ROS_INFO("imu topic: %s", imu_topic_name.c_str());
     if (subImu) {
-        imu_sub = nh.subscribe(imu_topic_name, 3, &Utility::imu_callback, this);
-        // imu_sub = nh.subscribe(imu_topic, 3, &Utility::imu_callback, this);
+        if (!real) {
+            std::cout << "waiting for Imu message" << std::endl;
+            ros::topic::waitForMessage<sensor_msgs::Imu>(imu_topic_name);
+            std::cout << "received message from Imu" << std::endl;
+            imu_sub = nh.subscribe(imu_topic_name, 3, &Utility::imu_callback, this);
+            // imu_sub = nh.subscribe(imu_topic, 3, &Utility::imu_callback, this);
+        } else {
+            ROS_INFO("getting imu from serial port");
+            // create a ros timer to read from serial port
+            imu_pub = nh.advertise<sensor_msgs::Imu>("/car1/imu", 3);
+            imu_pub_timer = nh.createTimer(ros::Duration(1.0 / rateVal), &Utility::imu_pub_timer_callback, this);
+        }
     }
     if (subLane) {
         lane_sub = nh.subscribe("/lane", 3, &Utility::lane_callback, this);
@@ -276,6 +267,117 @@ void Utility::amcl_callback(const geometry_msgs::PoseWithCovarianceStamped::Cons
 }
 void Utility::odom_pub_timer_callback(const ros::TimerEvent&) {
     publish_odom();
+}
+void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
+    static char data[256]; // Buffer to store data
+    static size_t length = 0;
+    static std::string buffer; // Buffer to accumulate the received data
+    // Read until '@7' is found
+    do {
+        length = serial->read_some(boost::asio::mutable_buffer(data, 256)); // Read data from serial port
+        buffer.append(data, length);
+    } while (buffer.find("@7") == std::string::npos);
+
+    // Find the end of line
+    size_t end_pos = buffer.find('\n');
+    if (end_pos != std::string::npos) {
+        std::string line = buffer.substr(0, end_pos); // Extract the line
+        buffer.erase(0, end_pos + 1); // Remove the processed part from the buffer
+
+        if (line.find("@7") != std::string::npos) {
+            // sensor_msgs::Imu imu_msg;
+            imu_msg.header.stamp = ros::Time::now();
+            imu_msg.header.frame_id = "imu0";
+
+            // Extract prefix and ignore '@' and ':' characters
+            std::string prefix;
+            size_t pos = line.find(':');
+            if (pos != std::string::npos && pos + 1 < line.length()) {
+                prefix = line.substr(pos + 1);
+            } else {
+                std::cerr << "Error: Failed to extract prefix from the string." << std::endl;
+                return;
+            }
+
+            // Extract substrings between ';' characters
+            std::string roll_str, pitch_str, yaw_str, accelx_str, accely_str, accelz_str, gyrox_str, gyroy_str, gyroz_str;
+            size_t end_pos = pos;
+            pos++;
+            for (int i = 0; i < 9; ++i) {
+                end_pos = line.find(';', pos);
+                if (end_pos != std::string::npos) {
+                    switch (i) {
+                        case 0:
+                            roll_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 1:
+                            pitch_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 2:
+                            yaw_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 3:
+                            accelx_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 4:
+                            accely_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 5:
+                            accelz_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 6:
+                            gyrox_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 7:
+                            gyroy_str = line.substr(pos, end_pos - pos);
+                            break;
+                        case 8:
+                            gyroz_str = line.substr(pos, end_pos - pos);
+                            break;
+                    }
+                    pos = end_pos + 1;
+                } else {
+                    std::cerr << "Error: Failed to find delimiter in the string." << std::endl;
+                    return;
+                }
+            }
+
+            // Convert substrings to floating-point numbers
+            double roll = stod(roll_str);
+            double pitch = stod(pitch_str);
+            this->yaw = stod(yaw_str);
+            double accelx = stod(accelx_str);
+            double accely = stod(accely_str);
+            double accelz = stod(accelz_str);
+            double gyrox = stod(gyrox_str);
+            double gyroy = stod(gyroy_str);
+            double gyroz = stod(gyroz_str);
+
+            static bool debug_imu = true;
+            if (debug_imu) {
+                printf("roll: %.2f, pitch: %.2f, yaw: %.2f, accelx: %.2f, accely: %.2f, accelz: %.2f, gyrox: %.2f, gyroy: %.2f, gyroz: %.2f\n", roll, pitch, yaw, accelx, accely, accelz, gyrox, gyroy, gyroz);
+            }
+
+            // Convert Euler angles to quaternion
+            tf2::Quaternion q;
+            q.setRPY(roll*M_PI/180, pitch*M_PI/180, yaw*M_PI/180);
+            imu_msg.orientation.x = q.x();
+            imu_msg.orientation.y = q.y();
+            imu_msg.orientation.z = q.z();
+            imu_msg.orientation.w = q.w();
+
+            // Set linear acceleration
+            imu_msg.linear_acceleration.x = accelx;
+            imu_msg.linear_acceleration.y = accely;
+            imu_msg.linear_acceleration.z = accelz;
+
+            imu_msg.angular_velocity.x = gyrox*2*M_PI;
+            imu_msg.angular_velocity.y = gyroy*2*M_PI;
+            imu_msg.angular_velocity.z = gyroz*2*M_PI;
+
+            imu_pub.publish(imu_msg); // Publish the IMU message
+        }
+    }
 }
 void Utility::sign_callback(const std_msgs::Float32MultiArray::ConstPtr& msg) {
     lock.lock();
@@ -422,20 +524,20 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
         car_pose_msg.data[0] = ekf_x;
         car_pose_msg.data[1] = ekf_y;
     }
-    if (useEkf) {
-        if (!initializationFlag) {
-            if (x0 < 0 || y0 < 0) {
-                std::cout << "using ekf but haven't received data yet. ekf_x: " << ekf_x << ", ekf_y: " << ekf_y << std::endl;
-                x0 = ekf_x;
-                y0 = ekf_y;
-                gmapping_x = ekf_x;
-                gmapping_y = ekf_y;
-            } else {
-                ROS_INFO("Initializing... ekf_x: %.3f, ekf_y: %.3f", ekf_x, ekf_y);
-            }
-            if (imuInitialized) initializationFlag = true;
-        }
-    }
+    // if (useEkf) {
+    //     if (!initializationFlag) {
+    //         if (x0 < 0 || y0 < 0) {
+    //             std::cout << "using ekf but haven't received data yet. ekf_x: " << ekf_x << ", ekf_y: " << ekf_y << std::endl;
+    //             x0 = ekf_x;
+    //             y0 = ekf_y;
+    //             gmapping_x = ekf_x;
+    //             gmapping_y = ekf_y;
+    //         } else {
+    //             ROS_INFO("Initializing... ekf_x: %.3f, ekf_y: %.3f", ekf_x, ekf_y);
+    //         }
+    //         if (imuInitialized) initializationFlag = true;
+    //     }
+    // }
     lock.unlock();
     // ROS_INFO("ekf callback rate: %f", 1 / (now - general_timer).toSec());
     // general_timer = now;

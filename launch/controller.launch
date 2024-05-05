@@ -31,6 +31,8 @@
   <param name="kb" value="$(arg kb)"/>
   <arg name = "hw" default="1.33"/>
   <param name="hw" value="$(arg hw)"/>
+  <arg name = "gps" default="false"/>
+  <param name="gps" value="$(arg gps)"/>
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
 

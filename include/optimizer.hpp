@@ -433,6 +433,17 @@ public:
     void get_current_waypoints(Eigen::MatrixXd& output) {
         output = state_refs.block(target_waypoint_index, 0, N, 3);
     }
+    int reset_solver() {
+        int reset_status;
+        if(use25) {
+            reset_status = mobile_robot_25_acados_reset(acados_ocp_capsule_25, 1);
+        } else if(use18) {
+            reset_status = mobile_robot_18_acados_reset(acados_ocp_capsule_18, 1);
+        } else {
+            reset_status = mobile_robot_acados_reset(acados_ocp_capsule, 1);
+        }
+        return reset_status;
+    }
 };
 
 #endif // OPTIMIZER_HPP

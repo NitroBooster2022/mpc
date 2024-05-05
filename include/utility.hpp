@@ -129,6 +129,9 @@ public:
 
     ros::Timer odom_pub_timer;
     void odom_pub_timer_callback(const ros::TimerEvent&);
+    ros::Timer imu_pub_timer;
+    void imu_pub_timer_callback(const ros::TimerEvent&);
+    ros::Publisher imu_pub;
 
     // Callbacks
     void lane_callback(const utils::Lane::ConstPtr& msg);
@@ -195,6 +198,31 @@ public:
             y_ = odomY + y0;
         }
         return 0;
+    }
+    int reinitialize_states() {
+        if(useEkf) {
+            std::cout << "waiting for ekf message" << std::endl;
+            ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
+            std::cout << "received message from ekf" << std::endl;
+            x0 = ekf_x;
+            y0 = ekf_y;
+        } else if(subModel) {
+            std::cout << "waiting for model message" << std::endl;
+            ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
+            std::cout << "received message from model" << std::endl;
+            x0 = gps_x;
+            y0 = gps_y;
+        } else if(useGmapping || useAmcl) {
+            x0 = gmapping_x;
+            y0 = gmapping_y;
+        } else if(useLidarOdom) {
+            x0 = odomX_lidar;
+            y0 = odomY_lidar;
+        } else {
+            x0 = odomX;
+            y0 = odomY;
+        }
+        return 1;
     }
     void get_gps_states(double &x_, double &y_, double &yaw_) {
         x_ = gps_x;

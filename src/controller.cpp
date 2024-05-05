@@ -32,6 +32,7 @@ public:
         }
         nh.param("/dashboard", dashboard, true);
         nh.param("/kb", keyboardControl, false);
+        nh.param("/gps", hasGps, false);
         if (keyboardControl) {
             std::cout << "keyboard control enabled" << std::endl;
             change_state(STATE::KEYBOARD_CONTROL);
@@ -45,7 +46,11 @@ public:
         }
         srv.request.vrefName = std::to_string(vrefInt);
         ROS_INFO("waiting for waypoints service");
-        waypoints_client.waitForExistence(ros::Duration(5));
+        if(waypoints_client.waitForExistence(ros::Duration(5))) {
+            ROS_INFO("waypoints service found");
+        } else {
+            ROS_ERROR("waypoints service not found after 5 seconds");
+        }
         if(waypoints_client.call(srv)) {
             std::vector<double> state_refs(srv.response.state_refs.data.begin(), srv.response.state_refs.data.end()); // N by 3
             std::vector<double> input_refs(srv.response.input_refs.data.begin(), srv.response.input_refs.data.end()); // N by 2
@@ -81,18 +86,7 @@ public:
         ROS_INFO("destination: %.3f, %.3f", destination(0), destination(1));
         start_trigger = nh.advertiseService("/start_bool", &StateMachine::start_bool_callback, this);
         ROS_INFO("server ready, mpc time step T = %.3f", T);
-        // ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
-        // while(!utils.initializationFlag) {
-        //     ros::spinOnce();
-        //     ROS_WARN("waiting for initialization flag");
-        //     rate->sleep();
-        // }
-        double x, y, yaw;
-        utils.get_states(x, y, yaw);
-        std::cout << "initialized: " << utils.initializationFlag << ", gps_x: " << x << ", gps_y: " << y << ", yaw:" << utils.yaw << std::endl;
-        if (ekf) std::cout << "ekf_x: " << utils.ekf_x << ", ekf_y: " << utils.ekf_y << ", ekf_yaw:" << utils.ekf_yaw << std::endl;
-        mpc.initialize_current_states(x, y, utils.yaw);
-        mpc.target_waypoint_index = mpc.find_next_waypoint(mpc.x_current, 0, static_cast<int>(mpc.state_refs.rows() - 1));
+        std::cout << "state machine initialized" << std::endl;
     }
     ~StateMachine() {
         // utils.stop_car();
@@ -117,7 +111,7 @@ public:
     Eigen::Vector2d destination;
     Eigen::VectorXd xs;
     int state = 0;
-    bool debug = true, sign, ekf, lane, real, dashboard, keyboardControl;
+    bool debug = true, sign, ekf, lane, real, dashboard, keyboardControl, hasGps;
     std::string gaz_bool = "_gazebo_";
 
     ros::Time cooldown_timer;
@@ -132,6 +126,22 @@ public:
         ros::ServiceClient client = nh.serviceClient<std_srvs::Trigger>("/trigger_service");
         std_srvs::Trigger srv;
         client.call(srv);
+    }
+    int start() {
+        double x, y, yaw;
+        utils.get_states(x, y, yaw);
+        mpc.initialize_current_states(x, y, utils.yaw);
+        mpc.target_waypoint_index = mpc.find_next_waypoint(mpc.x_current, 0, static_cast<int>(mpc.state_refs.rows() - 1));
+        mpc.reset_solver();
+        if(hasGps) {
+            if(!utils.reinitialize_states()) ROS_WARN("Failed to reinitialize");
+        }
+        if (lane) {
+            change_state(STATE::LANE_FOLLOWING);
+        } else {
+            change_state(STATE::MOVING);
+        }
+        return 1;
     }
     bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
         static int history = -1;
@@ -1103,11 +1113,7 @@ void StateMachine::run() {
                 utils.publish_cmd_vel(0, 0);
                 rate->sleep();
             } else {
-                if (lane) {
-                    change_state(STATE::LANE_FOLLOWING);
-                } else {
-                    change_state(STATE::MOVING);
-                }
+                start();
             }
             // change_state(STATE::INTERSECTION_MANEUVERING);
             // change_state(STATE::PARKING);
