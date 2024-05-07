@@ -130,6 +130,21 @@ class GlobalPlanner:
                     # print(f"node {node} is a straight, cross: ", normalized_cross)
                     pass
         return alex.array([wp_x, wp_y]), path_edges, wp_attributes
+    def find_closest_node(self, x, y):
+        """Finds the closest node to the point (x, y)."""
+        closest_node = None
+        closest_dist = float('inf')
+        target_point = alex.array([x, y])
+        
+        for node, pos in self.pos.items():
+            node_point = alex.array(pos)
+            distance = alex.linalg.norm(target_point - node_point)
+            
+            if distance < closest_dist:
+                closest_dist = distance
+                closest_node = node
+                
+        return closest_node
     def illustrate_path(self, start, end):
         _, path_edges, _ = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
