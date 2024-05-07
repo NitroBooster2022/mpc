@@ -184,9 +184,14 @@ class Path:
         # Plan runs between sequential destinations
         runs = []
         attributes = []
+        if x0 is not None:
+            start = self.global_planner.find_closest_node(x0[0], x0[1])
+            end = self.get_node_number(destinations[0])
+            run, _, attribute = self.global_planner.plan_path(start, end)
+            attributes.append(attribute)
         for i in range(len(destinations) - 1):
-            start = self.global_planner.place_names[destinations[i]]
-            end = self.global_planner.place_names[destinations[i+1]]
+            start = self.get_node_number(destinations[i])
+            end = self.get_node_number(destinations[i + 1])
             run, _, attribute = self.global_planner.plan_path(start, end)
             # print("run: ", run.shape)
             runs.append(run)
@@ -195,38 +200,35 @@ class Path:
         runs1 = np.hstack(runs)
         # print("runs1: ", runs1.shape, "x0: ", x0)
         # runs1:  (2, 168) x0:  [3 2 0]
+        
         #find closest index to x0
-        if x0 is not None:
-            def calculate_distances(run, x0):
-                return np.sqrt(np.sum((run[:2, :] - x0[:2, None])**2, axis=0))
-            # Find the closest point across all runs
-            min_distance = np.inf
-            min_distance_run_index = -1
-            min_distance_point_index = -1
+        # if x0 is not None:
+        #     def calculate_distances(run, x0):
+        #         return np.sqrt(np.sum((run[:2, :] - x0[:2, None])**2, axis=0))
+        #     # Find the closest point across all runs
+        #     min_distance = np.inf
+        #     min_distance_run_index = -1
+        #     min_distance_point_index = -1
 
-            for i, run in enumerate(runs):
-                distances = calculate_distances(run, x0)
-                min_index = np.argmin(distances)
-                min_dist = distances[min_index]
+        #     for i, run in enumerate(runs):
+        #         distances = calculate_distances(run, x0)
+        #         min_index = np.argmin(distances)
+        #         min_dist = distances[min_index]
                 
-                if min_dist < min_distance:
-                    min_distance = min_dist
-                    min_distance_run_index = i
-                    min_distance_point_index = min_index
+        #         if min_dist < min_distance:
+        #             min_distance = min_dist
+        #             min_distance_run_index = i
+        #             min_distance_point_index = min_index
 
-            # Now modify the list of runs as per the instructions
-            if min_distance_run_index != -1:
-                closest_run = runs[min_distance_run_index]
-                # Append x0 to the closest run before the closest waypoint
-                modified_run = np.hstack((closest_run[:, :min_distance_point_index], x0[:2, None], closest_run[:, min_distance_point_index:]))
-                # Eliminate the waypoints before x0
-                modified_run = modified_run[:, min_distance_point_index:]
-                # Update the list of runs
-                runs = [modified_run] + runs[min_distance_run_index+1:]
-
-            # Show the results
-            # for i, run in enumerate(runs):
-            #     print(f"run{i+1}: shape is {run.shape}")
+        #     # Now modify the list of runs as per the instructions
+        #     if min_distance_run_index != -1:
+        #         closest_run = runs[min_distance_run_index]
+        #         # Append x0 to the closest run before the closest waypoint
+        #         modified_run = np.hstack((closest_run[:, :min_distance_point_index], x0[:2, None], closest_run[:, min_distance_point_index:]))
+        #         # Eliminate the waypoints before x0
+        #         modified_run = modified_run[:, min_distance_point_index:]
+        #         # Update the list of runs
+        #         runs = [modified_run] + runs[min_distance_run_index+1:]
                 
         # print("runs: ", len(runs))
         # Compute path lengths 
