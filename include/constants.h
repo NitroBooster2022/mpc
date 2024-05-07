@@ -77,6 +77,8 @@ namespace VehicleConstants {
     static constexpr double HARD_MAX_STEERING = 25.0;
     static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.50, 0.372};
     static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
+    static constexpr std::array<double, 2> PARKING_SIGN_TO_CAR1 = {0.4592, -0.073};
+    static constexpr std::array<double, 2> PARKING_SIGN_POSE = {8.937, 0.5};
 
     //utils
     static constexpr int NUM_VALUES_PER_OBJECT = 7;

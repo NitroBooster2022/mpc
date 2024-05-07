@@ -54,6 +54,7 @@ public:
     int update_and_solve(Eigen::Vector3d &i_current_state, int mode = -1);
     void integrate_next_states();
     int find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index = -1, int max_index = -1);
+    int find_closest_waypoint(int min_index = -1, int max_index = -1);
     int update_current_states(double x, double y, double yaw, Eigen::Vector3d& state, bool safety_check = true);
     int update_current_states(double x, double y, double yaw, bool safety_check = true) {
         return update_current_states(x, y, yaw, x_current, safety_check);
@@ -93,6 +94,12 @@ public:
     enum ATTRIBUTE {
         NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT, STOPLINE, DOTTED, DOTTED_CROSSWALK
     };
+    bool attribute_cmp(int idx, int attr) {
+        return state_attributes(idx) == attr || state_attributes(idx) == attr + 100;
+    }
+    bool is_detectable(int idx) {
+        return state_attributes(idx) >= 100;
+    }
     Eigen::MatrixXd *state_refs_ptr;
     Eigen::VectorXd distances;
 
