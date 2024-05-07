@@ -71,7 +71,14 @@ class GlobalPlanner:
         # Print out the maximum x and y values
         # print(f"The maximum x value is: {max_x}")
         # print(f"The maximum y value is: {max_y}")
-        
+    def get_node_number(self, identifier):
+        """Returns the node number based on the identifier."""
+        if isinstance(identifier, str):
+            return self.global_planner.place_names.get(identifier)
+        elif isinstance(identifier, int):
+            return identifier
+        else:
+            raise ValueError(f"Invalid destination identifier: {identifier}")
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
