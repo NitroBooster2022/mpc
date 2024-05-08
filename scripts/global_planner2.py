@@ -18,6 +18,18 @@ class GlobalPlanner:
         self.wp_x = []
         self.wp_y = []
         self.place_names = {}
+        self.undetectable_areas = [3, 7, 152, 177, 371, 331, 398, 357, 372, 373, 237, 238, 259, 260, 332, 333, 356, 37, 369, 302, 303, 164, 165, 67, 66, 166, 167]
+        # add 472 to 479
+        for i in range(472, 481):
+            self.undetectable_areas.append(i)
+        for i in range(490, 493):
+            self.undetectable_areas.append(i)
+        for i in range(358, 370):
+            self.undetectable_areas.append(i)
+        for i in range(307, 320):
+            self.undetectable_areas.append(i)
+        for i in range(342, 352):
+            self.undetectable_areas.append(i)
 
         self.place_names = {
             "parallel_parking": 454,
@@ -74,7 +86,7 @@ class GlobalPlanner:
     def get_node_number(self, identifier):
         """Returns the node number based on the identifier."""
         if isinstance(identifier, str):
-            return self.global_planner.place_names.get(identifier)
+            return self.place_names.get(identifier)
         elif isinstance(identifier, int):
             return identifier
         else:
@@ -86,13 +98,16 @@ class GlobalPlanner:
         wp_x = []
         wp_y = []
         wp_attributes = []
+        maneuver_directions = []
         for node in path:
             attribute = self.attribute.get(node, 0)
+            if node in self.undetectable_areas:
+                attribute += 100
+            wp_attributes.append(attribute)
             if attribute != 2: #intersection
                 x, y = self.pos[node]
                 wp_x.append(x)
                 wp_y.append(y)
-                wp_attributes.append(self.attribute.get(node, 0))
             else:
                 #get previous node
                 prev_node2 = path[path.index(node)-2]
@@ -118,25 +133,28 @@ class GlobalPlanner:
                 cross_product = alex.cross(vec1, vec2)
                 normalized_cross = cross_product / (mag1 * mag2)
                 if normalized_cross > 0.75: #left
-                    # print(f"node {node} is a left turn, cross: ", normalized_cross)
+                    maneuver_directions.append(0)
+                    print(f"node {node} is a left turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x, y = self.pos[node]
                     x += vec1[0] / mag1 * 0.15
                     y += vec1[1] / mag1 * 0.15
                     wp_x.append(x)
                     wp_y.append(y)
-                    wp_attributes.append(self.attribute.get(node, 0))
                 elif normalized_cross < -0.75:
-                    # print(f"node {node} is a right turn, cross: ", normalized_cross)
+                    maneuver_directions.append(2)
+                    print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x = prev_x + vec1[0] / mag1 * 0.357
                     y = prev_y + vec1[1] / mag1 * 0.357
                     wp_x.append(x)
                     wp_y.append(y)
                     # print("prev: ", prev_x, prev_y, "added: ", x, y)
-                    wp_attributes.append(self.attribute.get(node, 0))
                 else:
-                    # print(f"node {node} is a straight, cross: ", normalized_cross)
-                    pass
-        return alex.array([wp_x, wp_y]), path_edges, wp_attributes
+                    x, y = self.pos[node]
+                    wp_x.append(x)
+                    wp_y.append(y)
+                    maneuver_directions.append(1)
+                    print(f"node {node} is a straight, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
+        return alex.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions
     def find_closest_node(self, x, y):
         """Finds the closest node to the point (x, y)."""
         closest_node = None
@@ -153,7 +171,7 @@ class GlobalPlanner:
                 
         return closest_node
     def illustrate_path(self, start, end):
-        _, path_edges, _ = self.plan_path(start, end)
+        _, path_edges, _, _, _ = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         # img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         # print("img: ", img.shape)

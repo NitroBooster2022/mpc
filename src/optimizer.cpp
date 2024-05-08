@@ -330,32 +330,39 @@ void Optimizer::integrate_next_states() {
     t0 += T;
 }
 
-int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index, int max_index) {
-    int target = 0;
+int Optimizer::find_closest_waypoint(int min_index, int max_index) {
     // auto start = std::chrono::high_resolution_clock::now();
-    double current_norm = i_current_state.head(2).squaredNorm();
+    double current_norm = x_current.head(2).squaredNorm();
 
     double min_distance_sq = std::numeric_limits<double>::max();
+    int closest = -1;
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
     // if (min_index < 0) min_index = std::max(last_waypoint_index - limit, 0); //0;
-    // if (max_index < 0) max_index = std::min(last_waypoint_index + limit, static_cast<int>((*state_refs_ptr).rows()) - 1); //state_refs.rows() - 1;
-    min_index = std::max(0, last_waypoint_index - limit * 2);
-    max_index = state_refs.rows() - 1;
-    last_waypoint_index = target_waypoint_index;
+    // if (max_index < 0) max_index = std::min(last_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    
+    if (min_index < 0) min_index = 0;
+    if (max_index < 0) max_index = static_cast<int>(state_refs.rows()) - 1;
 
     for (int i = min_index; i < max_index; ++i) {
-        double distance_sq = ((*state_refs_ptr).row(i).head(2).squaredNorm() 
-                           - 2 * (*state_refs_ptr).row(i).head(2).dot(i_current_state.head(2))
+        double distance_sq = (state_refs.row(i).head(2).squaredNorm() 
+                           - 2 * state_refs.row(i).head(2).dot(x_current.head(2))
                            + current_norm); 
 
         if (distance_sq < min_distance_sq) {
             min_distance_sq = distance_sq;
-            closest_waypoint_index = i;
+            closest = i;
         }
     }
+    return closest;
+}
 
+int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index, int max_index) {
+    closest_waypoint_index = find_closest_waypoint(min_index, max_index);
+
+    int target = 0;
+    last_waypoint_index = target_waypoint_index;
     //2
     double roa_sq; // region of acceptance squared
     if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
@@ -365,24 +372,23 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     } else {
         roa_sq = region_of_acceptance * region_of_acceptance;
     }
-    // if (min_distance_sq < roa_sq) {
-    //     std::cout << "min_distance: " << std::sqrt(min_distance_sq) << ", roa: " << std::sqrt(roa_sq) << ", target index: " << target_waypoint_index << ", closest index: " << closest_waypoint_index << std::endl;
-    //     target_waypoint_index ++;
-    // }
+
     static int lookahead = 1;
-    if (v_ref > 0.375) lookahead = 6;
+    if (v_ref > 0.375) lookahead = 2;
     static Eigen::Vector3d last_state = i_current_state;
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
-    static bool first = true;
-    
-    // std::cout << "closest: " << closest_waypoint_index << ", target: " << target_waypoint_index << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
+    static int first = 0;
+    static int count = 0;
+
+    static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
     if ((closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
         closest_waypoint_index + lookahead + limit/3 < target_waypoint_index)) {
         auto target_attribute = state_attributes[closest_waypoint_index];
         auto closest_attribute = state_attributes[target_waypoint_index];
-        if (first) {
-            first = false;
+        if (first < 10) {
+            first = 10;
             std::cout << "discontinuity, but first, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
+            reset_solver();
             target = closest_waypoint_index + lookahead;
         } else if (distance_travelled_sq <  std::pow(T * v_ref * 15, 2) || target_attribute == ATTRIBUTE::ROUNDABOUT || closest_attribute == ATTRIBUTE::ROUNDABOUT) {
             std::cout << "waypoint jump, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
@@ -392,41 +398,26 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
             target = closest_waypoint_index + lookahead;
         }
     } else {
-        first = false;
-        target = closest_waypoint_index + lookahead;
+        first ++;
+        if (first > 500) {
+            first = 10;
+        }
+        if (target == target_waypoint_index) {
+            count ++;
+            if (count >= 1) {
+                printf("stagnation, repositioning...\n");
+                target = std::max(target_waypoint_index + 2, closest_waypoint_index + lookahead + 1);
+                count = 0;
+            }
+        } else {
+            target = std::max(target_waypoint_index, closest_waypoint_index + lookahead);
+        }
     }
+    // std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
 
     last_state = i_current_state;
     
-    // double dist = sqrt(min_distance_sq);
-    // std::cout << "cur:" << i_current_state[0] << "," << i_current_state[1] << "," << i_current_state[2] << ", closest_waypoint_index:" << closest_waypoint_index << ", closest:" << state_refs(closest_waypoint_index, 0) << "," << state_refs(closest_waypoint_index, 1) << ", dist: " << dist <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << std::endl;
-    // std::cout << "closest_waypoint_index:" << closest_waypoint_index <<  ", last:" << last_waypoint_index << ", target:" << target_waypoint_index << ", u:" << u_current[0] << ", " << u_current[1] << ", limit:" << limit << std::endl;
     return std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
-
-    // Determine the next waypoint
-    // if (min_distance_sq < region_of_acceptance*region_of_acceptance) {
-    //     if (closest_waypoint_index - last_waypoint_index < 15) {
-    //         last_waypoint_index = std::max(last_waypoint_index, static_cast<int>(closest_waypoint_index) + 1);
-    //     } else {
-    //         closest_waypoint_index = last_waypoint_index;
-    //     }
-    // } else {
-    //     if (closest_waypoint_index > last_waypoint_index + 15) {
-    //         // closest_waypoint_index = last_waypoint_index + 1;
-    //         closest_waypoint_index = last_waypoint_index;
-    //     }
-    //     last_waypoint_index++;
-    // }
-
-    // // print current state, closest point, closest index, target index
-    // int target_idx = std::max(last_waypoint_index, static_cast<int>(closest_waypoint_index));
-    // double dist = sqrt(min_distance_sq);
-    // // std::cout << "dist: " << dist<< ", cur:" << i_current_state[0] << "," << i_current_state[1] << "," << i_current_state[2] << ", closest:" << state_refs(closest_waypoint_index, 0) << "," << state_refs(closest_waypoint_index, 1) << "," << state_refs(closest_waypoint_index, 2) << ", closest_waypoint_index:" << closest_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
-    // std::cout << "cur:" << i_current_state[0] << "," << i_current_state[1] << "," << i_current_state[2] << ", closest_waypoint_index:" << closest_waypoint_index << ", closest:" << state_refs(closest_waypoint_index, 0) << "," << state_refs(closest_waypoint_index, 1) << "," << state_refs(closest_waypoint_index, 2) << ", dist: " << dist<<  ", last_waypoint_index:" << last_waypoint_index << ", target_idx:" << target_waypoint_index << std::endl;
-    // // auto finish = std::chrono::high_resolution_clock::now();
-    // // std::chrono::duration<double> elapsed = finish - start;
-    // // std::cout << "find_next_waypoint() took " << elapsed.count() << " seconds" << std::endl;
-    // return std::min(target_idx, static_cast<int>(state_refs.rows()) - 1);
 }
 int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state, bool safety_check) {
     int success = 1;

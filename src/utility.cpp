@@ -848,6 +848,16 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
         if (steering_angle > HARD_MAX_STEERING) steering_angle = HARD_MAX_STEERING;
         if (steering_angle < -HARD_MAX_STEERING) steering_angle = -HARD_MAX_STEERING;
     }
+    // Check for NaN values and handle them
+    if (std::isnan(steering_angle)) {
+        std::cerr << "Error: Steering angle is NaN!" << std::endl;
+        steering_angle = 0.0;
+    }
+
+    if (std::isnan(velocity)) {
+        std::cerr << "Error: Velocity is NaN!" << std::endl;
+        velocity = 0.0;
+    }
     float vel = velocity;
     lock.lock();
     steer_command = steering_angle;

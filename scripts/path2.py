@@ -184,20 +184,26 @@ class Path:
         # Plan runs between sequential destinations
         runs = []
         attributes = []
+        self.maneuver_directions = []
         if x0 is not None:
             start = self.global_planner.find_closest_node(x0[0], x0[1])
-            end = self.get_node_number(destinations[0])
-            run, _, attribute = self.global_planner.plan_path(start, end)
+            end = self.global_planner.get_node_number(destinations[0])
+            run, _, attribute, maneuver_directions = self.global_planner.plan_path(start, end)
+            runs.append(run)
             attributes.append(attribute)
+            self.maneuver_directions.extend(maneuver_directions)
         for i in range(len(destinations) - 1):
-            start = self.get_node_number(destinations[i])
-            end = self.get_node_number(destinations[i + 1])
-            run, _, attribute = self.global_planner.plan_path(start, end)
+            start = self.global_planner.get_node_number(destinations[i])
+            end = self.global_planner.get_node_number(destinations[i + 1])
+            run, _, attribute, maneuver_directions = self.global_planner.plan_path(start, end)
             # print("run: ", run.shape)
             runs.append(run)
             # print(i, ") attribute:\n", attribute)
             attributes.append(attribute)
+            self.maneuver_directions.extend(maneuver_directions)
         runs1 = np.hstack(runs)
+        # for undetected in self.undetectable_areas:
+        #     print("undetected: ", len(undetected))
         # print("runs1: ", runs1.shape, "x0: ", x0)
         # runs1:  (2, 168) x0:  [3 2 0]
         
@@ -449,11 +455,12 @@ def handle_array_service(req):
     input_refs = Float32MultiArray(data = path.input_refs.flatten())
     attributes = Float32MultiArray(data = path.attributes.flatten())
     normals = Float32MultiArray(data = path.wp_normals.flatten())
+    maneuver_directions = Float32MultiArray(data = path.maneuver_directions)    
     
     # print("sizes: ", len(state_refs.data), len(input_refs.data), len(attributes.data), len(normals.data))
     import threading
     threading.Thread(target=initiate_shutdown).start()
-    return waypointsResponse(state_refs, input_refs, attributes, normals)
+    return waypointsResponse(state_refs, input_refs, attributes, normals, maneuver_directions)
 
 def initiate_shutdown():
     """
