@@ -83,7 +83,14 @@ class GlobalPlanner:
         # Print out the maximum x and y values
         # print(f"The maximum x value is: {max_x}")
         # print(f"The maximum y value is: {max_y}")
-        
+    def get_node_number(self, identifier):
+        """Returns the node number based on the identifier."""
+        if isinstance(identifier, str):
+            return self.place_names.get(identifier)
+        elif isinstance(identifier, int):
+            return identifier
+        else:
+            raise ValueError(f"Invalid destination identifier: {identifier}")
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
@@ -91,22 +98,16 @@ class GlobalPlanner:
         wp_x = []
         wp_y = []
         wp_attributes = []
-        wp_detectable = []
         maneuver_directions = []
         for node in path:
             attribute = self.attribute.get(node, 0)
             if node in self.undetectable_areas:
-                wp_detectable.append(0)
-            else:
-                wp_detectable.append(1)
+                attribute += 100
+            wp_attributes.append(attribute)
             if attribute != 2: #intersection
                 x, y = self.pos[node]
                 wp_x.append(x)
                 wp_y.append(y)
-                base_attribute = self.attribute.get(node, 0)
-                if node in self.undetectable_areas:
-                    base_attribute += 100
-                wp_attributes.append(self.attribute.get(node, 0))
             else:
                 #get previous node
                 prev_node2 = path[path.index(node)-2]
@@ -139,7 +140,6 @@ class GlobalPlanner:
                     y += vec1[1] / mag1 * 0.15
                     wp_x.append(x)
                     wp_y.append(y)
-                    wp_attributes.append(self.attribute.get(node, 0))
                 elif normalized_cross < -0.75:
                     maneuver_directions.append(2)
                     print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
@@ -148,11 +148,28 @@ class GlobalPlanner:
                     wp_x.append(x)
                     wp_y.append(y)
                     # print("prev: ", prev_x, prev_y, "added: ", x, y)
-                    wp_attributes.append(self.attribute.get(node, 0))
                 else:
+                    x, y = self.pos[node]
+                    wp_x.append(x)
+                    wp_y.append(y)
                     maneuver_directions.append(1)
                     print(f"node {node} is a straight, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
-        return alex.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions, wp_detectable
+        return alex.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions
+    def find_closest_node(self, x, y):
+        """Finds the closest node to the point (x, y)."""
+        closest_node = None
+        closest_dist = float('inf')
+        target_point = alex.array([x, y])
+        
+        for node, pos in self.pos.items():
+            node_point = alex.array(pos)
+            distance = alex.linalg.norm(target_point - node_point)
+            
+            if distance < closest_dist:
+                closest_dist = distance
+                closest_node = node
+                
+        return closest_node
     def illustrate_path(self, start, end):
         _, path_edges, _, _, _ = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
