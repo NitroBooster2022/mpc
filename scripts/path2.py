@@ -186,6 +186,7 @@ class Path:
         attributes = []
         self.maneuver_directions = []
         if x0 is not None:
+            print("x0: ", x0)
             start = self.global_planner.find_closest_node(x0[0], x0[1])
             end = self.global_planner.get_node_number(destinations[0])
             run, _, attribute, maneuver_directions = self.global_planner.plan_path(start, end)
@@ -196,11 +197,19 @@ class Path:
             start = self.global_planner.get_node_number(destinations[i])
             end = self.global_planner.get_node_number(destinations[i + 1])
             run, _, attribute, maneuver_directions = self.global_planner.plan_path(start, end)
-            # print("run: ", run.shape)
-            runs.append(run)
-            # print(i, ") attribute:\n", attribute)
-            attributes.append(attribute)
-            self.maneuver_directions.extend(maneuver_directions)
+            # if x0 is not None and i == 0:
+            if False:
+                runs[0] = np.hstack((runs[0], run))
+                attributes[0].extend(attribute)
+                self.maneuver_directions.extend(maneuver_directions)
+            else:
+                # print("run: ", run.shape)
+                runs.append(run)
+                # print(i, ") attribute:\n", attribute)
+                attributes.append(attribute)
+                self.maneuver_directions.extend(maneuver_directions)
+
+
         runs1 = np.hstack(runs)
         # for undetected in self.undetectable_areas:
         #     print("undetected: ", len(undetected))
@@ -428,11 +437,35 @@ class Path:
         return self.state_refs
 
     def illustrate_path(self, state_refs):
-        import matplotlib.pyplot as plt
+        # import matplotlib.pyplot as plt
         # print("shape: ", state_refs.shape)
-        plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
-        plt.show()
+        # plt.plot(state_refs[0,:], state_refs[1,:], 'b-')
+        # plt.show()
 
+        import cv2
+        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
+        self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
+        for i in range(0, state_refs.shape[1], 8):
+            radius = 2
+            color = (0, 255, 255)
+            if self.attributes[i] == 4 or self.attributes[i] == 5: # hard waypoints
+                color = (0, 0, 255)
+            if self.attributes[i] == 1: # crosswalk
+                color = (0, 255, 0)
+            if self.attributes[i] == 9:
+                color = (255, 0, 0)
+            if self.attributes[i] == 7:
+                color = (255, 255, 0)
+            if self.attributes[i] == 6:
+                color = (255, 255, 255)
+            if self.attributes[i] >= 100: # orange
+                color = (0, 165, 255)
+            if self.attributes[i] == 2 or self.attributes[i] == 102:
+                color = (255, 0, 255)
+            cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+        cv2.imshow('map', self.map)
+        cv2.waitKey(0)
+        
 def handle_array_service(req):
     """
     Service callback function to return numpy arrays a, b, and c.
@@ -447,10 +480,17 @@ def handle_array_service(req):
     N = config['N']
     constraint_name = 'constraints'
 
+    if req.x0 <= -1 or req.y0 <= -1:
+        initial_state = None
+    else:
+        initial_state = np.array([req.x0, req.y0, req.yaw0])
+    # initial_state = None
+
     v_ref = config[constraint_name]['v_ref']
     # print("v_ref: ", v_ref)
-    path = Path(v_ref = v_ref, N = N, T = T, name = req.pathName)
+    path = Path(v_ref = v_ref, N = N, T = T, x0= initial_state, name = req.pathName)
 
+    # path.illustrate_path(path.state_refs.T)
     state_refs = Float32MultiArray(data = path.state_refs.flatten())
     input_refs = Float32MultiArray(data = path.input_refs.flatten())
     attributes = Float32MultiArray(data = path.attributes.flatten())

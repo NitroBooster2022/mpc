@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as alex
 import os
-
+ATTRIBUTES = ["normal", "crosswalk", "intersection", "oneway", "highwayLeft", "highwayRight", "roundabout", "stopline", "dotted", "dotted_crosswalk"]
 class GlobalPlanner:
     def __init__(self):
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -18,7 +18,7 @@ class GlobalPlanner:
         self.wp_x = []
         self.wp_y = []
         self.place_names = {}
-        self.undetectable_areas = [3, 7, 152, 177, 371, 331, 398, 357, 372, 373, 237, 238, 259, 260, 332, 333, 356, 37, 369, 302, 303, 164, 165, 67, 66, 166, 167]
+        self.undetectable_areas = [2, 9, 10, 3, 7, 152, 177, 371, 331, 398, 357, 372, 373, 237, 238, 259, 260, 332, 333, 356, 37, 369, 302, 303, 164, 165, 67, 66, 166, 167]
         # add 472 to 479
         for i in range(472, 481):
             self.undetectable_areas.append(i)
@@ -30,7 +30,14 @@ class GlobalPlanner:
             self.undetectable_areas.append(i)
         for i in range(342, 352):
             self.undetectable_areas.append(i)
+        # print("undetectable areas: ", self.undetectable_areas)
 
+        for node in self.G.nodes:
+            attribute = self.attribute.get(node, 0)
+            if ATTRIBUTES[attribute] == "roundabout" or ATTRIBUTES[attribute] == "intersection" or ATTRIBUTES[attribute] == "dotted_crosswalk":
+                self.undetectable_areas.append(int(node))
+
+        self.intersection_count = 0
         self.place_names = {
             "parallel_parking": 454,
             "highway_entrance_east": 262,
@@ -54,6 +61,7 @@ class GlobalPlanner:
             "speed_entrance_south": 7,
             "speed_entrance_west": 66,
             "bus_lane_entrance": 427,
+            "bus_lane": 437,
             "start": 472,
             "end": 467,
             "2019_north": 115,
@@ -100,15 +108,19 @@ class GlobalPlanner:
         wp_attributes = []
         maneuver_directions = []
         for node in path:
+            # print(f"Node {node} has attribute {self.attribute.get(node, 0)}, type of node is {type(node)}.")
             attribute = self.attribute.get(node, 0)
-            if node in self.undetectable_areas:
+            if int(node) in self.undetectable_areas:
+                # print(f"Node {node} is in an undetectable area.")
                 attribute += 100
             wp_attributes.append(attribute)
-            if attribute != 2: #intersection
+            if attribute != 2 and attribute != 102: #intersection
                 x, y = self.pos[node]
                 wp_x.append(x)
                 wp_y.append(y)
             else:
+                self.intersection_count += 1
+                # print("intersection node: ", node, "count: ", self.intersection_count)
                 #get previous node
                 prev_node2 = path[path.index(node)-2]
                 prev_node = path[path.index(node)-1]
@@ -134,7 +146,7 @@ class GlobalPlanner:
                 normalized_cross = cross_product / (mag1 * mag2)
                 if normalized_cross > 0.75: #left
                     maneuver_directions.append(0)
-                    print(f"node {node} is a left turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
+                    # print(f"node {node} is a left turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x, y = self.pos[node]
                     x += vec1[0] / mag1 * 0.15
                     y += vec1[1] / mag1 * 0.15
@@ -142,7 +154,7 @@ class GlobalPlanner:
                     wp_y.append(y)
                 elif normalized_cross < -0.75:
                     maneuver_directions.append(2)
-                    print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
+                    # print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x = prev_x + vec1[0] / mag1 * 0.357
                     y = prev_y + vec1[1] / mag1 * 0.357
                     wp_x.append(x)
@@ -153,7 +165,7 @@ class GlobalPlanner:
                     wp_x.append(x)
                     wp_y.append(y)
                     maneuver_directions.append(1)
-                    print(f"node {node} is a straight, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
+                    # print(f"node {node} is a straight, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
         return alex.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions
     def find_closest_node(self, x, y):
         """Finds the closest node to the point (x, y)."""
@@ -171,7 +183,7 @@ class GlobalPlanner:
                 
         return closest_node
     def illustrate_path(self, start, end):
-        _, path_edges, _, _, _ = self.plan_path(start, end)
+        _, path_edges, _, _ = self.plan_path(start, end)
         img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         # img = mpimg.imread(self.current_dir+'/maps/Competition_track_graph.png')
         # print("img: ", img.shape)
@@ -187,8 +199,8 @@ class GlobalPlanner:
             5: 'orange',    # highwayRight
             6: 'pink',      # roundabout
             7: 'purple',     # stopline
-            8: 'brown',      # parking
-            9: 'cyan'       # parking
+            8: 'brown',      # dotted
+            9: 'cyan'       # dotted_crosswalk
         }
         node_colors = [color_map[self.attribute.get(node, 0)] for node in self.G.nodes()]
         # Display the image
@@ -204,5 +216,5 @@ class GlobalPlanner:
   
 if __name__ == "__main__":
     planner = GlobalPlanner()
-    # planner.plan_path(58, 59)
+    # planner.plan_path(2, 7)
     planner.illustrate_path(134, 97)

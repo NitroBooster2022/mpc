@@ -74,6 +74,9 @@ class Odom():
         self.imu1_sub = rospy.Subscriber("/"+self.name+"/imu", Imu, self.imu1_callback, queue_size=3)
         self.waypoint_sub = rospy.Subscriber("/waypoints", Float32MultiArray, self.waypoint_callback, queue_size=3)
         self.cars_sub = rospy.Subscriber("/car_locations", Float32MultiArray, self.cars_callback, queue_size=3)
+        self.state_offset_sub = rospy.Subscriber("/state_offset", Float32MultiArray, self.state_offset_callback, queue_size=3)
+        self.x0 = 0
+        self.y0 = 0
         if self.plot:
             self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
@@ -136,6 +139,9 @@ class Odom():
         self.waypoints = data.data
     def cars_callback(self, data):
         self.detected_cars = data.data
+    def state_offset_callback(self, data):
+        self.x0 = data.data[0]
+        self.y0 = data.data[1]
     def gps_callback(self, data):
         # self.gpsState[0] = data.posA
         # self.gpsState[1] = 15.0 - data.posB
@@ -168,8 +174,8 @@ class Odom():
         self.odomState[0] = data.pose.pose.position.x + 11.71
         self.odomState[1] = data.pose.pose.position.y +  1.895
     def odom_callback(self, data):
-        self.odomState[0] = data.pose.pose.position.x
-        self.odomState[1] = data.pose.pose.position.y
+        self.odomState[0] = data.pose.pose.position.x + self.x0
+        self.odomState[1] = data.pose.pose.position.y + self.y0
     def imu1_callback(self, imu):
         self.yaw1 = tf.transformations.euler_from_quaternion([imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w])[2]
         self.accelList_x.append(imu.linear_acceleration.x)

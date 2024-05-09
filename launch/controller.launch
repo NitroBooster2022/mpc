@@ -8,12 +8,15 @@
   <arg name="name" default="car1"/>
   <arg name="v" default="50"/>
   <arg name="vref" default="0.$(arg v)"/>
-  <arg name="x0" default="11.71"/>
+  <!-- <arg name="x0" default="11.71"/>
   <arg name="y0" default="1.896"/>
-  <arg name="yaw0" default="0"/>
+  <arg name="yaw0" default="0"/> -->
+  <arg name="x0" default="0.39"/>
+  <arg name="y0" default="5.8"/>
+  <arg name="yaw0" default="-1.57"/>
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
-  <arg name = "path" default="path1"/>
+  <arg name = "path" default="normalrun"/>
   <arg name = "rate" default="1000"/>
   <param name="pathName" value="$(arg path)"/>
   <param name="vrefInt" value="$(arg v)"/>
@@ -33,7 +36,10 @@
   <param name="hw" value="$(arg hw)"/>
   <arg name = "gps" default="false"/>
   <param name="gps" value="$(arg gps)"/>
+  <arg name = "pub_wpts" default="true"/>
+  <param name="pub_wpts" value="$(arg pub_wpts)"/>
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config$(arg v).yaml" />
+  <rosparam command="load" file="$(find mpc)/config/tunable_params.yaml" />
   <rosparam command="load" file="$(find mpc)/scripts/config/mpc_config_park.yaml" />
 
   <node pkg="mpc" type="path2.py" name="path_planner" output="screen"></node> 

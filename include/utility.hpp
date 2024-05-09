@@ -34,6 +34,10 @@ public:
     ~Utility();
     void callTriggerService();
 // private:
+
+    //tunables
+    double left_trajectory1, left_trajectory2, right_trajectory1, right_trajectory2, p_rad;
+
     typedef double (Utility::*TrajectoryFunction)(double x);
     TrajectoryFunction trajectoryFunction;
     int intersectionDecision;
@@ -58,7 +62,7 @@ public:
 
     int num_obj = 0;
     std::mutex lock;
-    bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf;
+    bool pubOdom, useIMU, subLane, subSign, subModel, subImu, useEkf, hasGps;
     bool real;
     bool useGmapping = true, useLidarOdom = false, useAmcl = false;
     double rateVal;
@@ -96,6 +100,7 @@ public:
     ros::Publisher pose_pub;
     ros::Publisher waypoints_pub;
     ros::Publisher detected_cars_pub;
+    ros::Publisher state_offset_pub;
 
     // messages
     nav_msgs::Odometry odom_msg;
@@ -105,6 +110,7 @@ public:
     std_msgs::String msg;
     std_msgs::String msg2;
     std_msgs::Float32MultiArray car_pose_msg;
+    std_msgs::Float32MultiArray state_offset_msg;
 
     gazebo_msgs::ModelStates model;
     std_msgs::Float32MultiArray sign;
@@ -199,6 +205,21 @@ public:
         }
         return 0;
     }
+    int recalibrate_states(double x_offset, double y_offset) {
+        if(useEkf) {
+            if (hasGps) {
+                ekf_x += x_offset;
+                ekf_y += y_offset;
+                set_pose_using_service(ekf_x, ekf_y, yaw);
+            } else {
+                x0 += x_offset;
+                y0 += y_offset;
+            }
+        } else {
+            x0 += x_offset;
+            y0 += y_offset;
+        }
+    }
     int reinitialize_states() {
         if(useEkf) {
             std::cout << "waiting for ekf message" << std::endl;
@@ -235,7 +256,13 @@ public:
         yaw_ = yaw;
     }
     
-    Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw, double x1, double y1, double x2, double y2, double object_distance, const std::array<double, 4>& camera_params, bool is_car = false) {
+    // Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw, double x1, double y1, double x2, double y2, double object_distance, const std::array<double, 4>& camera_params, bool is_car = false) {
+    Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw,
+                                       double x1, double y1, double x2, double y2,
+                                       double object_distance,
+                                       const std::array<double, 4>& camera_params,
+                                       bool is_car = false)
+    {
         static double parallel_w2h_ratio = 1.30;
         static double perpendicular_w2h_ratio = 2.70;
 
@@ -262,34 +289,71 @@ public:
             object_distance += dist;
         }
 
-        std::array<double, 2> vehicle_pos = { x, y }; // Only x and y are needed for 2D
+        // std::array<double, 2> vehicle_pos = { x, y }; // Only x and y are needed for 2D
         
-        double fx = camera_params[0];
-        double cx = camera_params[2];
+        // double fx = camera_params[0];
+        // double cx = camera_params[2];
         
-        double bbox_center_x = (x1 + x2) / 2;
+        // double bbox_center_x = (x1 + x2) / 2;
         
-        double X_c = (bbox_center_x - cx) / fx * object_distance;
+        // double X_c = (bbox_center_x - cx) / fx * object_distance;
         
-        // Vehicle coordinates (X_v is forward, Y_v is left/right from the vehicle's perspective)
-        double X_v = object_distance;
-        double Y_v = -X_c; 
+        // // Vehicle coordinates (X_v is forward, Y_v is left/right from the vehicle's perspective)
+        // double X_v = object_distance;
+        // double Y_v = -X_c; 
 
-        std::array<std::array<double, 2>, 2> rotation_matrix = {{
-            { std::cos(yaw), -std::sin(yaw) },
-            { std::sin(yaw), std::cos(yaw) }
-        }};
+        // std::array<std::array<double, 2>, 2> rotation_matrix = {{
+        //     { std::cos(yaw), -std::sin(yaw) },
+        //     { std::sin(yaw), std::cos(yaw) }
+        // }};
         
-        std::array<double, 2> vehicle_coordinates = {
-            rotation_matrix[0][0] * X_v + rotation_matrix[0][1] * Y_v,
-            rotation_matrix[1][0] * X_v + rotation_matrix[1][1] * Y_v
-        };
+        // std::array<double, 2> vehicle_coordinates = {
+        //     rotation_matrix[0][0] * X_v + rotation_matrix[0][1] * Y_v,
+        //     rotation_matrix[1][0] * X_v + rotation_matrix[1][1] * Y_v
+        // };
         
-        Eigen::Vector2d world_coordinates = {
-            vehicle_pos[0] + vehicle_coordinates[0],
-            vehicle_pos[1] + vehicle_coordinates[1]
-        };
+        // Eigen::Vector2d world_coordinates = {
+        //     vehicle_pos[0] + vehicle_coordinates[0],
+        //     vehicle_pos[1] + vehicle_coordinates[1]
+        // };
         
+        // return world_coordinates;
+
+        // Extract camera parameters
+        double fx = camera_params[0];
+        double fy = camera_params[1];
+        double cx = camera_params[2];
+        double cy = camera_params[3];
+
+        // Compute bounding box center in image coordinates
+        double bbox_center_x = (x1 + x2) / 2;
+        double bbox_center_y = (y1 + y2) / 2;
+
+        // Convert image coordinates to normalized coordinates
+        double x_norm = (bbox_center_x - cx) / fx;
+        double y_norm = (bbox_center_y - cy) / fy;
+
+        // Estimate 3D coordinates in the camera frame
+        double X_c = x_norm * object_distance;
+        double Y_c = y_norm * object_distance;
+        double Z_c = object_distance;
+
+        // 3D point in the camera frame
+        Eigen::Vector3d P_c(X_c, Y_c, Z_c);
+
+        // Convert to vehicle coordinates (vehicle's x-axis is forward, y-axis is left/right)
+        Eigen::Vector3d P_v(Z_c, -X_c, 0);
+
+        // Rotation matrix from vehicle to world coordinates
+        Eigen::Matrix2d R_vw;
+        R_vw << std::cos(yaw), -std::sin(yaw),
+                std::sin(yaw), std::cos(yaw);
+
+        // Translate to world coordinates
+        Eigen::Vector2d vehicle_pos(x, y);
+        Eigen::Vector2d P_v_2d(P_v[0], P_v[1]);
+        Eigen::Vector2d world_coordinates = vehicle_pos + R_vw * P_v_2d;
+
         return world_coordinates;
     }
     Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw, const std::array<double, 4>& bounding_box, double object_distance, const std::array<double, 4>& camera_params, bool is_car = false) {
@@ -316,17 +380,11 @@ public:
     }
 
     double leftTrajectorySim(double x) {
-        if (real) {
-            return exp(3.57 * x - 3.1);
-        }
-        return exp(3.57 * x - 4.2);
+        return exp(left_trajectory1 * (x + left_trajectory2));
     }
 
     double rightTrajectorySim(double x) {
-        if (real) {
-            return -exp(3.75 * (x - 0.49));
-        }
-        return -exp(3.75 * x - 3.);
+        return - exp(right_trajectory1 * (x + right_trajectory2));
     }
     void setIntersectionDecision(int decision) {
         intersectionDecision = decision;
@@ -359,12 +417,12 @@ public:
         static double last_error = 0;
         static double error_sum = 0;
         static ros::Time last_time = ros::Time::now() - ros::Duration(0.1);
-        static double p_rad = 0;
-        if (real) {
-            p_rad = 3.25;
-        } else {
-            p_rad = 2.35;
-        }
+        // static double p_rad = 0;
+        // if (real) {
+        //     p_rad = 3.25;
+        // } else {
+        //     p_rad = 2.35;
+        // }
         static double p = p_rad * 180 / M_PI; //2.35
         static double d = 0;//1 * 180 / M_PI;
         ros::Time current_time = ros::Time::now();

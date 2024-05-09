@@ -6,8 +6,17 @@
 #   - highway2_mid
 #   - parallel_parking1
 
+normalrun:
+  - 116
+  - 131
+  - 157
+  - 226
+  - 306
+  - bus_lane
+  - end
+
 speedrun:
-  - start
+  # - start
   - roundabout_entrance_south
   - roundabout_west
   - nomarking_entrance
@@ -16,7 +25,7 @@ speedrun:
   - end
 
 path1:
-  - start
+  # - start
   - roundabout_entrance_south
   - roundabout_west
   - nomarking_entrance
@@ -55,3 +64,4 @@ test1:
   - roundabout_west
   - roundabout_exit_east
   - end
+
