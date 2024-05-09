@@ -51,9 +51,9 @@ public:
         free(nlp_out_park);
     }
     int run(); 
-    int update_and_solve(Eigen::Vector3d &i_current_state, int mode = -1);
+    int update_and_solve(Eigen::Vector3d &i_current_state, bool safety_check = true, int mode = -1);
     void integrate_next_states();
-    int find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index = -1, int max_index = -1);
+    int find_next_waypoint(Eigen::Vector3d &i_current_state, bool safety_check = true, int min_index = -1, int max_index = -1);
     int find_closest_waypoint(int min_index = -1, int max_index = -1);
     int update_current_states(double x, double y, double yaw, Eigen::Vector3d& state, bool safety_check = true);
     int update_current_states(double x, double y, double yaw, bool safety_check = true) {
@@ -97,8 +97,8 @@ public:
     bool attribute_cmp(int idx, int attr) {
         return state_attributes(idx) == attr || state_attributes(idx) == attr + 100;
     }
-    bool is_detectable(int idx) {
-        return state_attributes(idx) >= 100;
+    bool is_not_detectable(int idx) {
+        return state_attributes(idx) >= 100 || attribute_cmp(idx, ATTRIBUTE::DOTTED_CROSSWALK) || attribute_cmp(idx, ATTRIBUTE::INTERSECTION) || attribute_cmp(idx, ATTRIBUTE::ROUNDABOUT);
     }
     Eigen::MatrixXd *state_refs_ptr;
     Eigen::VectorXd distances;

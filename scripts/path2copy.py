@@ -187,7 +187,7 @@ class Path:
         for i in range(len(destinations) - 1):
             start = self.global_planner.place_names[destinations[i]]
             end = self.global_planner.place_names[destinations[i+1]]
-            run, _, attribute = self.global_planner.plan_path(start, end)
+            run, _, attribute, _ = self.global_planner.plan_path(start, end)
             # print("run: ", run.shape)
             runs.append(run)
             # print(i, ") attribute:\n", attribute)

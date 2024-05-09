@@ -29,7 +29,8 @@ namespace VehicleConstants {
         NONE,
         STOP,
         LIGHT,
-        PRIO
+        PRIO,
+        RDB
     };
     enum OBJECT {
         ONEWAY,
@@ -45,6 +46,11 @@ namespace VehicleConstants {
         BLOCK,
         PEDESTRIAN,
         CAR,
+    };
+    enum MANEUVER_DIRECTION {
+        LEFT,
+        STRAIGHT,
+        RIGHT
     };
 
     static constexpr double CAM_TO_CAR_FRONT = 0.21;
@@ -78,7 +84,10 @@ namespace VehicleConstants {
     static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.50, 0.372};
     static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
     static constexpr std::array<double, 2> PARKING_SIGN_TO_CAR1 = {0.4592, -0.073};
-    static constexpr std::array<double, 2> PARKING_SIGN_POSE = {8.937, 0.5};
+    static constexpr std::array<std::array<double, 2>, 2> PARKING_SIGN_POSES = {{{{8.922497, 0.487}}, {{8.922405, 1.008329}}}};
+    static constexpr std::array<std::array<double, 2>, 4> ROUNDABOUT_POSES = {{{{14.906, 10.190544}}, {{16.5132, 9.455325}}, {{17.247, 11.067}}, {{15.639, 11.80325}}}};
+    static constexpr std::array<std::array<double, 2>, 5> CROSSWALK_POSES = {{{{17.365101, 2.282282}}, {{8.125406, 0.490722}}, {{8.914196, 3.406469}}, {{9.582251, 4.291623}}, {{1.833610, 10.3011}}}};
+    static constexpr std::array<std::array<double, 2>, 11> INTERSECTION_SIGN_POSES = {{{{0.067568, 4.669999}}, {{1.90, 0.444024}}, {{3.207346, 3.032455}}, {{3.206, 5.9274}}, {{4.146563, 6.259}}, {{0.072, 10.682}}, {{15.016, 4.67363}}, {{7.6468, 4.33}}, {{5.791, 4.33}}, {{4.4838, 1.752361}}, {{6.06227, 0.511846}}}};
 
     //utils
     static constexpr int NUM_VALUES_PER_OBJECT = 7;

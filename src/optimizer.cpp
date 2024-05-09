@@ -203,7 +203,7 @@ int Optimizer::run() {
     return 0;
 }
 
-int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
+int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_check, int mode) {
     /*
     * Update the reference trajectory and solve the optimization problem
     * Computed control input is stored in u_current
@@ -228,7 +228,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, int mode) {
         yaw_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 2) - i_current_state[2];
         // auto t_start = std::chrono::high_resolution_clock::now();
     }
-    target_waypoint_index = find_next_waypoint(i_current_state);
+    target_waypoint_index = find_next_waypoint(i_current_state, safety_check);
     int idx = target_waypoint_index;
 
     for(int i=0; i<3; i++) {
@@ -358,20 +358,19 @@ int Optimizer::find_closest_waypoint(int min_index, int max_index) {
     return closest;
 }
 
-int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_index, int max_index) {
+int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, bool safety_check, int min_index, int max_index) {
     closest_waypoint_index = find_closest_waypoint(min_index, max_index);
 
     int target = 0;
-    last_waypoint_index = target_waypoint_index;
     //2
-    double roa_sq; // region of acceptance squared
-    if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
-        roa_sq = region_of_acceptance_cw * region_of_acceptance_cw; 
-    } else if (state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYLEFT || state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYRIGHT) {
-        roa_sq = region_of_acceptance_hw * region_of_acceptance_hw;
-    } else {
-        roa_sq = region_of_acceptance * region_of_acceptance;
-    }
+    // double roa_sq; // region of acceptance squared
+    // if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
+    //     roa_sq = region_of_acceptance_cw * region_of_acceptance_cw; 
+    // } else if (state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYLEFT || state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYRIGHT) {
+    //     roa_sq = region_of_acceptance_hw * region_of_acceptance_hw;
+    // } else {
+    //     roa_sq = region_of_acceptance * region_of_acceptance;
+    // }
 
     static int lookahead = 1;
     if (v_ref > 0.375) lookahead = 2;
@@ -381,16 +380,17 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
     static int count = 0;
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
-    if ((closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
+    if (safety_check && (closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
         closest_waypoint_index + lookahead + limit/3 < target_waypoint_index)) {
         auto target_attribute = state_attributes[closest_waypoint_index];
         auto closest_attribute = state_attributes[target_waypoint_index];
-        if (first < 10) {
-            first = 10;
-            std::cout << "discontinuity, but first, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
-            reset_solver();
-            target = closest_waypoint_index + lookahead;
-        } else if (distance_travelled_sq <  std::pow(T * v_ref * 15, 2) || target_attribute == ATTRIBUTE::ROUNDABOUT || closest_attribute == ATTRIBUTE::ROUNDABOUT) {
+        // if (first < 10) {
+        //     first = 10;
+        //     std::cout << "discontinuity, but first, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
+        //     reset_solver();
+        //     target = closest_waypoint_index + lookahead;
+        // } else 
+        if (distance_travelled_sq <  std::pow(T * v_ref * 15, 2) || target_attribute == ATTRIBUTE::ROUNDABOUT || closest_attribute == ATTRIBUTE::ROUNDABOUT) {
             std::cout << "waypoint jump, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
             target = target_waypoint_index + 1;
         } else {
@@ -408,13 +408,16 @@ int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, int min_inde
                 printf("stagnation, repositioning...\n");
                 target = std::max(target_waypoint_index + 2, closest_waypoint_index + lookahead + 1);
                 count = 0;
+            } else {
+                target = target_waypoint_index;
             }
         } else {
-            target = std::max(target_waypoint_index, closest_waypoint_index + lookahead);
+            target = std::max(target_waypoint_index + 1, closest_waypoint_index + lookahead);
         }
     }
     // std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
 
+    last_waypoint_index = target_waypoint_index;
     last_state = i_current_state;
     
     return std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);

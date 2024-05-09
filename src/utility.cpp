@@ -29,6 +29,21 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
 {
     std::cout << "Utility constructor" << std::endl;
     
+    // tunables
+    if (real) {
+        nh.param<double>("/real/left_trajectory1", left_trajectory1, 3.57);
+        nh.param<double>("/real/left_trajectory2", left_trajectory2, -0.86835);
+        nh.param<double>("/real/right_trajectory1", right_trajectory1, 3.57);
+        nh.param<double>("/real/right_trajectory2", right_trajectory2, -1.17647);
+        nh.param<double>("/real/p_rad", p_rad, 3.25);
+    } else {
+        nh.param<double>("/sim/left_trajectory1", left_trajectory1, 3.75);
+        nh.param<double>("/sim/left_trajectory2", left_trajectory2, -0.49);
+        nh.param<double>("/sim/right_trajectory1", right_trajectory1, 3.75);
+        nh.param<double>("/sim/right_trajectory2", right_trajectory2, -0.8);
+        nh.param<double>("/sim/p_rad", p_rad, 2.35);
+    }
+    nh.param<bool>("/hasGps", hasGps, false);
     if (real) {
         serial = std::make_unique<boost::asio::serial_port>(io, "/dev/ttyACM0");
         serial->set_option(boost::asio::serial_port_base::baud_rate(115200));
@@ -118,10 +133,11 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
     waypoints_pub = nh.advertise<std_msgs::Float32MultiArray>("/waypoints", 3);
     detected_cars_pub = nh.advertise<std_msgs::Float32MultiArray>("/detected_cars", 3);
+    state_offset_pub = nh.advertise<std_msgs::Float32MultiArray>("/state_offset", 3);
     
     odom_lidar_sub = nh.subscribe("/odom_lidar", 3, &Utility::odom_lidar_callback, this);
     if (pubOdom) {
-        double odom_publish_frequency = rateVal; 
+        double odom_publish_frequency = 50; 
         odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
     if (useEkf) {
@@ -610,26 +626,6 @@ void Utility::model_callback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
         car_pose_msg.data[0] = gps_x;
         car_pose_msg.data[1] = gps_y;
     }
-    if (subModel) {
-        if(!initializationFlag) {
-            if (x0 < 0 || y0 < 0) {
-                std::cout << "using model but haven't received data yet. gps_x: " << gps_x << ", gps_y: " << gps_y << std::endl;
-                x0 = gps_x;
-                y0 = gps_y;
-                lock.unlock();
-                return;
-            } else {
-                ROS_INFO("Initializing... gps_x: %.3f, gps_y: %.3f", gps_x, gps_y);
-            }
-            if (imuInitialized) initializationFlag = true;
-        }
-    }
-    
-    // ROS_INFO("gps_x: %.3f, gps_y: %.3f", gps_x, gps_y); // works
-    // model = *msg;
-    // auto end = std::chrono::high_resolution_clock::now();
-    // std::chrono::duration<double> elapsed = end - start;
-    // ROS_INFO("model callback time elapsed: %fs", elapsed.count());
     lock.unlock();
 }
 
@@ -692,8 +688,8 @@ void Utility::publish_odom() {
     
     auto current_time = ros::Time::now();
     odom_msg.header.stamp = current_time;
-    odom_msg.pose.pose.position.x = odomX + x0;
-    odom_msg.pose.pose.position.y = odomY + y0;
+    odom_msg.pose.pose.position.x = odomX;
+    odom_msg.pose.pose.position.y = odomY;
     odom_msg.pose.pose.position.z = 0.032939;
 
     // odom_msg.twist.twist.linear.x = x_speed;
@@ -708,6 +704,11 @@ void Utility::publish_odom() {
     odom_msg.pose.pose.orientation = tf2::toMsg(quaternion);
 
     odom_pub.publish(odom_msg);
+
+    std_msgs::Float32MultiArray state_offset_msg;
+    state_offset_msg.data.push_back(x0);
+    state_offset_msg.data.push_back(y0);
+    state_offset_pub.publish(state_offset_msg);
 
     static bool publish_tf = !useLidarOdom;
     if (publish_tf) {
