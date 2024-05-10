@@ -32,6 +32,8 @@ public:
             nh.param<double>("/real/cw_speed_ratio", cw_speed_ratio, 0.7143);
             nh.param<double>("/real/hw_speed_ratio", hw_speed_ratio, 1.33);
             nh.param<double>("/real/sign_localization_threshold", sign_localization_threshold, 0.5);
+            nh.param<double>("/real/lane_localization_orientation_threshold", lane_localization_orientation_threshold, 10);
+            nh.param<double>("/real/pixel_center_offset", pixel_center_offset, 0.0);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 0.325);
@@ -40,6 +42,8 @@ public:
             nh.param<double>("/sim/cw_speed_ratio", cw_speed_ratio, 0.7143);
             nh.param<double>("/sim/hw_speed_ratio", hw_speed_ratio, 1.33);
             nh.param<double>("/sim/sign_localization_threshold", sign_localization_threshold, 0.5);
+            nh.param<double>("/sim/lane_localization_orientation_threshold", lane_localization_orientation_threshold, 10);
+            nh.param<double>("/sim/pixel_center_offset", pixel_center_offset, -30.0);
         }
 
         nh.param("pub_wpts", pubWaypoints, true);
@@ -78,7 +82,8 @@ public:
 // private:
     //tunables
     double straight_trajectory_threshold = 1.3, right_trajectory_threshold = 0.325, left_trajectory_threshold = 0.325, 
-            change_lane_yaw = 0.15, cw_speed_ratio, hw_speed_ratio, sign_localization_threshold = 0.5;
+            change_lane_yaw = 0.15, cw_speed_ratio, hw_speed_ratio, sign_localization_threshold = 0.5, 
+            lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0;
 
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
@@ -595,6 +600,53 @@ public:
         }
         return 1;
     }
+    int lane_based_relocalization() {
+        double center = utils.center + pixel_center_offset;
+        if (center >= 240 && center <= 400) {
+            double yaw = utils.get_yaw();
+            double nearest_direction = mpc.NearestDirection(yaw);
+            double yaw_error = nearest_direction - yaw;
+            if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
+            else if(yaw_error < -M_PI * 1.5) yaw_error += 2 * M_PI;
+            if (std::abs(yaw_error) < lane_localization_orientation_threshold * M_PI / 180) {
+                double offset = (IMAGE_WIDTH/2 - center) / 80 * LANE_CENTER_TO_EDGE;
+                int nearestDirectionIndex = mpc.NearestDirectionIndex(yaw);
+                if (nearestDirectionIndex == 0 || nearestDirectionIndex == 2) { // East, 0 || West, 2
+                    if (nearestDirectionIndex == 2) offset *= -1;
+                    int min_index = 0;
+                    double min_error = 1000;
+                    for (size_t i = 0; i < X_ALIGNED_LANE_CENTERS.size(); i++) {
+                        double error = std::abs((X_ALIGNED_LANE_CENTERS[i] + INNER_LANE_OFFSET/2 - offset) - running_y);
+                        if (error < min_error) {
+                            min_error = error;
+                            min_index = i;
+                        }
+                    }
+                    if (min_error < INNER_LANE_OFFSET/2) {
+                        utils.recalibrate_states(0, min_error);
+                        return 1;
+                    }
+                } else if (nearestDirectionIndex == 1 || nearestDirectionIndex == 3) { // North, 1 || South, 3
+                    if (nearestDirectionIndex == 3) offset *= -1;
+                    int min_index = 0;
+                    double min_error = 1000;
+                    for (size_t i = 0; i < Y_ALIGNED_LANE_CENTERS.size(); i++) {
+                        double error = (Y_ALIGNED_LANE_CENTERS[i] + INNER_LANE_OFFSET/2 + offset) - running_x;
+                        if (std::abs(error) < min_error) {
+                            min_error = error;
+                            min_index = i;
+                        }
+                    }
+                    ROS_INFO("center: %.3f, offset: %.3f, running_x: %.3f, min_error: %.3f, closest lane center: %.3f", center, offset, running_x, min_error, Y_ALIGNED_LANE_CENTERS[min_index]);
+                    if (std::abs(min_error) < INNER_LANE_OFFSET/2) {
+                        utils.recalibrate_states(min_error, 0);
+                        return 1;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
     void publish_waypoints() {
         static Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(mpc.N, 3);
         mpc.get_current_waypoints(waypoints);
@@ -956,11 +1008,14 @@ void StateMachine::run() {
             }
             mpc.update_current_states(running_x, running_y, running_yaw, false);
             int closest_idx = mpc.find_closest_waypoint();
-            // if (mpc.attribute_cmp(closest_idx, mpc.ATTRIBUTE::CROSSWALK) || mpc.attribute_cmp(closest_idx, mpc.ATTRIBUTE::DOTTED_CROSSWALK)) {
-            //     ROS_INFO("crosswalk detected, stopping...");
-            //     stop_for(20*T);
-            //     continue;
-            // }
+            if (!hasGps) {
+                static int lane_relocalization_semaphore = 0;
+                lane_relocalization_semaphore++;
+                if (lane_relocalization_semaphore >= 10) {
+                    if (lane_based_relocalization()) ROS_INFO("lane relocalization successful");
+                    lane_relocalization_semaphore = 0;
+                }
+            }
             if(mpc.is_not_detectable(closest_idx)) {
                 std::cout << "non-detectable area, using mpc" << std::endl;
                 solve(false);

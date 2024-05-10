@@ -11,12 +11,15 @@ real:
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
   sign_localization_threshold: 0.9
+  lane_localization_threshold: 0.9
+  lane_localization_orientation_threshold: 5 # degrees
+  pixel_center_offset: -30
 
 sim:
   left_trajectory1: 3.57
   left_trajectory2: -1.17647
   right_trajectory1: 3.75
-  right_trajectory2: -0.9
+  right_trajectory2: -1.0
   p_rad: 2.1
   straight_trajectory_threshold: 1.4
   left_trajectory_threshold: 0.325
@@ -25,3 +28,7 @@ sim:
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
   sign_localization_threshold: 0.9
+  lane_localization_threshold: 0.9
+  lane_localization_orientation_threshold: 5 # degrees
+  pixel_center_offset: -30
+
