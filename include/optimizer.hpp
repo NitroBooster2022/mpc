@@ -86,7 +86,7 @@ public:
     int v_ref_int;
     bool use25 = false;
     bool use18 = false;
-    double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 4.15;
+    double region_of_acceptance, region_of_acceptance_cw, region_of_acceptance_hw, v_ref, t0, T, density, rdb_circumference = 3.95;
     bool debug = true;
     Eigen::Vector3d current_state;
     Eigen::MatrixXd state_refs, input_refs, normals, left_turn_states, right_turn_states, straight_states;
