@@ -46,13 +46,16 @@
 #define MOBILE_ROBOT_NSBX   0
 #define MOBILE_ROBOT_NSBU   0
 #define MOBILE_ROBOT_NSH    0
+#define MOBILE_ROBOT_NSH0   0
 #define MOBILE_ROBOT_NSG    0
 #define MOBILE_ROBOT_NSPHI  0
 #define MOBILE_ROBOT_NSHN   0
 #define MOBILE_ROBOT_NSGN   0
 #define MOBILE_ROBOT_NSPHIN 0
+#define MOBILE_ROBOT_NSPHI0 0
 #define MOBILE_ROBOT_NSBXN  0
 #define MOBILE_ROBOT_NS     0
+#define MOBILE_ROBOT_NS0    0
 #define MOBILE_ROBOT_NSN    0
 #define MOBILE_ROBOT_NG     0
 #define MOBILE_ROBOT_NBXN   0
@@ -62,8 +65,10 @@
 #define MOBILE_ROBOT_NYN    3
 #define MOBILE_ROBOT_N      50
 #define MOBILE_ROBOT_NH     0
-#define MOBILE_ROBOT_NPHI   0
 #define MOBILE_ROBOT_NHN    0
+#define MOBILE_ROBOT_NH0    0
+#define MOBILE_ROBOT_NPHI0  0
+#define MOBILE_ROBOT_NPHI   0
 #define MOBILE_ROBOT_NPHIN  0
 #define MOBILE_ROBOT_NR     0
 
@@ -109,6 +114,9 @@ typedef struct mobile_robot_solver_capsule
 
 
 
+
+
+
 } mobile_robot_solver_capsule;
 
 ACADOS_SYMBOL_EXPORT mobile_robot_solver_capsule * mobile_robot_acados_create_capsule(void);
@@ -137,6 +145,7 @@ ACADOS_SYMBOL_EXPORT int mobile_robot_acados_update_params(mobile_robot_solver_c
 ACADOS_SYMBOL_EXPORT int mobile_robot_acados_update_params_sparse(mobile_robot_solver_capsule * capsule, int stage, int *idx, double *p, int n_update);
 
 ACADOS_SYMBOL_EXPORT int mobile_robot_acados_solve(mobile_robot_solver_capsule * capsule);
+ACADOS_SYMBOL_EXPORT void mobile_robot_acados_batch_solve(mobile_robot_solver_capsule ** capsules, int N_batch);
 ACADOS_SYMBOL_EXPORT int mobile_robot_acados_free(mobile_robot_solver_capsule * capsule);
 ACADOS_SYMBOL_EXPORT void mobile_robot_acados_print_stats(mobile_robot_solver_capsule * capsule);
 ACADOS_SYMBOL_EXPORT int mobile_robot_acados_custom_update(mobile_robot_solver_capsule* capsule, double* data, int data_len);

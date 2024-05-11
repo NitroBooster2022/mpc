@@ -155,16 +155,16 @@ class GlobalPlanner:
                 elif normalized_cross < -0.75:
                     maneuver_directions.append(2)
                     # print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
-                    x = prev_x + vec1[0] / mag1 * 0.357
-                    y = prev_y + vec1[1] / mag1 * 0.357
+                    x = prev_x + vec1[0] / mag1 * 0.3#57
+                    y = prev_y + vec1[1] / mag1 * 0.3#57
                     wp_x.append(x)
                     wp_y.append(y)
                     # print("prev: ", prev_x, prev_y, "added: ", x, y)
-                else:
-                    x, y = self.pos[node]
-                    wp_x.append(x)
-                    wp_y.append(y)
-                    maneuver_directions.append(1)
+                # else:
+                #     x, y = self.pos[node]
+                #     wp_x.append(x)
+                #     wp_y.append(y)
+                #     maneuver_directions.append(1)
                     # print(f"node {node} is a straight, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
         return alex.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions
     def find_closest_node(self, x, y):

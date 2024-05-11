@@ -53,7 +53,7 @@ public:
     int run(); 
     int update_and_solve(Eigen::Vector3d &i_current_state, bool safety_check = true, int mode = -1);
     void integrate_next_states();
-    int find_next_waypoint(Eigen::Vector3d &i_current_state, bool safety_check = true, int min_index = -1, int max_index = -1);
+    int find_next_waypoint(int &output_target, Eigen::Vector3d &i_current_state, bool safety_check = true, int min_index = -1, int max_index = -1);
     int find_closest_waypoint(int min_index = -1, int max_index = -1);
     int update_current_states(double x, double y, double yaw, Eigen::Vector3d& state, bool safety_check = true);
     int update_current_states(double x, double y, double yaw, bool safety_check = true) {
@@ -82,7 +82,7 @@ public:
     int N, nx, nu, iter = 0;
     int N_park, nx_park, nu_park;
     double T_park;
-    int target_waypoint_index, last_waypoint_index, closest_waypoint_index, num_waypoints;
+    int target_waypoint_index=0, last_waypoint_index=0, closest_waypoint_index=0, num_waypoints=0;
     int v_ref_int;
     bool use25 = false;
     bool use18 = false;

@@ -171,6 +171,8 @@ def interpolate_waypoints2(waypoints, num_points):
 
 class Path:
     def __init__(self, v_ref, N, T, x0=None, name="speedrun"):
+        self.hw_density_factor = rospy.get_param('hw', default=1.33)
+
         self.v_ref = v_ref
         # print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
         self.N = N
@@ -258,7 +260,7 @@ class Path:
         attributes_cw = []
         for i, length in enumerate(path_lengths):
             # print(i, ") path length: ", length)
-            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/hw_density_factor))))
+            runs_hw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density/self.hw_density_factor))))
             runs_cw.append(interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density*1.5))))
             old_run = runs[i].copy()
             runs[i] = interpolate_waypoints(runs[i].T, int(np.ceil(length*self.density)))
@@ -312,7 +314,7 @@ class Path:
                 if attribute == 1:
                     density_factor = 1.5
                 elif attribute == 4 or attribute == 5:
-                    density_factor = 1/hw_density_factor
+                    density_factor = 1/self.hw_density_factor
                 starts_cw.append(int(math.floor(start * density_factor)))
                 ends_cw.append(int(math.ceil(end * density_factor)))
             self.starts_cw = starts_cw
@@ -392,8 +394,8 @@ class Path:
         mask_hw1 = (self.attributes == 4)
         mask_hw2 = (self.attributes == 5)
         self.v_refs[mask_cw] *= 1/1.5
-        self.v_refs[mask_hw1] *= hw_density_factor
-        self.v_refs[mask_hw2] *= hw_density_factor
+        self.v_refs[mask_hw1] *= self.hw_density_factor
+        self.v_refs[mask_hw2] *= self.hw_density_factor
         # print("v_refs: \n", self.v_refs, ", wpts: ", self.waypoints.shape, ", attributes: ", self.attributes.shape)
         
         #nonlinear speed profile
@@ -513,8 +515,8 @@ if __name__ == "__main__":
     rospy.init_node('waypointPathServer')
     s = rospy.Service('waypoint_path', waypoints, handle_array_service)
     rospy.loginfo("waypoint_path service is ready.")
-    global hw_density_factor
-    hw_density_factor = rospy.get_param('hw', default=1.33)
+    # global hw_density_factor
+    # hw_density_factor = rospy.get_param('hw', default=1.33)
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
         rospy.spin()
