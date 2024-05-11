@@ -2,7 +2,7 @@
 
 Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init, double yaw_init):
     T(T), N(N), v_ref(v_ref), density(1/T/v_ref), region_of_acceptance(0.03076923*3 * (0.125*1.3) / density), 
-    region_of_acceptance_cw(region_of_acceptance * 1.0/1.5), region_of_acceptance_hw(region_of_acceptance * 1.5), t0(0.0), closest_waypoint_index(0)
+    region_of_acceptance_cw(region_of_acceptance * 1.0/1.5), region_of_acceptance_hw(region_of_acceptance * 1.5), t0(0.0)
  {
     std::cout << "Optimizer Constructor" << std::endl;
     v_ref_int = static_cast<int>(v_ref * 100); // convert to cm/s
@@ -228,13 +228,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
         yaw_errors(iter) = (*state_refs_ptr)(target_waypoint_index, 2) - i_current_state[2];
         // auto t_start = std::chrono::high_resolution_clock::now();
     }
-    int success = find_next_waypoint(target_waypoint_index, i_current_state, safety_check);
-    // if(!success) {
-    //     u_current[0] = v_ref;
-    //     u_current[0] = 0;
-    //     std::cout << "WARNING: Optimizer::update_and_solve(): vehicle is stuck. publishing default control input: " << u_current[0] << ", " << u_current[1] << std::endl;
-    //     return 0;
-    // }
+    target_waypoint_index = find_next_waypoint(i_current_state, safety_check);
     int idx = target_waypoint_index;
 
     for(int i=0; i<3; i++) {
@@ -308,8 +302,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
             simX(iter, ii) = i_current_state[ii];
         }
         // std::cout << iter<< ") x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
-        if (idx < state_refs.rows()) printf("%d) x_cur: %.3f, %.3f, %.3f, ref: %.3f, %.3f, %.3f, u: %.3f, %.3f, error: %.3f\n", iter, x_current[0], x_current[1], x_current[2], state_refs(idx, 0), state_refs(idx, 1), state_refs(idx, 2), u_current[0], u_current[1], error);
-        // printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
+        printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
         iter++;
     }
     return 0;
@@ -343,13 +336,11 @@ int Optimizer::find_closest_waypoint(int min_index, int max_index) {
 
     double min_distance_sq = std::numeric_limits<double>::max();
     int closest = -1;
-    double second_min_distance_sq = std::numeric_limits<double>::max();
-    int second_closest = -1;
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
-    // if (min_index < 0) min_index = std::max(target_waypoint_index - limit, 0); //0;
-    // if (max_index < 0) max_index = std::min(target_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    // if (min_index < 0) min_index = std::max(last_waypoint_index - limit, 0); //0;
+    // if (max_index < 0) max_index = std::min(last_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
     
     if (min_index < 0) min_index = 0;
     if (max_index < 0) max_index = static_cast<int>(state_refs.rows()) - 1;
@@ -360,67 +351,81 @@ int Optimizer::find_closest_waypoint(int min_index, int max_index) {
                            + current_norm); 
 
         if (distance_sq < min_distance_sq) {
-            second_min_distance_sq = min_distance_sq;
-            second_closest = closest;
             min_distance_sq = distance_sq;
             closest = i;
         }
     }
-    // if (std::abs(closest - second_closest) > limit/3) {
-    //     //check which one is closer to target_waypoint_index
-    //     if (std::abs(closest - target_waypoint_index) > std::abs(second_closest - target_waypoint_index)) {
-    //         printf("WARNING: Optimizer::find_closest_waypoint(): found that second closest is closer to target waypoint\n");
-    //         closest = second_closest;
-    //     }
-    // }
     return closest;
 }
 
-int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current_state, bool safety_check, int min_index, int max_index) {
-    int target = 0;
+int Optimizer::find_next_waypoint(Eigen::Vector3d &i_current_state, bool safety_check, int min_index, int max_index) {
+    closest_waypoint_index = find_closest_waypoint(min_index, max_index);
 
-    static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
+    int target = 0;
+    //2
+    // double roa_sq; // region of acceptance squared
+    // if (state_attributes[target_waypoint_index] == ATTRIBUTE::CROSSWALK) {
+    //     roa_sq = region_of_acceptance_cw * region_of_acceptance_cw; 
+    // } else if (state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYLEFT || state_attributes[target_waypoint_index] == ATTRIBUTE::HIGHWAYRIGHT) {
+    //     roa_sq = region_of_acceptance_hw * region_of_acceptance_hw;
+    // } else {
+    //     roa_sq = region_of_acceptance * region_of_acceptance;
+    // }
+
     static int lookahead = 1;
     if (v_ref > 0.375) lookahead = 2;
     static Eigen::Vector3d last_state = i_current_state;
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
-    static int stuck_count = 0;
-    if (distance_travelled_sq < (v_ref * T * 0.5) * (v_ref * T * 0.5)) {
-        printf("WARNING: Optimizer::find_next_waypoint(): distance travelled is too small: %.3f\n", std::sqrt(distance_travelled_sq));
-        stuck_count++;
-    }
-    if (u_current[0] < v_ref * 0.25) {
-        printf("WARNING: Optimizer::find_next_waypoint(): speed is too low: %.3f\n", u_current[0]);
-        stuck_count++;
-    }
-    last_state = i_current_state;
-
+    static int first = 0;
     static int count = 0;
-    closest_waypoint_index = find_closest_waypoint(min_index, max_index);
-    // if (stuck_count > 3) {
-    //     printf("ERROR: Optimizer::find_next_waypoint(): vehicle is stuck. resetting solver\n");
-    //     // reset_solver();
-    //     target = closest_waypoint_index + lookahead + 2;
-    //     output_target = std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
-    //     stuck_count = 0;
-    //     return 0;
-    // } else
-    if (count >= 8) {
-        target = closest_waypoint_index + lookahead;
-        count = 0;
-    } else {
-        target = target_waypoint_index + 1;
-        count++;
-    }
-    std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << ", count: " << count << std::endl;
 
-    output_target =  std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
-    return 1;
+    static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
+    if (safety_check && (closest_waypoint_index + lookahead > target_waypoint_index + limit/3 || 
+        closest_waypoint_index + lookahead + limit/3 < target_waypoint_index)) {
+        auto target_attribute = state_attributes[closest_waypoint_index];
+        auto closest_attribute = state_attributes[target_waypoint_index];
+        // if (first < 10) {
+        //     first = 10;
+        //     std::cout << "discontinuity, but first, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
+        //     reset_solver();
+        //     target = closest_waypoint_index + lookahead;
+        // } else 
+        if (distance_travelled_sq <  std::pow(T * v_ref * 15, 2) || target_attribute == ATTRIBUTE::ROUNDABOUT || closest_attribute == ATTRIBUTE::ROUNDABOUT) {
+            std::cout << "waypoint jump, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
+            target = target_waypoint_index + 1;
+        } else {
+            std::cout << "spatial discontinuity, distance = " << std::sqrt(distance_travelled_sq) << ", repositioning..." << std::endl;
+            target = closest_waypoint_index + lookahead;
+        }
+    } else {
+        first ++;
+        if (first > 500) {
+            first = 10;
+        }
+        if (target == target_waypoint_index) {
+            count ++;
+            if (count >= 1) {
+                printf("stagnation, repositioning...\n");
+                target = std::max(target_waypoint_index + 2, closest_waypoint_index + lookahead + 1);
+                count = 0;
+            } else {
+                target = target_waypoint_index;
+            }
+        } else {
+            target = std::max(target_waypoint_index + 1, closest_waypoint_index + lookahead);
+        }
+    }
+    std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << std::endl;
+
+    last_waypoint_index = target_waypoint_index;
+    last_state = i_current_state;
+    
+    return std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
 }
 int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state, bool safety_check) {
     int success = 1;
-    if(closest_waypoint_index < state_refs.rows() && state_refs.rows() > 0) {
-        double ref_yaw = state_refs(closest_waypoint_index, 2);
+    if(target_waypoint_index < state_refs.rows()) {
+        double ref_yaw = state_refs(target_waypoint_index, 2);
         while (ref_yaw - yaw > M_PI) {
             yaw += 2 * M_PI;
         }

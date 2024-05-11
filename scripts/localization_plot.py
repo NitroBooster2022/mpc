@@ -40,6 +40,8 @@ class Odom():
         self.waypoints = None
         self.detected_cars = None
 
+        self.x0 = 0
+        self.y0 = 0
         self.yaw1 = 0.0
         self.yaw2 = 0.0
         self.yaw1List = []
@@ -75,8 +77,7 @@ class Odom():
         self.waypoint_sub = rospy.Subscriber("/waypoints", Float32MultiArray, self.waypoint_callback, queue_size=3)
         self.cars_sub = rospy.Subscriber("/car_locations", Float32MultiArray, self.cars_callback, queue_size=3)
         self.state_offset_sub = rospy.Subscriber("/state_offset", Float32MultiArray, self.state_offset_callback, queue_size=3)
-        self.x0 = 0
-        self.y0 = 0
+        
         if self.plot:
             self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
         stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)

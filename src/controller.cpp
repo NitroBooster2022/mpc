@@ -127,7 +127,6 @@ public:
         }
         double x, y, yaw;
         utils.get_states(x, y, yaw);
-        mpc.initialize_current_states(x, y, utils.yaw);
         ROS_INFO("start(): x=%.3f, y=%.3f, yaw=%.3f", x, y, yaw);
         ros::ServiceClient waypoints_client = nh.serviceClient<utils::waypoints>("/waypoint_path");
         utils::waypoints srv;
@@ -172,10 +171,11 @@ public:
         } else {
             ROS_ERROR("Failed to call service waypoints");
         }
+        mpc.initialize_current_states(x, y, utils.yaw);
         destination = mpc.state_refs.row(mpc.state_refs.rows()-1).head(2);
         ROS_INFO("destination: %.3f, %.3f", destination(0), destination(1));
 
-        mpc.target_waypoint_index = mpc.find_closest_waypoint();
+        mpc.target_waypoint_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1); // search from the beginning to the end
         mpc.reset_solver();
         if (lane) {
             change_state(STATE::LANE_FOLLOWING);
@@ -371,7 +371,7 @@ public:
             if (utils.stopline)
             {
                 mpc.update_current_states(running_x, running_y, running_yaw);
-                int closest_idx = mpc.find_closest_waypoint();
+                int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
                 int num_index = static_cast<int>(0.15 * mpc.density);
                 for (int i = closest_idx; i < closest_idx + num_index; i++) {
                     if (mpc.attribute_cmp(i, mpc.ATTRIBUTE::CROSSWALK) || mpc.attribute_cmp(i, mpc.ATTRIBUTE::DOTTED_CROSSWALK)) {
@@ -390,35 +390,21 @@ public:
         int num_index = static_cast<int>(lookahead_dist * mpc.density);
         utils.get_states(running_x, running_y, running_yaw);
         mpc.update_current_states(running_x, running_y, running_yaw);
-        int target_index = mpc.find_closest_waypoint();
+        int target_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
         for (int i = 0; i < num_index; i++) {
             // auto attribute_i = mpc.state_attributes(target_index+i); // check 3 waypoints ahead
             // if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
             if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
-                std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
+                // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                 double x, y, yaw;
                 utils.get_states(x, y, yaw);
                 double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
                 if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
-                    ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
+                    // ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
                     return false;
                 }
                 last_intersection_point = {x, y};
                 return true;
-                // if(ros::Time::now() > cd_timer) { // if cooldown timer has expired
-                //     cd_timer = ros::Time::now()+ros::Duration(STOP_DURATION*1.5);
-                //     if (sign) { // if sign detection is enabled, check for stopsign, otherwise just stop
-                //         if (stopsign_flag) {
-                //             stopsign_flag = 0;
-                //             return true;
-                //         }
-                //     } else { 
-                //         return true;
-                //     }
-                // } else {
-                //     std::cout << "cooldown: " << (cd_timer - ros::Time::now()).toSec() << std::endl;
-                //     return false;
-                // }
             }
         }
         return false;
@@ -539,7 +525,7 @@ public:
     }
     double check_highway() {
         mpc.update_current_states(running_x, running_y, running_yaw);
-        int closest_idx = mpc.find_closest_waypoint();
+        int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
         return mpc.attribute_cmp(closest_idx, mpc.ATTRIBUTE::HIGHWAYLEFT) || mpc.attribute_cmp(closest_idx, mpc.ATTRIBUTE::HIGHWAYRIGHT);
     }
     void pedestrian_detected() {
@@ -695,7 +681,7 @@ public:
         // int car_index = utils.object_index(OBJECT::CAR);
         // if(car_index >= 0) { // if car detected
         for (int car_index: cars) {
-            update_mpc_state();
+            mpc.update_current_states(running_x, running_y, running_yaw);
             int closest_idx = mpc.find_closest_waypoint();
             dist = utils.object_distance(car_index); // compute distance to back of car
             if (dist < MAX_CAR_DIST && dist > 0 && closest_idx >= end_index * 1.2) {
@@ -713,8 +699,11 @@ public:
                 int min_index = 0;
                 // std::cout << "closest index: " << closest_idx << ", look ahead index: " << look_ahead_index << std::endl;
                 for (int i = closest_idx; i < look_ahead_index; i++) {
-                    // TODO: check whether car is to the left or right of the point
                     // double dist_sq = (car_pose.head(2) - mpc.state_refs.row(i).head(2)).squaredNorm();
+                    if (i >= mpc.state_refs.rows()) {
+                        ROS_WARN("check_car(): i exceeds state_refs size, stopping...");
+                        break;
+                    }
                     double dist_sq = std::pow(car_pose[0] - mpc.state_refs(i, 0), 2) + std::pow(car_pose[1] - mpc.state_refs(i, 1), 2);
                     if (dist_sq < min_dist_sq) {
                         min_dist_sq = dist_sq;
@@ -761,8 +750,12 @@ public:
                         }
                         if (!lane) {
                             int start_index = closest_idx + static_cast<int>(start_dist * density);
-                            end_index = start_index + static_cast<int>((CAR_LENGTH * 2 + MIN_DIST_TO_CAR * 2) * density * end_index_scaler);
                             
+                            end_index = start_index + static_cast<int>((CAR_LENGTH * 2 + MIN_DIST_TO_CAR * 2) * density * end_index_scaler);
+                            if (start_index >= mpc.state_refs.rows() || end_index >= mpc.state_refs.rows()) {
+                                ROS_WARN("check_car(): start or end index exceeds state_refs size, stopping...");
+                                return;
+                            };
                             mpc.change_lane(start_index, end_index, right, lane_offset);
                             ROS_INFO("changing lane to the %s in %.3f meters. start pose: (%.2f,%.2f), end: (%.2f, %.2f), cur: (%.2f, %.2f)", start_dist, right ? "right" : "left", mpc.state_refs(start_index, 0), mpc.state_refs(start_index, 1), mpc.state_refs(end_index, 0), mpc.state_refs(end_index, 1), x, y);
                         } else {
@@ -785,7 +778,10 @@ public:
                             int start_index = closest_idx + static_cast<int>((start_dist + CAR_LENGTH) * density);
                             double end_dist = (CAR_LENGTH * 2 + MIN_DIST_TO_CAR * 2) * 0.7 * end_index_scaler;
                             int end_index = start_index + static_cast<int>((end_dist + CAR_LENGTH) * density);
-
+                            if (start_index >= mpc.state_refs.rows() || end_index >= mpc.state_refs.rows()) {
+                                ROS_WARN("check_car(): start or end index exceeds state_refs size, stopping...");
+                                return;
+                            };
                             // double start_yaw_diff = std::atan2(mpc.state_refs(start_index, 1) - y0, mpc.state_refs(start_index, 0) - x0);
                             // // if (std::abs(start_yaw_diff) > 0.4 * M_PI) start_yaw_diff = 0;
                             
@@ -901,8 +897,8 @@ void StateMachine::run() {
                         ROS_INFO("priority sign detected, keep moving...");
                     }
                 } else {
-                    change_state(STATE::WAITING_FOR_STOPSIGN);
-                    continue;
+                    // change_state(STATE::WAITING_FOR_STOPSIGN);
+                    // continue;
                 }
             }
             if (sign) {
@@ -1020,6 +1016,7 @@ void StateMachine::run() {
                 std::cout << "non-detectable area, using mpc" << std::endl;
                 solve(false);
             } else {
+                mpc.target_waypoint_index = closest_idx + 1;
                 // std::cout << "detectable area, using lane follow" << std::endl;
                 if(check_crosswalk() > 0) {
                     orientation_follow(mpc.NearestDirection(utils.get_yaw()));
@@ -1247,23 +1244,6 @@ void StateMachine::run() {
             } else {
                 direction_estimate = MANEUVER_DIRECTION::STRAIGHT;
             }
-            // double start_orientation = mpc.state_refs(closest_index, 2);
-            // double end_orientation = mpc.state_refs(look_ahead_index, 2);
-            // double angle = end_orientation - start_orientation;
-            // while (angle > M_PI) {
-            //     angle -= 2 * M_PI;
-            // }
-            // while (angle < -M_PI) {
-            //     angle += 2 * M_PI;
-            // }
-            // int direction_estimate = 0; // 0: left, 1: straight, 2: right
-            // if (angle > M_PI / 4) {
-            //     direction_estimate = 2;
-            // } else if (angle < -M_PI / 4) {
-            //     direction_estimate = 0;
-            // } else {
-            //     direction_estimate = 1;
-            // }
             ROS_INFO("direction estimate: %s", MANEUVER_DIRECTIONS[direction_estimate].c_str());
             maneuver_direction = maneuver_indices[maneuver_index];
             if (maneuver_direction != direction_estimate) {
@@ -1366,6 +1346,7 @@ void StateMachine::run() {
                     double steer = -utils.computeTrajectoryPid(error);
                     // ROS_INFO("target_yaw: %2f, cur_yaw: %2f, yaw_err: %.3f, tar y: %.3f, cur y: %.3f, err: %.3f, steer: %.3f", target_yaw, utils.get_yaw(), yaw_error, referenceY, transformedFrame[1], error, steer);
                     // ROS_INFO("x:%.3f, trans x:%.3f, tar y:%.3f, cur y:%.3f, err:%.3f, steer:%.3f", odomFrame[0], transformedFrame[0], referenceY, transformedFrame[1], error, steer);
+                    mpc.target_waypoint_index++;
                     utils.publish_cmd_vel(steer, 0.25);
                     rate->sleep();
                 }
