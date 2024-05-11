@@ -492,7 +492,7 @@ def handle_array_service(req):
     # print("v_ref: ", v_ref)
     path = Path(v_ref = v_ref, N = N, T = T, x0= initial_state, name = req.pathName)
 
-    # path.illustrate_path(path.state_refs.T)
+    path.illustrate_path(path.state_refs.T)
     state_refs = Float32MultiArray(data = path.state_refs.flatten())
     input_refs = Float32MultiArray(data = path.input_refs.flatten())
     attributes = Float32MultiArray(data = path.attributes.flatten())

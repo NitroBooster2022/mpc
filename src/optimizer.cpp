@@ -343,25 +343,27 @@ int Optimizer::find_closest_waypoint(int min_index, int max_index) {
 
     double min_distance_sq = std::numeric_limits<double>::max();
     int closest = -1;
-    double second_min_distance_sq = std::numeric_limits<double>::max();
-    int second_closest = -1;
+    // double second_min_distance_sq = std::numeric_limits<double>::max();
+    // int second_closest = -1;
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
     // if (min_index < 0) min_index = std::max(target_waypoint_index - limit, 0); //0;
-    // if (max_index < 0) max_index = std::min(target_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
+    if (min_index < 0) min_index = last_waypoint_index;
+    if (max_index < 0) max_index = std::min(target_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
     
-    if (min_index < 0) min_index = 0;
-    if (max_index < 0) max_index = static_cast<int>(state_refs.rows()) - 1;
+    // if (min_index < 0) min_index = 0;
+    // if (max_index < 0) max_index = static_cast<int>(state_refs.rows()) - 1;
 
-    for (int i = min_index; i < max_index; ++i) {
+    // for (int i = min_index; i < max_index; ++i) {
+    for (int i = max_index; i >= min_index ; --i) {
         double distance_sq = (state_refs.row(i).head(2).squaredNorm() 
                            - 2 * state_refs.row(i).head(2).dot(x_current.head(2))
                            + current_norm); 
 
         if (distance_sq < min_distance_sq) {
-            second_min_distance_sq = min_distance_sq;
-            second_closest = closest;
+            // second_min_distance_sq = min_distance_sq;
+            // second_closest = closest;
             min_distance_sq = distance_sq;
             closest = i;
         }
@@ -415,6 +417,7 @@ int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current
     std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << ", count: " << count << std::endl;
 
     output_target =  std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
+    last_waypoint_index = output_target;
     return 1;
 }
 int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vector3d &state, bool safety_check) {

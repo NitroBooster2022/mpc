@@ -15,6 +15,13 @@ normalrun:
   - bus_lane
   - end
 
+roundabouttest:
+  - 235
+  - 360
+  - 375
+  - 334
+
+
 speedrun:
   # - start
   - roundabout_entrance_south
