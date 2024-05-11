@@ -14,6 +14,9 @@ real:
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 5 # degrees
   pixel_center_offset: -30
+  sigma_v: 0.075
+  sigma_delta: 10 # degrees
+  odom_rate: 50
 
 sim:
   left_trajectory1: 3.57
@@ -31,4 +34,7 @@ sim:
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 5 # degrees
   pixel_center_offset: -30
+  sigma_v: 0.075
+  sigma_delta: 10 # degrees
+  odom_rate: 50
 

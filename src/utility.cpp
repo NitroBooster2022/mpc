@@ -30,18 +30,28 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     std::cout << "Utility constructor" << std::endl;
     
     // tunables
+    // For odometry
+    double sigma_v = 0.1;
+    double sigma_delta = 10.0; // degrees
+    double odom_publish_frequency = 50; 
     if (real) {
         nh.param<double>("/real/left_trajectory1", left_trajectory1, 3.57);
         nh.param<double>("/real/left_trajectory2", left_trajectory2, -0.86835);
         nh.param<double>("/real/right_trajectory1", right_trajectory1, 3.57);
         nh.param<double>("/real/right_trajectory2", right_trajectory2, -1.17647);
         nh.param<double>("/real/p_rad", p_rad, 3.25);
+        nh.param<double>("/real/sigma_v", sigma_v, 0.1);
+        nh.param<double>("/real/sigma_delta", sigma_delta, 10.0);
+        nh.param<double>("/real/odom_rate", odom_publish_frequency, 50);
     } else {
         nh.param<double>("/sim/left_trajectory1", left_trajectory1, 3.75);
         nh.param<double>("/sim/left_trajectory2", left_trajectory2, -0.49);
         nh.param<double>("/sim/right_trajectory1", right_trajectory1, 3.75);
         nh.param<double>("/sim/right_trajectory2", right_trajectory2, -0.8);
         nh.param<double>("/sim/p_rad", p_rad, 2.35);
+        nh.param<double>("/sim/sigma_v", sigma_v, 0.1);
+        nh.param<double>("/sim/sigma_delta", sigma_delta, 10.0);
+        nh.param<double>("/sim/odom_rate", odom_publish_frequency, 50);
     }
     nh.param<bool>("/hasGps", hasGps, false);
     if (real) {
@@ -107,16 +117,40 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     initializationTimer = std::nullopt;
     timerpid = std::nullopt;
 
-    covariance_value = 0.01 * 4;
     std::fill(std::begin(odom_msg.pose.covariance), std::end(odom_msg.pose.covariance), 0.0);
     std::fill(std::begin(odom_msg.twist.covariance), std::end(odom_msg.twist.covariance), 0.0);
     std::fill(std::begin(odom_lidar_msg.pose.covariance), std::end(odom_lidar_msg.pose.covariance), 0.0);
     std::fill(std::begin(odom_lidar_msg.twist.covariance), std::end(odom_lidar_msg.twist.covariance), 0.0);
-    for (int hsy=0; hsy<36; hsy+=7) {
-        odom_msg.pose.covariance[hsy] = covariance_value;
-        odom_msg.twist.covariance[hsy] = covariance_value;
-        odom_lidar_msg.pose.covariance[hsy] = covariance_value;
-        odom_lidar_msg.twist.covariance[hsy] = covariance_value;
+    // covariance_value = 0.01 * 4;
+    // for (int hsy=0; hsy<36; hsy+=7) {
+    //     odom_msg.pose.covariance[hsy] = covariance_value;
+    //     odom_msg.twist.covariance[hsy] = covariance_value;
+    //     odom_lidar_msg.pose.covariance[hsy] = covariance_value;
+    //     odom_lidar_msg.twist.covariance[hsy] = covariance_value;
+    // }
+    double dt = 1.0 / odom_publish_frequency;
+    double variance_v = sigma_v * sigma_v;
+    double sigma_delta_rad = sigma_delta * M_PI / 180;
+    double variance_delta = sigma_delta_rad * sigma_delta_rad;
+    double variance_yaw_rate = std::pow((sigma_v / 0.27 * std::tan(sigma_delta_rad)), 2);
+    double variance_x = variance_v * dt * dt;
+    double variance_y = variance_v * dt * dt;
+    odom_msg.pose.covariance[0] = variance_x;
+    odom_msg.pose.covariance[7] = variance_y;
+    odom_msg.pose.covariance[35] = variance_yaw_rate * dt * dt;
+    odom_msg.twist.covariance[0] = variance_v;
+    odom_msg.twist.covariance[7] = variance_yaw_rate;
+    for (int i = 0; i < 36; i++) {
+        std::cout << odom_msg.pose.covariance[i] << " ";
+        if (i % 6 == 5) {
+            std::cout << std::endl;
+        }
+    }
+    for (int i = 0; i < 36; i++) {
+        std::cout << odom_msg.twist.covariance[i] << " ";
+        if (i % 6 == 5) {
+            std::cout << std::endl;
+        }
     }
 
     odom_pub = nh.advertise<nav_msgs::Odometry>("odom", 3);
@@ -137,7 +171,6 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     
     odom_lidar_sub = nh.subscribe("/odom_lidar", 3, &Utility::odom_lidar_callback, this);
     if (pubOdom) {
-        double odom_publish_frequency = 50; 
         odom_pub_timer = nh.createTimer(ros::Duration(1.0 / odom_publish_frequency), &Utility::odom_pub_timer_callback, this);
     }
     if (useEkf) {
@@ -390,12 +423,8 @@ void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
 
             lock.lock();
             this->yaw = -yaw_deg * M_PI/180;
-            while(this->yaw < -M_PI) {
-                this->yaw += 2*M_PI;
-            }
-            while(this->yaw > M_PI) {
-                this->yaw -= 2*M_PI;
-            }
+            while(this->yaw < -M_PI) this->yaw += 2*M_PI;
+            while(this->yaw > M_PI) this->yaw -= 2*M_PI;
             lock.unlock();
 
             static bool debug_imu = false;
@@ -671,12 +700,6 @@ void Utility::set_pose_using_service(double x, double y, double yaw) {
 }
 
 void Utility::publish_odom() {
-    // if (!imuInitialized || x0 < 0 || y0 < 0) {
-    //     ROS_WARN("publish_odom: not initialized");
-    //     timerodom = ros::Time::now();
-    //     return;
-    // }
-    
     yaw = fmod(yaw, 2 * M_PI);
 
     // update_states_rk4(velocity, steer_command);
@@ -695,8 +718,8 @@ void Utility::publish_odom() {
     // odom_msg.twist.twist.linear.x = x_speed;
     // odom_msg.twist.twist.linear.y = y_speed;
     // odom_msg.twist.twist.angular.z = this->imu_msg.angular_velocity.z;
-    odom_msg.twist.twist.linear.x = velocity_command * cos(yaw);
-    odom_msg.twist.twist.linear.y = velocity_command * sin(yaw);
+    odom_msg.twist.twist.linear.x = velocity_command; // non-holonomic, x means forward
+    odom_msg.twist.twist.linear.y = 0; // y means lateral
     odom_msg.twist.twist.angular.z = this->imu_msg.angular_velocity.z;
 
     tf2::Quaternion quaternion;
