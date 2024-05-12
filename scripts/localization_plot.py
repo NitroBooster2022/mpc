@@ -80,7 +80,7 @@ class Odom():
         
         if self.plot:
             self.timer = rospy.Timer(rospy.Duration(1.0 /50.0), self.compare)
-        stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
+        # stopTrigger = rospy.Service('trigger_service', Trigger, self.handle_trigger)
 
         if self.show:
             print("showing")
@@ -430,7 +430,7 @@ if __name__ == '__main__':
     # parser.add_argument("--show", action='store_true', help='Boolean for whether to show the data')
     # args = parser.parse_args()
     show = True
-    plot = True
+    plot = False
     node = Odom(show = show, plot = plot)
     while not rospy.is_shutdown():
         rospy.spin()

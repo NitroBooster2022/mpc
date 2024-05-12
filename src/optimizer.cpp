@@ -307,8 +307,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
         for(int ii=0; ii<nx; ii++) {
             simX(iter, ii) = i_current_state[ii];
         }
-        // std::cout << iter<< ") x_cur: " << x_current[0] << ", " << x_current[1] << ", " << x_current[2] << ", ref: " << state_refs(idx, 0) << ", " << state_refs(idx, 1) << ", " << state_refs(idx, 2) << ", u: " << u_current[0] << ", " << u_current[1] << ", error: " << error << std::endl;
-        if (idx < state_refs.rows()) printf("%d) x_cur: %.3f, %.3f, %.3f, ref: %.3f, %.3f, %.3f, u: %.3f, %.3f, error: %.3f\n", iter, x_current[0], x_current[1], x_current[2], state_refs(idx, 0), state_refs(idx, 1), state_refs(idx, 2), u_current[0], u_current[1], error);
+        // if (idx < state_refs.rows()) printf("%d) x_cur: %.3f, %.3f, %.3f, ref: %.3f, %.3f, %.3f, u: %.3f, %.3f, error: %.3f\n", iter, x_current[0], x_current[1], x_current[2], state_refs(idx, 0), state_refs(idx, 1), state_refs(idx, 2), u_current[0], u_current[1], error);
         // printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
         iter++;
     }
@@ -386,15 +385,15 @@ int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current
     if (v_ref > 0.375) lookahead = 2;
     static Eigen::Vector3d last_state = i_current_state;
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
-    static int stuck_count = 0;
-    if (distance_travelled_sq < (v_ref * T * 0.5) * (v_ref * T * 0.5)) {
-        printf("WARNING: Optimizer::find_next_waypoint(): distance travelled is too small: %.3f\n", std::sqrt(distance_travelled_sq));
-        stuck_count++;
-    }
-    if (u_current[0] < v_ref * 0.25) {
-        printf("WARNING: Optimizer::find_next_waypoint(): speed is too low: %.3f\n", u_current[0]);
-        stuck_count++;
-    }
+    // static int stuck_count = 0;
+    // if (distance_travelled_sq < (v_ref * T * 0.5) * (v_ref * T * 0.5)) {
+    //     printf("WARNING: Optimizer::find_next_waypoint(): distance travelled is too small: %.3f\n", std::sqrt(distance_travelled_sq));
+    //     stuck_count++;
+    // }
+    // if (u_current[0] < v_ref * 0.25) {
+    //     printf("WARNING: Optimizer::find_next_waypoint(): speed is too low: %.3f\n", u_current[0]);
+    //     stuck_count++;
+    // }
     last_state = i_current_state;
 
     static int count = 0;
@@ -414,7 +413,7 @@ int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current
         target = target_waypoint_index + 1;
         count++;
     }
-    std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << ", count: " << count << std::endl;
+    // std::cout << "closest: " << closest_waypoint_index << ", target: " << target << ", limit: " << limit << ", lookahead: " << lookahead << ", count: " << count << std::endl;
 
     output_target =  std::min(target, static_cast<int>((*state_refs_ptr).rows()) - 1);
     last_waypoint_index = output_target;
