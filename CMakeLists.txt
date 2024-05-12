@@ -138,21 +138,21 @@ target_link_libraries(ocp_shared_lib acados hpipm blasfeo)
 add_library(sim_shared_lib SHARED ${sim_solver} ${casadi_fun} ${sim_solver50} ${casadi_fun50} ${sim_solver25} ${casadi_fun25} ${sim_solver18} ${casadi_fun18})
 target_link_libraries(sim_shared_lib acados hpipm blasfeo)
 
-add_executable(path_planner src/path_planner.cpp)
-target_link_libraries(path_planner
-alglib
-)
+# add_executable(path_planner src/path_planner.cpp)
+# target_link_libraries(path_planner
+# alglib
+# )
 
-add_executable(opt
-src/optimizer_main.cpp
-src/optimizer.cpp
-)
-target_link_libraries(opt 
-ocp_shared_lib 
-sim_shared_lib
-alglib
-${catkin_LIBRARIES}
-)
+# add_executable(opt
+# src/optimizer_main.cpp
+# src/optimizer.cpp
+# )
+# target_link_libraries(opt 
+# ocp_shared_lib 
+# sim_shared_lib
+# alglib
+# ${catkin_LIBRARIES}
+# )
 
 add_executable(utility 
 src/utility_main.cpp
