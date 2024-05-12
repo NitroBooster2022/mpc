@@ -13,6 +13,8 @@ real:
   sign_localization_threshold: 0.9
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 5 # degrees
+  intersection_localization_threshold: 0.9
+  constant_distance_to_intersection_at_detection: 0.3725
   pixel_center_offset: -30
   sigma_v: 0.075
   sigma_delta: 10 # degrees
@@ -33,6 +35,8 @@ sim:
   sign_localization_threshold: 0.9
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 5 # degrees
+  intersection_localization_threshold: 0.9
+  constant_distance_to_intersection_at_detection: 0.3725
   pixel_center_offset: -30
   sigma_v: 0.075
   sigma_delta: 10 # degrees

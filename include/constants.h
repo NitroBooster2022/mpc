@@ -97,6 +97,15 @@ namespace VehicleConstants {
     // add half of inner lane width to the y values
     static constexpr std::array<double, 12> X_ALIGNED_LANE_CENTERS = {13.314624, 12.94356, 10.669, 10.2963, 3.89, 0.598716, 0.9698, 3.516515, 6.4122, 6.78514, 11.6955, 12.0661};
 
+    // (0.518959, 4.602232)
+    // 
+    static constexpr int aaa = 9 - 4;    
+    static constexpr double haha = 369. - INNER_LANE_OFFSET;
+    static const std::vector<std::vector<double>> EAST_FACING_INTERSECTIONS = {{{0.067568, 4.669999}}, {{1.90, 0.444024}}, {{3.207346, 3.032455}}, {{3.206, 5.9274}}, {{4.146563, 6.259}}, {{0.072, 10.682}}, {{15.016, 4.67363}}, {{7.6468, 4.33}}, {{5.791, 4.33}}, {{4.4838, 1.752361}}, {{6.06227, 0.511846}}};
+    static const std::vector<std::vector<double>> WEST_FACING_INTERSECTIONS = {{{15.54, 15.7404}}, {{16.112, 16.112}}};
+    static const std::vector<std::vector<double>> NORTH_FACING_INTERSECTIONS = {{{15.17, 16.963}}, {{15.7404, 16.112}}};
+    static const std::vector<std::vector<double>> SOUTH_FACING_INTERSECTIONS = {{{0.518959-INNER_LANE_OFFSET/2, 4.602232}}, {{6.78514, 6.4122}}};
+
     //utils
     static constexpr int NUM_VALUES_PER_OBJECT = 7;
     enum SignValues { x1, y1, x2, y2, distance, confidence, id };
