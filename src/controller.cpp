@@ -34,6 +34,8 @@ public:
             nh.param<double>("/real/sign_localization_threshold", sign_localization_threshold, 0.5);
             nh.param<double>("/real/lane_localization_orientation_threshold", lane_localization_orientation_threshold, 10);
             nh.param<double>("/real/pixel_center_offset", pixel_center_offset, 0.0);
+            nh.param<double>("/real/constant_distance_to_intersection_at_detection", constant_distance_to_intersection_at_detection, 0.371);
+            nh.param<double>("/real/intersection_localization_threshold", intersection_localization_threshold, 0.5);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 0.325);
@@ -44,6 +46,8 @@ public:
             nh.param<double>("/sim/sign_localization_threshold", sign_localization_threshold, 0.5);
             nh.param<double>("/sim/lane_localization_orientation_threshold", lane_localization_orientation_threshold, 10);
             nh.param<double>("/sim/pixel_center_offset", pixel_center_offset, -30.0);
+            nh.param<double>("/sim/constant_distance_to_intersection_at_detection", constant_distance_to_intersection_at_detection, 0.371);
+            nh.param<double>("/sim/intersection_localization_threshold", intersection_localization_threshold, 0.5);
         }
 
         nh.param("pub_wpts", pubWaypoints, true);
@@ -83,7 +87,8 @@ public:
     //tunables
     double straight_trajectory_threshold = 1.3, right_trajectory_threshold = 0.325, left_trajectory_threshold = 0.325, 
             change_lane_yaw = 0.15, cw_speed_ratio, hw_speed_ratio, sign_localization_threshold = 0.5, 
-            lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0;
+            lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0, constant_distance_to_intersection_at_detection = 0.371,
+            intersection_localization_threshold = 0.5;
 
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
@@ -383,6 +388,9 @@ public:
                     ROS_INFO("crosswalk detected, ignoring...");
                     return false;
                 }
+                if (!hasGps) {
+                    intersection_based_relocalization();
+                }
                 return true;
             }
         }
@@ -586,6 +594,45 @@ public:
         }
         return 1;
     }
+    int intersection_based_relocalization() {
+        // check orientation
+        double yaw = utils.get_yaw();
+        double nearest_direction = mpc.NearestDirection(yaw);
+        double yaw_error = nearest_direction - yaw;
+        if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
+        else if(yaw_error < -M_PI * 1.5) yaw_error += 2 * M_PI;
+        if(yaw_error > 0.4) return 0;
+
+        int nearestDirectionIndex = mpc.NearestDirectionIndex(yaw);
+        const auto& direction_intersections = (nearestDirectionIndex == 0) ? EAST_FACING_INTERSECTIONS :
+                                          (nearestDirectionIndex == 1) ? WEST_FACING_INTERSECTIONS :
+                                          (nearestDirectionIndex == 2) ? NORTH_FACING_INTERSECTIONS :
+                                                                        SOUTH_FACING_INTERSECTIONS;
+        
+        static Eigen::Vector2d estimated_position(0, 0);
+        utils.get_states(estimated_position(0), estimated_position(1), yaw);
+        estimated_position[0] += constant_distance_to_intersection_at_detection * cos(yaw);
+        estimated_position[1] += constant_distance_to_intersection_at_detection * sin(yaw);
+
+        double min_error_sq = std::numeric_limits<double>::max();
+        int min_index = 0;
+        for (size_t i = 0; i < direction_intersections.size(); ++i) {
+            double error_sq = std::pow(estimated_position[0] - direction_intersections[i][0], 2) + std::pow(estimated_position[1] - direction_intersections[i][1], 2);
+            if (error_sq < min_error_sq) {
+                min_error_sq = error_sq;
+                min_index = static_cast<int>(i);
+            }
+        }
+
+        ROS_INFO("estimated position: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_position[0], estimated_position[1], direction_intersections[min_index][0], direction_intersections[min_index][1], direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
+        if (min_error_sq < intersection_localization_threshold * intersection_localization_threshold) {
+            utils.recalibrate_states(direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
+            return 1; // Successful relocalization
+        } else {
+            return 0; // Failed to relocalize
+        }
+    }
+
     int lane_based_relocalization() {
         double center = utils.center + pixel_center_offset;
         if (center >= 240 && center <= 400) {
