@@ -5,8 +5,8 @@ real:
   right_trajectory2: -0.49
   p_rad: 3.25
   straight_trajectory_threshold: 1.4
-  left_trajectory_threshold: 5.73
-  right_trajectory_threshold: 5.73
+  left_trajectory_threshold: 12 # degrees
+  right_trajectory_threshold: 12
   change_lane_yaw: 0.15 # times pi
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
@@ -28,8 +28,8 @@ sim:
   right_trajectory2: -1.3
   p_rad: 2.1
   straight_trajectory_threshold: 1.4
-  left_trajectory_threshold: 5.73 # degrees
-  right_trajectory_threshold: 5.73
+  left_trajectory_threshold: 12 # degrees
+  right_trajectory_threshold: 12
   change_lane_yaw: 0.25 # times pi
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33

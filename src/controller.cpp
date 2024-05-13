@@ -540,9 +540,18 @@ public:
         if(crosswalk_index >= 0) {
             detected_dist = utils.object_distance(crosswalk_index);
             if (detected_dist < MAX_CROSSWALK_DIST && detected_dist > 0) {
-                double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * 5/7;
+                double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * cw_speed_ratio;
                 crosswalk_cooldown_timer = ros::Time::now() + ros::Duration(cd);
                 std::cout << "crosswalk detected at a distance of: " << detected_dist << std::endl;
+                if (!hasGps) {
+                    auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
+                    int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
+                    const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
+                                          (nearestDirectionIndex == 1) ? WEST_FACING_CROSSWALKS :
+                                          (nearestDirectionIndex == 2) ? NORTH_FACING_CROSSWALKS :
+                                                                        SOUTH_FACING_CROSSWALKS;
+                    sign_based_relocalization(crosswalk_pose, direction_crosswalks);
+                }
                 return detected_dist;
             }
         }
@@ -600,12 +609,12 @@ public:
                 min_index = static_cast<int>(i);
             }
         }
-        ROS_INFO("estimated sign pose: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_sign_pose[0], estimated_sign_pose[1], EMPIRICAL_POSES[min_index][0], EMPIRICAL_POSES[min_index][1], EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
         // exit(0);
         if (min_error_sq > sign_localization_threshold * sign_localization_threshold) {
-            ROS_INFO("error too large: %.3f, relocalization failed...", std::sqrt(min_error_sq));
+            ROS_WARN("sign_based_relocalization(): FAILURE: error too large: %.3f, threshold: %.3f", std::sqrt(min_error_sq), sign_localization_threshold);
             return 0;
         } else {
+            ROS_INFO("sign_based_relocalization(): SUCCESS! estimated sign pose: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_sign_pose[0], estimated_sign_pose[1], EMPIRICAL_POSES[min_index][0], EMPIRICAL_POSES[min_index][1], EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
             utils.recalibrate_states(EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
         }
         return 1;
