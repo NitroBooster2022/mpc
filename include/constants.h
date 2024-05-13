@@ -160,9 +160,14 @@ namespace VehicleConstants {
     // object coordinates
     static const std::vector<std::vector<double>> PARKING_SIGN_POSES = {{{{8.922497, 0.487}}, {{8.922405, 1.008329}}}};
     static const std::vector<std::vector<double>> ROUNDABOUT_POSES = {{{{14.906, 10.190544}}, {{16.5132, 9.455325}}, {{17.247, 11.067}}, {{15.639, 11.80325}}}};
-    static const std::vector<std::vector<double>> CROSSWALK_POSES = {{{{17.365101, 2.282282}}, {{8.125406, 0.490722}}, {{8.914196, 3.406469}}, {{9.582251, 4.291623}}, {{1.833610, 10.3011}}}};
     // static constexpr std::array<std::array<double, 2>, 11> INTERSECTION_SIGN_POSES = {{{{0.067568, 4.669999}}, {{1.90, 0.444024}}, {{3.207346, 3.032455}}, {{3.206, 5.9274}}, {{4.146563, 6.259}}, {{0.072, 10.682}}, {{15.016, 4.67363}}, {{7.6468, 4.33}}, {{5.791, 4.33}}, {{4.4838, 1.752361}}, {{6.06227, 0.511846}}}};
-    
+    static constexpr double ofs2 = 0.05361;
+    static constexpr double ofs1 = 0.107834;
+    // static const std::vector<std::vector<double>> CROSSWALK_POSES = {{{{17.365101, 2.282282}}, {{8.125406, 0.490722}}, {{8.914196, 3.406469}}, {{9.582251, 4.291623}}, {{1.833610, 10.3011}}}};
+    static const std::vector<std::vector<double>> EAST_FACING_CROSSWALKS = {{{{8.178-ofs2, 0.600-ofs1}},{{1.2116-ofs2, 5.515537-ofs1}}}};
+    static const std::vector<std::vector<double>> WEST_FACING_CROSSWALKS = {{{{1.77+ofs2, 10.196+ofs1}},{{9.53+ofs2, 4.18635+ofs1}}}};
+    static const std::vector<std::vector<double>> SOUTH_FACING_CROSSWALKS = {{{{15.171-ofs1, 3.0317+ofs2}},{{4.6327-ofs1, 7.968+ofs2}}}};
+    static const std::vector<std::vector<double>> NORTH_FACING_CROSSWALKS = {{{{0.5943+ofs1, 9.1037-ofs2}},{{5.2924+ofs1, 7.404-ofs2}}}};
 
     //utils
     static constexpr int NUM_VALUES_PER_OBJECT = 7;
