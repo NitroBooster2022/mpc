@@ -19,6 +19,7 @@ real:
   sigma_v: 0.075
   sigma_delta: 10 # degrees
   odom_rate: 50
+  stop_duration: 3.0
 
 sim:
   left_trajectory1: 3.57
@@ -41,4 +42,5 @@ sim:
   sigma_v: 0.075
   sigma_delta: 10 # degrees
   odom_rate: 50
+  stop_duration: 1.5
 
