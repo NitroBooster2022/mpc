@@ -184,8 +184,13 @@ public:
         yaw_ = yaw;
         if(useEkf) {
             // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
-            x_ = ekf_x;
-            y_ = ekf_y;
+            if (hasGps) {
+                x_ = ekf_x;
+                y_ = ekf_y;
+            } else {
+                x_ = ekf_x + x0;
+                y_ = ekf_y + y0;
+            }
         } else if(subModel) {
             // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
             x_ = gps_x;

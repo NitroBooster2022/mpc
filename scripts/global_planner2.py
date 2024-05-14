@@ -60,6 +60,8 @@ class GlobalPlanner:
             "avram_entance": 404,
             "speed_entrance_south": 7,
             "speed_entrance_west": 66,
+            "speed_north_west": 66,
+            "speed_east_south": 66,
             "bus_lane_entrance": 427,
             "bus_lane": 437,
             "start": 472,

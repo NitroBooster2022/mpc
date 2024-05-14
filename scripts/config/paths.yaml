@@ -1,3 +1,21 @@
+speedrun:
+  # - start
+  - roundabout_entrance_south
+  - roundabout_west
+  - nomarking_entrance
+  - highway_entrance_east
+  - speed_entrance_west
+  - end
+
+run1:
+  # - add somethin?
+  - speed_north_west
+  - highway_entrance_west
+  - roundabout_exit_east
+  - bus_lane
+  # - add something?
+  - end
+  
 # path1:
 #   - start
 #   - highway1_start
@@ -20,16 +38,6 @@ roundabouttest:
   - 360
   - 375
   - 334
-
-
-speedrun:
-  # - start
-  - roundabout_entrance_south
-  - roundabout_west
-  - nomarking_entrance
-  - highway_entrance_east
-  - speed_entrance_west
-  - end
 
 path1:
   # - start

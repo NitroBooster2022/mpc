@@ -1,25 +1,35 @@
 real:
+  # to tune:
+  parking_base_thresh: 0.1
+  parking_base_speed: -0.2
+  parking_base_yaw_target: 0.166 # times pi
+  pixel_center_offset: -30
+  constant_distance_to_intersection_at_detection: 0.3725
+  change_lane_yaw: 0.15 # times pi
+  change_lane_thresh: 0.05
+  change_lane_speed: 0.2
+  left_trajectory_threshold: 12 # degrees
+  right_trajectory_threshold: 12
+
+  # almost good:
+  sigma_delta: 10 # degrees
+  sigma_v: 0.075
   left_trajectory1: 3.57
   left_trajectory2: -0.86835
   right_trajectory1: 3.75
   right_trajectory2: -0.49
   p_rad: 3.25
   straight_trajectory_threshold: 1.4
-  left_trajectory_threshold: 12 # degrees
-  right_trajectory_threshold: 12
-  change_lane_yaw: 0.15 # times pi
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
-  sign_localization_threshold: 0.9
+  sign_localization_threshold: 2.0
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 7.53 # degrees
-  intersection_localization_threshold: 0.9
-  constant_distance_to_intersection_at_detection: 0.3725
-  pixel_center_offset: -30
-  sigma_v: 0.075
-  sigma_delta: 10 # degrees
+  intersection_localization_threshold: 2.0
   odom_rate: 50
   stop_duration: 3.0
+  use_stopline: true
+  pedestrian_count_thresh: 8
 
 sim:
   left_trajectory1: 3.57
@@ -31,16 +41,23 @@ sim:
   left_trajectory_threshold: 12 # degrees
   right_trajectory_threshold: 12
   change_lane_yaw: 0.25 # times pi
+  change_lane_speed: 0.2
+  change_lane_thresh: 0.05
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
-  sign_localization_threshold: 0.9
+  sign_localization_threshold: 2.0
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 7.53 # degrees
-  intersection_localization_threshold: 0.9
+  intersection_localization_threshold: 2.0
   constant_distance_to_intersection_at_detection: 0.3725
   pixel_center_offset: -30
   sigma_v: 0.075
   sigma_delta: 10 # degrees
   odom_rate: 50
   stop_duration: 1.5
+  use_stopline: true
+  pedestrian_count_thresh: 8
+  parking_base_yaw_target: 0.29 # times pi
+  parking_base_speed: -0.2
+  parking_base_thresh: 0.1
 
