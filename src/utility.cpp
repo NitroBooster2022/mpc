@@ -205,11 +205,11 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
             imu_pub_timer = nh.createTimer(ros::Duration(1.0 / rateVal), &Utility::imu_pub_timer_callback, this);
         }
     }
-    if (subLane) {
+    if (true) {
         lane_sub = nh.subscribe("/lane", 3, &Utility::lane_callback, this);
-        std::cout << "waiting for lane message" << std::endl;
-        ros::topic::waitForMessage<utils::Lane>("/lane");
-        std::cout << "received message from lane" << std::endl;
+        // std::cout << "waiting for lane message" << std::endl;
+        // ros::topic::waitForMessage<utils::Lane>("/lane");
+        // std::cout << "received message from lane" << std::endl;
         timerpid = ros::Time::now();
     }
 

@@ -37,6 +37,13 @@ public:
             nh.param<double>("/real/constant_distance_to_intersection_at_detection", constant_distance_to_intersection_at_detection, 0.371);
             nh.param<double>("/real/intersection_localization_threshold", intersection_localization_threshold, 0.5);
             nh.param<double>("/real/stop_duration", stop_duration, 3.0);
+            nh.param<bool>("/real/use_stopline", use_stopline, true);
+            nh.param<int>("/real/pedestrian_count_thresh", pedestrian_count_thresh, 8);
+            nh.param<double>("/real/parking_base_target_yaw", parking_base_target_yaw, 0.166);
+            nh.param<double>("/real/parking_base_speed", parking_base_speed, -0.2);
+            nh.param<double>("/real/parking_base_thresh", parking_base_thresh, 0.1);
+            nh.param<double>("/real/change_lane_speed", change_lane_speed, 0.2);
+            nh.param<double>("/real/change_lane_thresh", change_lane_thresh, 0.05);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -50,6 +57,13 @@ public:
             nh.param<double>("/sim/constant_distance_to_intersection_at_detection", constant_distance_to_intersection_at_detection, 0.371);
             nh.param<double>("/sim/intersection_localization_threshold", intersection_localization_threshold, 0.5);
             nh.param<double>("/sim/stop_duration", stop_duration, 1.5);
+            nh.param<bool>("/sim/use_stopline", use_stopline, true);
+            nh.param<int>("/sim/pedestrian_count_thresh", pedestrian_count_thresh, 8);
+            nh.param<double>("/sim/parking_base_target_yaw", parking_base_target_yaw, 0.29);
+            nh.param<double>("/sim/parking_base_speed", parking_base_speed, -0.2);
+            nh.param<double>("/sim/parking_base_thresh", parking_base_thresh, 0.1); 
+            nh.param<double>("/sim/change_lane_speed", change_lane_speed, 0.2);
+            nh.param<double>("/sim/change_lane_thresh", change_lane_thresh, 0.05);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -92,7 +106,10 @@ public:
     double straight_trajectory_threshold = 1.3, right_trajectory_threshold = 5.73 * M_PI/180, left_trajectory_threshold = 5.73 * M_PI/180, 
             change_lane_yaw = 0.15, cw_speed_ratio, hw_speed_ratio, sign_localization_threshold = 0.5, 
             lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0, constant_distance_to_intersection_at_detection = 0.371,
-            intersection_localization_threshold = 0.5, stop_duration = 3.0;
+            intersection_localization_threshold = 0.5, stop_duration = 3.0, parking_base_target_yaw = 0.166, parking_base_speed=-0.2, parking_base_thresh=0.1,
+            change_lane_speed=0.2, change_lane_thresh=0.05;
+    bool use_stopline = true;
+    int pedestrian_count_thresh = 8;
 
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
 
@@ -234,16 +251,15 @@ public:
         Eigen::VectorXd steerings(3);
         Eigen::VectorXd speeds(3);
         Eigen::VectorXd thresholds(3);
-        double base_yaw_target = 0.166 * M_PI;
-        if (!real) base_yaw_target = 0.29 * M_PI;
+        double base_yaw_target = parking_base_target_yaw * M_PI;
         base_yaw_target = base_yaw_target + 0.02 / (0.29 * M_PI) * base_yaw_target * initial_y_error / MAX_PARKING_Y_ERROR * (right ? 1 : -1);
         ROS_INFO("initial y error: %.3f, initial yaw error: %.3f, base yaw target: %.3f PI", initial_y_error, initial_yaw_error, base_yaw_target / M_PI);
         // if (!real) base_yaw_target = 0.31 * M_PI;
         // if (!real) base_yaw_target = 0.27 * M_PI;
         double base_steer = - HARD_MAX_STEERING;
         // base_steer = - 20;
-        double base_speed = -0.2;
-        double base_thresh = 0.1;
+        double base_speed = parking_base_speed;
+        double base_thresh = parking_base_thresh;
         targets << base_yaw_target, 0.0, 0.0;
         steerings << -base_steer, base_steer, -base_steer;
         speeds << base_speed, base_speed, -base_speed;
@@ -277,9 +293,9 @@ public:
         yaw_target += yaw_offset;
         targets << yaw_target;
         Eigen::VectorXd speeds(1);
-        speeds << 0.2;
+        speeds << change_lane_speed;
         Eigen::VectorXd thresholds(1);
-        thresholds << 0.05;
+        thresholds << change_lane_thresh;
         return maneuver_hardcode(targets, steering, speeds, thresholds, rate_val);
     }
     int maneuver_hardcode(const Eigen::VectorXd &targets, const Eigen::VectorXd &steerings, const Eigen::VectorXd &speeds, const Eigen::VectorXd &thresholds, double rate_val = 20) {
@@ -372,10 +388,10 @@ public:
         }
         return status;
     }
-    bool intersection_reached(bool lane = false) {
+    bool intersection_reached() {
         static Eigen::Vector2d last_intersection_point = {0, 0};
         static const double INTERSECTION_DISTANCE_THRESHOLD = 0.753; // minimum distance between two intersections
-        if(lane) {
+        if(use_stopline) {
             if (utils.stopline)
             {
                 mpc.update_current_states(running_x, running_y, running_yaw);
@@ -400,7 +416,6 @@ public:
                 // }
                 // last_intersection_point = {x, y};
                 if (!hasGps) {
-                    ROS_INFO("intersection detected, relocalizing...");
                     intersection_based_relocalization();
                 }
                 return true;
@@ -482,41 +497,13 @@ public:
                 } else {
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& intersection_signs = (nearestDirectionIndex == 0) ? EAST_FACING_SIGNS :
-                                          (nearestDirectionIndex == 1) ? WEST_FACING_SIGNS :
-                                          (nearestDirectionIndex == 2) ? NORTH_FACING_SIGNS :
+                                          (nearestDirectionIndex == 1) ? NORTH_FACING_SIGNS :
+                                          (nearestDirectionIndex == 2) ? WEST_FACING_SIGNS :
                                                                         SOUTH_FACING_SIGNS;
                     sign_based_relocalization(sign_pose, intersection_signs);
                 }
             }
         }
-        // int stopsign_index = utils.object_index(OBJECT::STOPSIGN);
-        // if(stopsign_index >= 0) {
-        //     dist = utils.object_distance(stopsign_index);
-        //     if (ros::Time::now() > cooldown_timer && dist > 0) {
-        //         std::cout << "stop sign detected at a distance of: " << dist << std::endl;
-        //         // auto box = utils.object_box(stopsign_index);
-        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
-        //         // std::cout << "world pose: " << world_pose << std::endl;
-        //         // utils.add_object("stopsign", world_pose);
-        //         detected_dist = dist;
-        //         change_state(STATE::APPROACHING_INTERSECTION);
-        //         continue;
-        //     }
-        // }
-        // int light_index = utils.object_index(OBJECT::LIGHTS);
-        // if(light_index >= 0) {
-        //     dist = utils.object_distance(light_index);
-        //     if (ros::Time::now() > cooldown_timer && dist > 0) {
-        //         std::cout << "traffic light detected at a distance of: " << dist << std::endl;
-        //         // auto box = utils.object_box(stopsign_index);
-        //         // auto world_pose = utils.estimate_object_pose2d(utils.get_real_states(), box, dist, CAMERA_PARAMS);
-        //         // std::cout << "world pose: " << world_pose << std::endl;
-        //         // utils.add_object("light", world_pose);
-        //         detected_dist = dist;
-        //         change_state(STATE::APPROACHING_INTERSECTION);
-        //         continue;
-        //     }
-        // }
     }
     int park_sign_detected() {
         int park_index = utils.object_index(OBJECT::PARK);
@@ -585,19 +572,19 @@ public:
                     stop_for(stop_duration);
                 } else {
                     pedestrian_count ++;
-                    ROS_INFO("pedestrian count: %d", pedestrian_count);
+                    ROS_INFO("pedestrian sem: %d", pedestrian_count);
                     stop_for(stop_duration/15);
                 }
-                if (pedestrian_count > 10) break;
+                if (pedestrian_count > pedestrian_count_thresh) break;
             }
             rate->sleep();
         }
     }
     void exit_detected() {
-        if (utils.object_index(OBJECT::NOENTRY) >= 0) {
-            ROS_INFO("no entry detected, signaling end of mission");
-            change_state(STATE::DONE);
-        }
+        // if (utils.object_index(OBJECT::NOENTRY) >= 0) {
+        //     ROS_INFO("no entry detected, signaling end of mission");
+        //     change_state(STATE::DONE);
+        // }
     }
     int sign_based_relocalization(const Eigen::Vector2d estimated_sign_pose, const std::vector<std::vector<double>> &EMPIRICAL_POSES) {
         int min_index = 0;
@@ -628,14 +615,14 @@ public:
         if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
         else if(yaw_error < -M_PI * 1.5) yaw_error += 2 * M_PI;
         if(yaw_error > 0.4) {
-            ROS_WARN("yaw error too large: %.3f, intersection based relocalization failed...", yaw_error);
+            ROS_WARN("intersection_based_relocalization(): FAILURE: yaw error too large: %.3f, intersection based relocalization failed...", yaw_error);
             return 0;
         }
 
         int nearestDirectionIndex = mpc.NearestDirectionIndex(yaw);
         const auto& direction_intersections = (nearestDirectionIndex == 0) ? EAST_FACING_INTERSECTIONS :
-                                          (nearestDirectionIndex == 1) ? WEST_FACING_INTERSECTIONS :
-                                          (nearestDirectionIndex == 2) ? NORTH_FACING_INTERSECTIONS :
+                                          (nearestDirectionIndex == 1) ? NORTH_FACING_INTERSECTIONS :
+                                          (nearestDirectionIndex == 2) ? WEST_FACING_INTERSECTIONS :
                                                                         SOUTH_FACING_INTERSECTIONS;
         
         static Eigen::Vector2d estimated_position(0, 0);
@@ -653,12 +640,13 @@ public:
             }
         }
 
-        ROS_INFO("intersection based relocalization(): estimated intersection position: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_position[0], estimated_position[1], direction_intersections[min_index][0], direction_intersections[min_index][1], direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
         // exit(0);
         if (min_error_sq < intersection_localization_threshold * intersection_localization_threshold) {
+            ROS_INFO("intersection based relocalization(): SUCCESS: estimated intersection position: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_position[0], estimated_position[1], direction_intersections[min_index][0], direction_intersections[min_index][1], direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
             utils.recalibrate_states(direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
             return 1; // Successful relocalization
         } else {
+            ROS_WARN("intersection based relocalization(): FAILURE: estimated intersection position: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_position[0], estimated_position[1], direction_intersections[min_index][0], direction_intersections[min_index][1], direction_intersections[min_index][0] - estimated_position[0], direction_intersections[min_index][1] - estimated_position[1]);
             return 0; // Failed to relocalize
         }
     }
@@ -678,44 +666,46 @@ public:
             double offset = (IMAGE_WIDTH/2 - center) / 80 * LANE_CENTER_TO_EDGE;
             int nearestDirectionIndex = mpc.NearestDirectionIndex(yaw);
             const auto& LANE_CENTERS = (nearestDirectionIndex == 0) ? EAST_FACING_LANE_CENTERS :
-                                        (nearestDirectionIndex == 1) ? WEST_FACING_LANE_CENTERS :
-                                        (nearestDirectionIndex == 2) ? NORTH_FACING_LANE_CENTERS :
+                                        (nearestDirectionIndex == 1) ? NORTH_FACING_LANE_CENTERS :
+                                        (nearestDirectionIndex == 2) ? WEST_FACING_LANE_CENTERS :
                                                                     SOUTH_FACING_LANE_CENTERS;
             if (nearestDirectionIndex == 0 || nearestDirectionIndex == 2) { // East, 0 || West, 2
                 if (nearestDirectionIndex == 2) offset *= -1;
                 int min_index = 0;
                 double min_error = 1000;
-                for (size_t i = 0; i < LANE_CENTERS.size(); i++) {
+                for (int i = 0; i < LANE_CENTERS.size(); i++) {
                     double error = std::abs((LANE_CENTERS[i] - offset) - running_y);
                     if (error < min_error) {
                         min_error = error;
                         min_index = i;
                     }
+                    // std::cout << "i: " << i << ", center: " << LANE_CENTERS[i] << ", error: " << error << "min_error: " << min_error << "min_index: " << min_index << std::endl;
                 }
                 if (min_error < LANE_OFFSET) {
                     utils.recalibrate_states(0, min_error);
                     return 1;
                 } else {
-                    ROS_WARN("lane_based_relocalization(): offset too large: %.3f, lane based relocalization failed...", min_error);
+                    ROS_WARN("lane_based_relocalization(): FAILURE: error too large: %.3f, running y: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", min_error, running_y, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
                     return 0;
                 }
             } else if (nearestDirectionIndex == 1 || nearestDirectionIndex == 3) { // North, 1 || South, 3
                 if (nearestDirectionIndex == 3) offset *= -1;
                 int min_index = 0;
                 double min_error = 1000;
-                for (size_t i = 0; i < LANE_CENTERS.size(); i++) {
-                    double error = (LANE_CENTERS[i] + offset) - running_x;
-                    if (std::abs(error) < min_error) {
+                for (int i = 0; i < LANE_CENTERS.size(); i++) {
+                    double error = std::abs((LANE_CENTERS[i] + offset) - running_x);
+                    if (error < min_error) {
                         min_error = error;
                         min_index = i;
                     }
+                    // std::cout << "i: " << i << ", center: " << LANE_CENTERS[i] << ", error: " << error << "min_error: " << min_error << "min_index: " << min_index << std::endl;
                 }
                 // ROS_INFO("center: %.3f, offset: %.3f, running_x: %.3f, min_error: %.3f, closest lane center: %.3f", center, offset, running_x, min_error, Y_ALIGNED_LANE_CENTERS[min_index]);
                 if (std::abs(min_error) < LANE_OFFSET) {
                     utils.recalibrate_states(min_error, 0);
                     return 1;
                 } else {
-                    ROS_WARN("lane_based_relocalization(): offset too large: %.3f, lane based relocalization failed...", min_error);
+                    ROS_WARN("lane_based_relocalization(): FAILURE: error too large: %.3f, running x: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", std::abs(min_error), running_x, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
                     return 0;
                 }
             }
@@ -976,18 +966,40 @@ void StateMachine::run() {
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
             if(intersection_reached()) {
-                if(sign) {
-                    if (stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        change_state(STATE::WAITING_FOR_STOPSIGN);
+                if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    // change_state(STATE::WAITING_FOR_STOPSIGN);
+                    ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
+                    stop_for(stop_duration);
+                    if (lane) {
+                        change_state(STATE::INTERSECTION_MANEUVERING);
                         continue;
-                    } else if (stopsign_flag == STOPSIGN_FLAGS::PRIO) {
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        ROS_INFO("priority sign detected, keep moving...");
+                    }
+                } else if(stopsign_flag == STOPSIGN_FLAGS::PRIO) {
+                    ROS_INFO("priority detected. transitioning to intersection maneuvering");
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    if (lane) {
+                        change_state(STATE::INTERSECTION_MANEUVERING);
+                        continue;
+                    }
+                } else if(stopsign_flag == STOPSIGN_FLAGS::RDB) {
+                    ROS_INFO("roundabout detected. using mpc...");
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    if (lane) {
+                        mpc.update_current_states(running_x, running_y, running_yaw, false);
+                        solve(false);
+                        rate->sleep();
+                        continue;
                     }
                 } else {
-                    // change_state(STATE::WAITING_FOR_STOPSIGN);
-                    // continue;
+                    if (lane) {
+                        ROS_WARN("intersection reached but no sign detected, using mpc...");
+                        stopsign_flag = STOPSIGN_FLAGS::NONE;
+                        mpc.update_current_states(running_x, running_y, running_yaw, false);
+                        solve(false);
+                        rate->sleep();
+                        continue;
+                    }
                 }
             }
             if (sign) {
@@ -1001,12 +1013,37 @@ void StateMachine::run() {
                 }
                 check_car();    
             }
-            update_mpc_state();
-            double error_sq = (mpc.x_current.head(2) - destination).squaredNorm();
-            if (error_sq < TOLERANCE_SQUARED && mpc.target_waypoint_index >= mpc.state_refs.rows() * 0.9) {
-                change_state(STATE::DONE);
+            mpc.update_current_states(running_x, running_y, running_yaw, false);
+            int closest_idx = mpc.find_closest_waypoint();
+            if (!hasGps) {
+                static int lane_relocalization_semaphore = 0;
+                lane_relocalization_semaphore++;
+                if (lane_relocalization_semaphore >= 5) {
+                    if (lane_based_relocalization()) ROS_INFO("lane relocalization successful");
+                    lane_relocalization_semaphore = 0;
+                }
             }
-            solve();
+            if (!lane) {
+                update_mpc_state();
+                double error_sq = (mpc.x_current.head(2) - destination).squaredNorm();
+                if (error_sq < TOLERANCE_SQUARED && mpc.target_waypoint_index >= mpc.state_refs.rows() * 0.9) {
+                    change_state(STATE::DONE);
+                }
+                solve();
+            } else {
+                if(mpc.is_not_detectable(closest_idx)) {
+                    std::cout << "non-detectable area, using mpc" << std::endl;
+                    solve(false);
+                } else {
+                    mpc.target_waypoint_index = closest_idx + 1;
+                    // std::cout << "detectable area, using lane follow" << std::endl;
+                    if(check_crosswalk() > 0) {
+                        orientation_follow(mpc.NearestDirection(utils.get_yaw()));
+                    } else {
+                        lane_follow();
+                    }
+                }
+            }
             rate->sleep();
             continue;
         } else if (state == STATE::APPROACHING_INTERSECTION) {
@@ -1052,41 +1089,32 @@ void StateMachine::run() {
             stopsign_flag = 0;
             continue;
         } else if (state == STATE::LANE_FOLLOWING) {
-            static bool use_stopline = true;
-            if (use_stopline) {
-                if(intersection_reached(true)) {
-                    if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        // change_state(STATE::WAITING_FOR_STOPSIGN);
-                        ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
-                        stop_for(stop_duration);
-                        change_state(STATE::INTERSECTION_MANEUVERING);
-                        continue;
-                    } else if(stopsign_flag == STOPSIGN_FLAGS::PRIO) {
-                        ROS_INFO("priority detected. transitioning to intersection maneuvering");
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        change_state(STATE::INTERSECTION_MANEUVERING);
-                        continue;
-                    } else if(stopsign_flag == STOPSIGN_FLAGS::RDB) {
-                        ROS_INFO("roundabout detected. using mpc...");
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        mpc.update_current_states(running_x, running_y, running_yaw, false);
-                        solve(false);
-                        rate->sleep();
-                        continue;
-                    } else {
-                        ROS_WARN("intersection reached but no sign detected, using mpc...");
-                        stopsign_flag = STOPSIGN_FLAGS::NONE;
-                        mpc.update_current_states(running_x, running_y, running_yaw, false);
-                        solve(false);
-                        rate->sleep();
-                        continue;
-                    }
-                }
-            } else {
-                if (stopsign_flag) {
-                    ROS_INFO("stop sign detected, but stopline detection disabled, using distance to gauge intersection");
-                    change_state(STATE::APPROACHING_INTERSECTION);
+            if(intersection_reached()) {
+                if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    // change_state(STATE::WAITING_FOR_STOPSIGN);
+                    ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
+                    stop_for(stop_duration);
+                    change_state(STATE::INTERSECTION_MANEUVERING);
+                    continue;
+                } else if(stopsign_flag == STOPSIGN_FLAGS::PRIO) {
+                    ROS_INFO("priority detected. transitioning to intersection maneuvering");
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    change_state(STATE::INTERSECTION_MANEUVERING);
+                    continue;
+                } else if(stopsign_flag == STOPSIGN_FLAGS::RDB) {
+                    ROS_INFO("roundabout detected. using mpc...");
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    mpc.update_current_states(running_x, running_y, running_yaw, false);
+                    solve(false);
+                    rate->sleep();
+                    continue;
+                } else {
+                    ROS_WARN("intersection reached but no sign detected, using mpc...");
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
+                    mpc.update_current_states(running_x, running_y, running_yaw, false);
+                    solve(false);
+                    rate->sleep();
                     continue;
                 }
             }
@@ -1145,7 +1173,7 @@ void StateMachine::run() {
             right_park = true;
             bool hard_code = true;
             int target_spot = 0;
-            if (!lane) {
+            if (true) {
                 double orientation = mpc.NearestDirection(utils.get_yaw());
                 ROS_INFO("orientation: %.3f", orientation);
                 double x0, y0, yaw0;
@@ -1230,32 +1258,6 @@ void StateMachine::run() {
                     //     update_mpc_state();
                     //     solve();
                     // }
-                    rate->sleep();
-                }
-            } else {
-                double orientation = mpc.NearestDirection(utils.get_yaw());
-                ROS_INFO("orientation: %.3f", orientation);
-                double x0, y0, yaw0;
-                utils.get_states(x0, y0, yaw0);
-                // utils.reset_odom();
-                while(1) {
-                    pedestrian_detected();
-                    exit_detected();
-                    double x, y, yaw;
-                    utils.get_states(x, y, yaw);
-                    double norm_sq = std::pow(x - x0, 2) + std::pow(y - y0, 2);
-                    ROS_INFO("norm: %.3f", std::sqrt(norm_sq));
-                    if (norm_sq >= offset * offset)
-                    {
-                        ROS_INFO("parking spot reached, stopping...");
-                        utils.publish_cmd_vel(0.0, 0.0);
-                        break;
-                    }
-                    if (norm_sq > offset * offset * 0.2) {
-                        orientation_follow(orientation);
-                    } else {
-                        lane_follow();
-                    }
                     rate->sleep();
                 }
             }
