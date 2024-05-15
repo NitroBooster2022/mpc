@@ -16,7 +16,7 @@
   <arg name="yaw0" default="-1.57"/>
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
-  <arg name = "path" default="normalrun"/>
+  <arg name = "path" default="run1"/>
   <arg name = "rate" default="1000"/>
   <param name="pathName" value="$(arg path)"/>
   <param name="vrefInt" value="$(arg v)"/>

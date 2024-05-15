@@ -236,7 +236,9 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
     //     return 0;
     // }
     int idx = target_waypoint_index;
-
+    if (target_waypoint_index >= state_refs.rows()) {
+        idx = state_refs.rows() - 1;
+    }
     for(int i=0; i<3; i++) {
         x_state[i] = (*state_refs_ptr)(target_waypoint_index, i);
     }
@@ -348,7 +350,7 @@ int Optimizer::find_closest_waypoint(int min_index, int max_index) {
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
 
     // if (min_index < 0) min_index = std::max(target_waypoint_index - limit, 0); //0;
-    if (min_index < 0) min_index = last_waypoint_index;
+    if (min_index < 0) min_index = std::min(last_waypoint_index, static_cast<int>(state_refs.rows()) - 1);
     if (max_index < 0) max_index = std::min(target_waypoint_index + limit, static_cast<int>(state_refs.rows()) - 1); //state_refs.rows() - 1;
     
     // if (min_index < 0) min_index = 0;
@@ -431,12 +433,12 @@ int Optimizer::update_current_states(double x, double y, double yaw, Eigen::Vect
         }
     }
     if (safety_check) {
-        double difference_mag_sq = (state[0] - x) * (state[0] - x) + (state[1] - y) * (state[1] - y);
-        if (difference_mag_sq > std::pow(v_ref * T * 5, 2)) {
-            std::cout << "difference is too large, initial: " << state[0] << ", " << state[1] << ", " << state[2] << ", current: " << x << ", " << y << ", " << yaw << ", norm sq: " << difference_mag_sq << std::endl;
-            reset_solver();
-            success = 0;
-        }
+        // double difference_mag_sq = (state[0] - x) * (state[0] - x) + (state[1] - y) * (state[1] - y);
+        // if (difference_mag_sq > std::pow(v_ref * T * 5, 2)) {
+        //     std::cout << "difference is too large, initial: " << state[0] << ", " << state[1] << ", " << state[2] << ", current: " << x << ", " << y << ", " << yaw << ", norm sq: " << difference_mag_sq << std::endl;
+        //     reset_solver();
+        //     success = 0;
+        // }
     }
     state[0] = x;
     state[1] = y;

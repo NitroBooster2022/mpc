@@ -44,6 +44,9 @@ public:
             nh.param<double>("/real/parking_base_thresh", parking_base_thresh, 0.1);
             nh.param<double>("/real/change_lane_speed", change_lane_speed, 0.2);
             nh.param<double>("/real/change_lane_thresh", change_lane_thresh, 0.05);
+            nh.param<double>("/real/intersection_localization_orientation_threshold", intersection_localization_orientation_threshold, 15);
+            nh.param<double>("/real/NORMAL_SPEED", NORMAL_SPEED, 0.175);
+            nh.param<double>("/real/FAST_SPEED", FAST_SPEED, 0.4);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -64,6 +67,9 @@ public:
             nh.param<double>("/sim/parking_base_thresh", parking_base_thresh, 0.1); 
             nh.param<double>("/sim/change_lane_speed", change_lane_speed, 0.2);
             nh.param<double>("/sim/change_lane_thresh", change_lane_thresh, 0.05);
+            nh.param<double>("/sim/intersection_localization_orientation_threshold", intersection_localization_orientation_threshold, 15);
+            nh.param<double>("/sim/NORMAL_SPEED", NORMAL_SPEED, 0.175);
+            nh.param<double>("/sim/FAST_SPEED", FAST_SPEED, 0.4);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -107,7 +113,8 @@ public:
             change_lane_yaw = 0.15, cw_speed_ratio, hw_speed_ratio, sign_localization_threshold = 0.5, 
             lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0, constant_distance_to_intersection_at_detection = 0.371,
             intersection_localization_threshold = 0.5, stop_duration = 3.0, parking_base_target_yaw = 0.166, parking_base_speed=-0.2, parking_base_thresh=0.1,
-            change_lane_speed=0.2, change_lane_thresh=0.05;
+            change_lane_speed=0.2, change_lane_thresh=0.05, intersection_localization_orientation_threshold = 15, NORMAL_SPEED = 0.175,
+            FAST_SPEED = 0.4;
     bool use_stopline = true;
     int pedestrian_count_thresh = 8;
 
@@ -391,6 +398,8 @@ public:
     bool intersection_reached() {
         static Eigen::Vector2d last_intersection_point = {0, 0};
         static const double INTERSECTION_DISTANCE_THRESHOLD = 0.753; // minimum distance between two intersections
+        static double lookahead_dist = 0.15;
+        static int num_index = static_cast<int>(lookahead_dist * mpc.density);
         if(use_stopline) {
             if (utils.stopline)
             {
@@ -407,40 +416,56 @@ public:
                     ROS_INFO("crosswalk detected, ignoring...");
                     return false;
                 }
-                // double x, y, yaw;
-                // utils.get_states(x, y, yaw);
-                // double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
-                // if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
-                //     // ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
-                //     return false;
-                // }
-                // last_intersection_point = {x, y};
+                utils.get_states(running_x, running_y, running_yaw);
+                mpc.update_current_states(running_x, running_y, running_yaw);
+                int target_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
+                bool found = false;
+                lookahead_dist = 0.4;
+                num_index = static_cast<int>(lookahead_dist * mpc.density);
+                for (int i = 0; i < num_index; i++) {
+                    if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
+                        // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
+                        found = true;
+                    }
+                }
+                if (found) {
+                    double x, y, yaw;
+                    utils.get_states(x, y, yaw);
+                    double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
+                    if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
+                        // ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
+                        return false;
+                    }
+                    last_intersection_point = {x, y};
+                } else {
+                    return false;
+                }
                 if (!hasGps) {
                     intersection_based_relocalization();
                 }
                 return true;
             }
         }
-        double lookahead_dist = 0.15;
-        int num_index = static_cast<int>(lookahead_dist * mpc.density);
         utils.get_states(running_x, running_y, running_yaw);
         mpc.update_current_states(running_x, running_y, running_yaw);
         int target_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
+        bool found = false;
         for (int i = 0; i < num_index; i++) {
-            // auto attribute_i = mpc.state_attributes(target_index+i); // check 3 waypoints ahead
-            // if(attribute_i == mpc.ATTRIBUTE::STOPLINE) {
             if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                 // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
-                double x, y, yaw;
-                utils.get_states(x, y, yaw);
-                double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
-                if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
-                    // ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
-                    return false;
-                }
-                last_intersection_point = {x, y};
-                return true;
+                found = true;
             }
+        }
+        if (found) {
+            double x, y, yaw;
+            utils.get_states(x, y, yaw);
+            double dist_sq = std::pow(x - last_intersection_point(0), 2) + std::pow(y - last_intersection_point(1), 2);
+            if (dist_sq < INTERSECTION_DISTANCE_THRESHOLD * INTERSECTION_DISTANCE_THRESHOLD) {
+                // ROS_INFO("intersection detected, but too close to previous intersection: %.3f, ignoring...", std::sqrt(dist_sq));
+                return false;
+            }
+            last_intersection_point = {x, y};
+            return true;
         }
         return false;
     }
@@ -534,8 +559,8 @@ public:
                     auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
-                                          (nearestDirectionIndex == 1) ? WEST_FACING_CROSSWALKS :
-                                          (nearestDirectionIndex == 2) ? NORTH_FACING_CROSSWALKS :
+                                          (nearestDirectionIndex == 1) ? NORTH_FACING_CROSSWALKS :
+                                          (nearestDirectionIndex == 2) ? WEST_FACING_CROSSWALKS :
                                                                         SOUTH_FACING_CROSSWALKS;
                     sign_based_relocalization(crosswalk_pose, direction_crosswalks);
                 }
@@ -614,7 +639,7 @@ public:
         double yaw_error = nearest_direction - yaw;
         if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
         else if(yaw_error < -M_PI * 1.5) yaw_error += 2 * M_PI;
-        if(yaw_error > 0.4) {
+        if(std::abs(yaw_error) > intersection_localization_orientation_threshold * M_PI / 180) {
             ROS_WARN("intersection_based_relocalization(): FAILURE: yaw error too large: %.3f, intersection based relocalization failed...", yaw_error);
             return 0;
         }
@@ -674,8 +699,8 @@ public:
                 int min_index = 0;
                 double min_error = 1000;
                 for (int i = 0; i < LANE_CENTERS.size(); i++) {
-                    double error = std::abs((LANE_CENTERS[i] - offset) - running_y);
-                    if (error < min_error) {
+                    double error = (LANE_CENTERS[i] - offset) - running_y;
+                    if (std::abs(error) < std::abs(min_error)) {
                         min_error = error;
                         min_index = i;
                     }
@@ -683,6 +708,7 @@ public:
                 }
                 if (min_error < LANE_OFFSET) {
                     utils.recalibrate_states(0, min_error);
+                    ROS_DEBUG("lane_based_relocalization(): SUCCESS: error: %.3f, running y: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", min_error, running_y, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
                     return 1;
                 } else {
                     ROS_WARN("lane_based_relocalization(): FAILURE: error too large: %.3f, running y: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", min_error, running_y, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
@@ -693,8 +719,8 @@ public:
                 int min_index = 0;
                 double min_error = 1000;
                 for (int i = 0; i < LANE_CENTERS.size(); i++) {
-                    double error = std::abs((LANE_CENTERS[i] + offset) - running_x);
-                    if (error < min_error) {
+                    double error = (LANE_CENTERS[i] + offset) - running_x;
+                    if (std::abs(error) < std::abs(min_error)) {
                         min_error = error;
                         min_index = i;
                     }
@@ -703,6 +729,7 @@ public:
                 // ROS_INFO("center: %.3f, offset: %.3f, running_x: %.3f, min_error: %.3f, closest lane center: %.3f", center, offset, running_x, min_error, Y_ALIGNED_LANE_CENTERS[min_index]);
                 if (std::abs(min_error) < LANE_OFFSET) {
                     utils.recalibrate_states(min_error, 0);
+                    ROS_DEBUG("lane_based_relocalization(): SUCCESS: error: %.3f, running x: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", std::abs(min_error), running_x, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
                     return 1;
                 } else {
                     ROS_WARN("lane_based_relocalization(): FAILURE: error too large: %.3f, running x: %.3f, center: %.3f, offset: %.3f, nearest direction: %d, minidx: %d", std::abs(min_error), running_x, LANE_CENTERS[min_index], offset, nearestDirectionIndex, min_index);
@@ -723,7 +750,8 @@ public:
         }
         utils.waypoints_pub.publish(msg);
     }
-    void lane_follow(double speed = NORMAL_SPEED) {
+    void lane_follow(double speed = -2) {
+        if (speed < -1) speed = NORMAL_SPEED;
         if(pubWaypoints) {
             publish_waypoints();
         }
@@ -737,7 +765,8 @@ public:
         }
         utils.publish_cmd_vel(steer, speed);
     }
-    void orientation_follow(double orientation, double speed = NORMAL_SPEED) {
+    void orientation_follow(double orientation, double speed = -2) {
+        if (speed < -1) speed = NORMAL_SPEED;
         if(pubWaypoints) {
             publish_waypoints();
         }
@@ -790,12 +819,14 @@ public:
                     }
                 }
                 double min_dist = std::sqrt(min_dist_sq);
-                bool same_lane = false;
-                if (min_dist < LANE_OFFSET * 0.35) {
-                    same_lane = true;
+                auto detected_car_state = DETECTED_CAR_STATE::NOT_SURE;
+                if (min_dist < LANE_OFFSET - CAR_WIDTH * 0.8) {
+                    detected_car_state = DETECTED_CAR_STATE::SAME_LANE;
+                } else if (min_dist > LANE_OFFSET - CAR_WIDTH * 1.2) {
+                    detected_car_state = DETECTED_CAR_STATE::ADJACENT_LANE;
                 }
-                std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << same_lane << std::endl;
-                if (same_lane) {
+                std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << (detected_car_state == DETECTED_CAR_STATE::SAME_LANE) << std::endl;
+                if (detected_car_state == DETECTED_CAR_STATE::SAME_LANE) {
                     int idx = closest_idx + dist * mpc.density * 0.75; // compute index of midpoint between detected car and ego car
                     // int attribute = mpc.state_attributes(idx);
                     // std::cout << "attribute: " << attribute << std::endl;
@@ -899,8 +930,14 @@ public:
                             ROS_INFO("maneuver completed, proceeding to lane follow...");
                         }
                     }
-                } else {
-                    // ROS_INFO("detected car is not in the same lane, ignoring...");
+                } else if (detected_car_state == DETECTED_CAR_STATE::NOT_SURE){
+                    if (dist < MAX_TAILING_DIST) {
+                        ROS_INFO("not sure if car is in same lane, dist = %.3f, stopping...", dist);
+                        stop_for(20*T);
+                        return;
+                    } else {
+                        ROS_INFO("not sure if detected car is on same lane, but pretty far and within safety margin, keep tailing: %.3f", dist);
+                    }
                 }
             }
         }
@@ -1019,7 +1056,7 @@ void StateMachine::run() {
                 static int lane_relocalization_semaphore = 0;
                 lane_relocalization_semaphore++;
                 if (lane_relocalization_semaphore >= 5) {
-                    if (lane_based_relocalization()) ROS_INFO("lane relocalization successful");
+                    lane_based_relocalization();
                     lane_relocalization_semaphore = 0;
                 }
             }
@@ -1134,7 +1171,7 @@ void StateMachine::run() {
                 static int lane_relocalization_semaphore = 0;
                 lane_relocalization_semaphore++;
                 if (lane_relocalization_semaphore >= 5) {
-                    if (lane_based_relocalization()) ROS_INFO("lane relocalization successful");
+                    lane_based_relocalization();
                     lane_relocalization_semaphore = 0;
                 }
             }
@@ -1414,6 +1451,7 @@ void StateMachine::run() {
                 Eigen::Vector2d odomFrame = {0, 0};
                 Eigen::Vector2d transformedFrame = {0, 0};
                 utils.setIntersectionDecision(maneuver_direction);
+                ROS_INFO("intersection maneuvering: using mpc.");
                 while(true) {
                     pedestrian_detected();
                     exit_detected();
@@ -1451,7 +1489,6 @@ void StateMachine::run() {
                         // mpc.target_waypoint_index++;
                         // utils.publish_cmd_vel(steer, 0.25);
                         // rate->sleep();
-                        ROS_INFO("intersection maneuvering: using mpc.");
                         mpc.update_current_states(x, y, yaw, false);
                         solve(false);
                         rate->sleep();
@@ -1459,6 +1496,7 @@ void StateMachine::run() {
                     
                 }
             }
+            ROS_INFO("intersection maneuvering completed, proceeding to lane following...");
             utils.get_states(running_x, running_y, running_yaw);
             mpc.update_current_states(running_x, running_y, running_yaw, false);
             int index = mpc.find_closest_waypoint(mpc.last_waypoint_index, mpc.last_waypoint_index + 3.0 * mpc.density);

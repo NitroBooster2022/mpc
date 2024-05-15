@@ -107,7 +107,8 @@ class Odom():
         cv2.circle(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])), radius=radius, color=(255, 0, 0), thickness=-1)
 
         # display the waypoints: color is yellow
-        if self.waypoints is not None:
+        if self.waypoints is not None and len(self.waypoints) > 0:
+            print("len: ", len(self.waypoints))
             for i in range(0, len(self.waypoints), 8):
                 # print("waypoint: ", self.waypoints[i], self.waypoints[i+1])
                 if self.waypoints[i] > 20.541 or self.waypoints[i+1] > 13.656 or self.waypoints[i] < -1 or self.waypoints[i+1] < -1:

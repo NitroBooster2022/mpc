@@ -52,6 +52,11 @@ namespace VehicleConstants {
         STRAIGHT,
         RIGHT
     };
+    enum DETECTED_CAR_STATE {
+        SAME_LANE,
+        ADJACENT_LANE,
+        NOT_SURE
+    };
 
     static constexpr double CAM_TO_CAR_FRONT = 0.21;
     static constexpr double CAR_LENGTH = 0.464;
@@ -81,8 +86,8 @@ namespace VehicleConstants {
     static constexpr double SIGN_COOLDOWN = 1.0;
     static constexpr double TOLERANCE_SQUARED = 0.01;
     // static constexpr double STOP_DURATION = 1.50;
-    static constexpr double NORMAL_SPEED = 0.175;
-    static constexpr double FAST_SPEED = 0.4;
+    // static constexpr double NORMAL_SPEED = 0.175;
+    // static constexpr double FAST_SPEED = 0.4;
     static constexpr double SOFT_MAX_STEERING = 0.42 * 180 / M_PI;
     static constexpr double HARD_MAX_STEERING = 25.0;
 
@@ -182,3 +187,7 @@ namespace VehicleConstants {
 }
 
 #endif // VEHICLE_CONSTANTS_H
+
+// 0.015, 0.06783
+// 0, 0.0611
+// 15.3 15.202

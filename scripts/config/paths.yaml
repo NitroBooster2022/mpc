@@ -9,8 +9,8 @@ speedrun:
 
 run1:
   # - add somethin?
-  - speed_north_west
-  - highway_entrance_west
+  # - speed_north_west
+  # - highway_entrance_west
   - roundabout_exit_east
   - bus_lane
   # - add something?

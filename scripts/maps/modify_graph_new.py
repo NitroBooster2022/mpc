@@ -9,32 +9,37 @@ file_path = current_dir + '/Competition_track_graph_new.graphml'
 print('Loading graphml file from: ' + file_path)
 graph = nx.read_graphml(file_path)
 
-crosswalk = [415, 416, 417, 418, 402, 403, 404, 439, 440, 441, 442, 163,164, 165, 67, 66, 166, 167, 7, 152,153, 176,177, 8, 451, 452, 453, 454]
+crosswalk = [ 151, 51, 258, 259, 252, 253, 254, 226, 227, 284, 285]
+dotted_crosswalk = [ 82, 164, 81, 165, 176, 177, 8, 7]
 highwayLeft = []
-for i in range(263, 282):
+for i in range(444, 463):
     highwayLeft.append(i)
-for i in range(216, 235):
+for i in range(483, 502):
     highwayLeft.append(i)
 highwayRight = []
-for i in range(283, 302):
+for i in range(502, 521):
     highwayRight.append(i)
-for i in range(239, 259):
+for i in range(463, 483):
     highwayRight.append(i)
 
-oneway = [30]
-for i in range(448, 480):
+oneway = [51, 49]
+for i in range(188, 199):
     oneway.append(i)
-for i in range(401, 424):
+for i in range(263, 271):
     oneway.append(i)
-for i in range(480, 490):
+for i in range(223, 264):
+    oneway.append(i)
+for i in range(271, 290):
+    oneway.append(i)
+for i in range(296, 302):
     oneway.append(i)
 
 roundabout = []
-for i in range(358, 369):
+for i in range(331, 342):
     roundabout.append(i)
 
-intersection = [81, 400, 424, 70, 71, 72, 43, 44, 10, 45, 12, 11, 9, 88, 89, 90, 22, 23, 24, 21, 35, 33, 34, 36, 54, 53, 52, 63, 62]
-stopline = [470, 422, 407, 385, 445, 6, 30, 486, 447, 60, 47, 58, 28, 26, 18, 32, 4, 2, 42, 38, 76, 40, 20, 85, 14, 16, 49, 51, 83, 74, 87, 78, 65, 69]
+intersection = [78, 76, 77, 208, 210, 211, 207, 186, 187, 244, 262, 245, 103, 105, 104, 34, 35, 33, 36, 47, 45, 48, 46, 290, 291, 200, 59, 60, 94,95,96, 22,21,23, 10,11,9,12, 85,86,87]
+stopline = [397, 405, 317, 367, 56, 54, 243, 261, 75, 185, 71, 73, 206, 28, 40, 98, 26, 100, 30, 38, 102, 32, 44, 42, 199, 289, 4, 6, 2, 14,18,16, 91, 89, 93, 80, 84]
 for node in graph.nodes:
     graph.nodes[node]['new_attribute'] = 0
 # Change nodes that have 'dotted' edges to 'dotted' attribute
@@ -60,9 +65,11 @@ for node in graph.nodes:
         graph.nodes[node]['new_attribute'] = 6
     elif int(node) in intersection:
         graph.nodes[node]['new_attribute'] = 2
+    elif int(node) in dotted_crosswalk:
+        graph.nodes[node]['new_attribute'] = 9
 
 # Save the graphml file
-file_path = current_dir + '/Competition_track_graph_modified.graphml'
+file_path = current_dir + '/Competition_track_graph_modified_new.graphml'
 nx.write_graphml(graph, file_path)
 
 print('Done')
