@@ -22,14 +22,17 @@ real:
   straight_trajectory_threshold: 1.4
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
-  sign_localization_threshold: 2.0
+  sign_localization_threshold: 1.5
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 7.53 # degrees
-  intersection_localization_threshold: 2.0
+  intersection_localization_threshold: 1.5
+  intersection_localization_orientation_threshold: 15.0 # degrees
   odom_rate: 50
   stop_duration: 3.0
   use_stopline: true
   pedestrian_count_thresh: 8
+  NORMAL_SPEED: 0.175
+  FAST_SPEED: 0.4
 
 sim:
   left_trajectory1: 3.57
@@ -45,10 +48,11 @@ sim:
   change_lane_thresh: 0.05
   cw_speed_ratio: 0.7143
   hw_speed_ratio: 1.33
-  sign_localization_threshold: 2.0
+  sign_localization_threshold: 1.5
   lane_localization_threshold: 0.9
   lane_localization_orientation_threshold: 7.53 # degrees
-  intersection_localization_threshold: 2.0
+  intersection_localization_threshold: 1.5
+  intersection_localization_orientation_threshold: 15.0 # degrees
   constant_distance_to_intersection_at_detection: 0.3725
   pixel_center_offset: -30
   sigma_v: 0.075
@@ -60,4 +64,5 @@ sim:
   parking_base_yaw_target: 0.29 # times pi
   parking_base_speed: -0.2
   parking_base_thresh: 0.1
-
+  NORMAL_SPEED: 0.23
+  FAST_SPEED: 0.4
