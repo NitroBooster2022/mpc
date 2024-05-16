@@ -434,7 +434,7 @@ void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
 
             // Convert Euler angles to quaternion
             tf2::Quaternion q;
-            q.setRPY(roll*M_PI/180, pitch*M_PI/180, -yaw_deg*M_PI/180);
+            q.setRPY(roll*M_PI/180, pitch*M_PI/180, yaw_deg*M_PI/180);
             imu_msg.orientation.x = q.x();
             imu_msg.orientation.y = q.y();
             imu_msg.orientation.z = q.z();
