@@ -151,7 +151,9 @@ public:
         std_srvs::Trigger srv;
         client.call(srv);
     }
-    int start() {
+    int initialize() {
+        static bool initialized = false;
+        if (initialized) return 1;
         // sleep 2 seconds to allow for initialization
         ros::Duration(2).sleep();
         if(hasGps) {
@@ -209,22 +211,23 @@ public:
 
         mpc.target_waypoint_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1); // search from the beginning to the end
         mpc.reset_solver();
-        if (lane) {
-            change_state(STATE::LANE_FOLLOWING);
-        } else {
-            change_state(STATE::MOVING);
-        }
+        initialized = true;
+        return 1;
+    }
+    int start() {
+        // if (lane) {
+        //     change_state(STATE::LANE_FOLLOWING);
+        // } else {
+        //     change_state(STATE::MOVING);
+        // }
+        change_state(STATE::MOVING);
         return 1;
     }
     bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
         static int history = -1;
         if (req.data && state == STATE::INIT) {
             if (history == -1) {
-                if (lane) {
-                    change_state(STATE::LANE_FOLLOWING);
-                } else {
-                    change_state(STATE::MOVING);
-                }
+                change_state(STATE::MOVING);
             } else {
                 change_state(static_cast<STATE>(history));
             }
@@ -1196,15 +1199,17 @@ void StateMachine::run() {
             continue;
         } else if (state == STATE::WAITING_FOR_STOPSIGN) {
             stop_for(stop_duration);
-            if (lane) {
-                change_state(STATE::INTERSECTION_MANEUVERING);
-            } else {
-                change_state(STATE::MOVING);
-            }
+            // if (lane) {
+            //     change_state(STATE::INTERSECTION_MANEUVERING);
+            // } else {
+            //     change_state(STATE::MOVING);
+            // }
+            change_state(STATE::MOVING);
         } else if (state == STATE::WAITING_FOR_LIGHT) {
             stop_for(stop_duration);
-            if(lane) change_state(STATE::LANE_FOLLOWING);
-            else change_state(STATE::MOVING);
+            // if(lane) change_state(STATE::LANE_FOLLOWING);
+            // else change_state(STATE::MOVING);
+            change_state(STATE::MOVING);
         } else if (state == STATE::PARKING) {
             stop_for(stop_duration/2);
             double offset_thresh = 0.1;
@@ -1359,11 +1364,12 @@ void StateMachine::run() {
                 xs << 0.63, 0.4, 0., 0., 0.;
                 move_to(xs, 0.15);
             }
-            if (lane) {
-                change_state(STATE::LANE_FOLLOWING);
-            } else {
-                change_state(STATE::MOVING);
-            }
+            // if (lane) {
+            //     change_state(STATE::LANE_FOLLOWING);
+            // } else {
+            //     change_state(STATE::MOVING);
+            // }
+            change_state(STATE::MOVING);
         } else if (state == STATE::INTERSECTION_MANEUVERING) {
             double x, y, yaw;
             utils.get_states(x, y , yaw);
@@ -1509,6 +1515,7 @@ void StateMachine::run() {
             mpc.target_waypoint_index = index;
             change_state(STATE::LANE_FOLLOWING);
         } else if (state == STATE::INIT) {
+            initialize();
             if (dashboard) {
                 utils.publish_cmd_vel(0, 0);
                 rate->sleep();
