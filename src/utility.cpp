@@ -837,10 +837,14 @@ void Utility::set_initial_pose(double x, double y, double yaw) {
 void Utility::reset_odom() {
     set_initial_pose(0, 0, 0);
 }
-void Utility::update_states_rk4 (double speed, double steering_angle, double dt) {
+int Utility::update_states_rk4 (double speed, double steering_angle, double dt) {
     if (dt < 0) {
         dt = (ros::Time::now() - timerodom).toSec();
         timerodom = ros::Time::now();
+    }
+    if (dt > (0.1)) {
+        ROS_WARN("update_states_rk4(): dt is too large: %.3f", dt);
+        return 0;
     }
     double magnitude = speed * dt * odomRatio;
     double yaw_rate = magnitude * tan(-steering_angle * M_PI / 180) / wheelbase;
@@ -864,7 +868,9 @@ void Utility::update_states_rk4 (double speed, double steering_angle, double dt)
     dx = 1 / 6.0 * (k1_x + 2 * k2_x + 2 * k3_x + k4_x);
     dy = 1 / 6.0 * (k1_y + 2 * k2_y + 2 * k3_y + k4_y);
     dyaw = 1 / 6.0 * (k1_yaw + 2 * k2_yaw + 2 * k3_yaw + k4_yaw);
+    
     // printf("dt: %.3f, v: %.3f, yaw: %.3f, steer: %.3f, dx: %.3f, dy: %.3f, dyaw: %.3f\n", dt, speed, yaw, steering_angle, dx, dy, dyaw);
+    return 1;
 }
 void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip) {
     if (velocity < -3.5) velocity = maxspeed;

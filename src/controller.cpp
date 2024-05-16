@@ -221,6 +221,7 @@ public:
         //     change_state(STATE::MOVING);
         // }
         change_state(STATE::MOVING);
+        // change_state(STATE::PARKING); //uncomment and recompile
         return 1;
     }
     bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
@@ -1220,6 +1221,7 @@ void StateMachine::run() {
             right_park = true;
             bool hard_code = true;
             int target_spot = 0;
+            auto temp_rate = ros::Rate(50);
             if (true) {
                 double orientation = mpc.NearestDirection(utils.get_yaw());
                 ROS_INFO("orientation: %.3f", orientation);
@@ -1305,7 +1307,7 @@ void StateMachine::run() {
                     //     update_mpc_state();
                     //     solve();
                     // }
-                    rate->sleep();
+                    temp_rate.sleep();
                 }
             }
             stop_for(stop_duration/2);
@@ -1344,8 +1346,12 @@ void StateMachine::run() {
                         utils.publish_cmd_vel(0.0, 0.0);
                         break;
                     }
-                    orientation_follow(orientation);
-                    rate->sleep();
+                    double speed = NORMAL_SPEED;
+                    if (x_error > 0) {
+                        speed = -speed;
+                    }
+                    orientation_follow(orientation, speed);
+                    temp_rate.sleep();
                 }
             }
             change_state(STATE::PARKED);

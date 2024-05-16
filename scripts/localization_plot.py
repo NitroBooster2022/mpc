@@ -25,7 +25,7 @@ class Odom():
         self.plot = plot
         self.show = show
         print("plot: ", self.plot, "show: ", self.show)
-        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
+        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/Track.png')
         #shape is (8107, 12223, 3)
         # self.map = cv2.resize(self.map, (700, int(self.map.shape[0]/self.map.shape[1]*700)))
         self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
