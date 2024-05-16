@@ -80,7 +80,7 @@ namespace VehicleConstants {
     static constexpr double CROSSWALK_LENGTH = 1.0;
     static constexpr double OVERTAKE_DIST = 2.0;
     static constexpr double LANE_OFFSET = 0.3935;
-    static constexpr double INNER_LANE_OFFSET = 0.3904;
+    static constexpr double INNER_LANE_OFFSET = 0.3465;
     static constexpr double MIN_DIST_TO_CAR = 0.3;
     static constexpr double MAX_CAR_DIST = 3.0;
     static constexpr double SIGN_COOLDOWN = 1.0;
@@ -91,12 +91,12 @@ namespace VehicleConstants {
     static constexpr double SOFT_MAX_STEERING = 0.42 * 180 / M_PI;
     static constexpr double HARD_MAX_STEERING = 25.0;
 
-    // parking coordinates
-    static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.073823, 0.414};
-    static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.073823, 1.4452};
-    static constexpr std::array<double, 2> PARKING_SIGN_TO_CAR1 = {0.4592, -0.073};
-
     static constexpr double pole_size = 0.0514;
+
+    // parking coordinates
+    static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.07365, 0.703 - INNER_LANE_OFFSET/2 + pole_size/2};
+    static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.07365, 1.1527 + INNER_LANE_OFFSET/2 - pole_size/2};
+
     static constexpr double ofs6 = INNER_LANE_OFFSET/2 - pole_size/2;
     static constexpr double hsw = pole_size/2;
     static constexpr double haha = 369. - INNER_LANE_OFFSET;

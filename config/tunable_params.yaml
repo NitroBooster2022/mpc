@@ -5,7 +5,7 @@ real:
   parking_base_yaw_target: 0.166 # times pi
   pixel_center_offset: -30
   constant_distance_to_intersection_at_detection: 0.3725
-  change_lane_yaw: 0.15 # times pi
+  change_lane_yaw: 0.29 # times pi
   change_lane_thresh: 0.05
   change_lane_speed: 0.2
   left_trajectory_threshold: 12 # degrees

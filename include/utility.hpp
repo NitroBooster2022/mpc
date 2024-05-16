@@ -161,7 +161,7 @@ public:
     void object_box(int index, std::array<double, 4>& oBox);
     void set_initial_pose(double x, double y, double yaw);
     void reset_odom();
-    void update_states_rk4(double velocity, double steer, double dt=-1);
+    int update_states_rk4(double velocity, double steer, double dt=-1);
     geometry_msgs::TransformStamped add_static_link(double x, double y, double z, double roll, double pitch, double yaw, std::string parent, std::string child);
     void publish_cmd_vel(double steering_angle, double velocity = -3.57, bool clip = true);
     void lane_follow();
