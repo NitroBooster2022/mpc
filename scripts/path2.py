@@ -4,7 +4,7 @@ import time
 import numpy as np
 import os
 from scipy.interpolate import UnivariateSpline, splprep, splev
-from global_planner2 import GlobalPlanner
+from global_planner2_new import GlobalPlanner
 import yaml
 import math
 import rospy
@@ -287,13 +287,13 @@ class Path:
         self.attributes_cw = np.hstack(attributes_cw)
 
         if name != "speedrun":
-            segments_cw = find_segments(self.attributes, values=[1])
+            segments_cw = find_segments(self.attributes, values=[1, 9, 101, 109])
             segments_cw_with_attributes = []
             for segment in segments_cw:
                 segment = list(segment)  # Convert tuple to list
                 segment.append(1)
                 segments_cw_with_attributes.append(segment)     
-            segments_hw = find_segments(self.attributes, values=[4,5])
+            segments_hw = find_segments(self.attributes, values=[4,5, 104, 105])
             segments_hw_with_attributes = []
             for segment in segments_hw:
                 segment = list(segment)  # Convert tuple to list
@@ -380,7 +380,7 @@ class Path:
 
         # Calculate the total path length of the waypoints
         total_path_length = np.sum(np.linalg.norm(self.waypoints[:, 1:] - self.waypoints[:, :-1], axis=0))
-        # print("total path length: ", total_path_length)
+        print("total path length: ", total_path_length)
         
         self.waypoints_x = self.waypoints[0, :]
         self.waypoints_y = self.waypoints[1, :]
@@ -445,7 +445,7 @@ class Path:
         # plt.show()
 
         import cv2
-        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/map2024.png')
+        self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/Track.png')
         self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
         for i in range(0, state_refs.shape[1], 8):
             radius = 2
@@ -453,18 +453,18 @@ class Path:
             if self.attributes[i] == 4 or self.attributes[i] == 5: # hard waypoints
                 color = (0, 0, 255)
             if self.attributes[i] == 1: # crosswalk
-                color = (0, 255, 0)
-            if self.attributes[i] == 9:
+                color = (0, 255, 0) # green
+            if self.attributes[i] == 9: # color is red
                 color = (255, 0, 0)
-            if self.attributes[i] == 7:
+            if self.attributes[i] == 7: # color is yellow
                 color = (255, 255, 0)
-            if self.attributes[i] == 6:
+            if self.attributes[i] == 6: # color is white
                 color = (255, 255, 255)
             if self.attributes[i] >= 100: # orange
                 color = (0, 165, 255)
-            if self.attributes[i] == 2 or self.attributes[i] == 102:
+            if self.attributes[i] == 2 or self.attributes[i] == 102: # color is purple
                 color = (255, 0, 255)
-            cv2.circle(self.map, (int(state_refs[0, i]/20.541*self.map.shape[1]),int((13.656-state_refs[1, i])/13.656*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
+            cv2.circle(self.map, (int(state_refs[0, i]/20.696*self.map.shape[1]),int((13.786-state_refs[1, i])/13.786*self.map.shape[0])), radius=int(radius), color=color, thickness=-1)
         cv2.imshow('map', self.map)
         cv2.waitKey(0)
         

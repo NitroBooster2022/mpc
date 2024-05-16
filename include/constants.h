@@ -79,8 +79,8 @@ namespace VehicleConstants {
     static constexpr double MAX_PARKING_Y_ERROR = 0.0775;
     static constexpr double CROSSWALK_LENGTH = 1.0;
     static constexpr double OVERTAKE_DIST = 2.0;
-    static constexpr double LANE_OFFSET = 0.36;
-    static constexpr double INNER_LANE_OFFSET = 0.346765;
+    static constexpr double LANE_OFFSET = 0.3935;
+    static constexpr double INNER_LANE_OFFSET = 0.3904;
     static constexpr double MIN_DIST_TO_CAR = 0.3;
     static constexpr double MAX_CAR_DIST = 3.0;
     static constexpr double SIGN_COOLDOWN = 1.0;
@@ -92,80 +92,138 @@ namespace VehicleConstants {
     static constexpr double HARD_MAX_STEERING = 25.0;
 
     // parking coordinates
-    static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.50, 0.372};
-    static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.50, 1.110};
+    static constexpr std::array<double, 2> PARKING_SPOT_RIGHT = {9.073823, 0.414};
+    static constexpr std::array<double, 2> PARKING_SPOT_LEFT = {9.073823, 1.4452};
     static constexpr std::array<double, 2> PARKING_SIGN_TO_CAR1 = {0.4592, -0.073};
 
-    static constexpr double ofs6 = 0.148673;
-    static constexpr double hsw = 0.0225;
+    static constexpr double pole_size = 0.0514;
+    static constexpr double ofs6 = INNER_LANE_OFFSET/2 - pole_size/2;
+    static constexpr double hsw = pole_size/2;
     static constexpr double haha = 369. - INNER_LANE_OFFSET;
     // add half of inner lane width to the x values
     // static constexpr std::array<double, 13> Y_ALIGNED_LANE_CENTERS = {0.22237, 0.591617, 2.383851, 2.754291, 4.63, 4.9981, 6.49, 6.864, 15.17, 16.963, 15.54, 15.7404, 16.112};
-    static const std::vector<double> NORTH_FACING_LANE_CENTERS = {0.591617+ofs6, 2.754291+ofs6, 4.9981+ofs6, 6.49+ofs6, 6.864+ofs6, 16.963+ofs6, 15.54+ofs6, 16.112+ofs6};
-    static const std::vector<double> SOUTH_FACING_LANE_CENTERS = {0.22237+ofs6, 2.383851+ofs6, 4.63+ofs6, 15.17+ofs6, 15.7404+ofs6};
+    static const std::vector<double> NORTH_FACING_LANE_CENTERS = {0.579612+ofs6, 2.744851+ofs6, 4.9887+ofs6, 6.77784+ofs6, 6.8507+ofs6, 16.954+ofs6, 15.532+ofs6, 16.1035+ofs6};
+    static const std::vector<double> SOUTH_FACING_LANE_CENTERS = {0.50684-ofs6, 2.667-ofs6, 4.9156-ofs6, 15.165279+ofs6, 15.1632+ofs6};
     // add half of inner lane width to the y values
     // static constexpr std::array<double, 13> X_ALIGNED_LANE_CENTERS = {13.314624, 12.94356, 10.669, 10.2963, 3.89, 0.598716, 0.9698, 3.516515, 3.88667, 6.4122, 6.78514, 11.6955, 12.0661};
-    static const std::vector<double> EAST_FACING_LANE_CENTERS = {12.94356+ofs6, 10.2963+ofs6, 0.598716+ofs6, 3.516515+ofs6, 6.4122+ofs6, 11.6955+ofs6};
-    static const std::vector<double> WEST_FACING_LANE_CENTERS = {13.314624+ofs6, 10.669+ofs6, 3.89+ofs6, 0.9698+ofs6, 3.88667+ofs6, 6.78514+ofs6, 12.0661+ofs6};
+    static const std::vector<double> EAST_FACING_LANE_CENTERS = {12.904+ofs6, 10.5538-ofs6, 0.503891-ofs6, 3.79216-ofs6, 6.6816-ofs6, 10.5538-ofs6};
+    static const std::vector<double> WEST_FACING_LANE_CENTERS = {13.314624+ofs6, 10.633+ofs6, 3.86375+ofs6, 0.58153+ofs6, 3.8661+ofs6, 6.753+ofs6, 13.278+ofs6};
 
     
     // intersection coordinates
-    static const std::vector<std::vector<double>> SOUTH_FACING_INTERSECTIONS = {{{16.0362-ofs6, 11.7209-hsw}},{{15.465-ofs6, 4.6082-hsw}},{{15.17155+ofs6, 1.313784-hsw}},{{4.929-ofs6, 4.603335-hsw}},{{4.929-ofs6, 1.68375-hsw}},{{2.681-ofs6, 1.68375-hsw}},{{2.681-ofs6, 4.603335-hsw}},{{0.520-ofs6, 4.6-hsw}},{{0.520-ofs6, 7.49854-hsw}},{{0.519-ofs6, 10.613252-hsw}}};
-    static const std::vector<std::vector<double>> NORTH_FACING_INTERSECTIONS = {{{0.5943+ofs6, 9.1037+hsw}},{{0.5943+ofs6, 5.9901+hsw}},{{0.5943+ofs6, 3.0968+hsw}},{{2.75684+ofs6, 3.0964+hsw}},{{2.75684+ofs6, 5.99+hsw}},{{5.00+ofs6, 5.99+hsw}},{{5.00+ofs6, 3.096+hsw}},{{6.79-ofs6, 3.467+hsw}},{{16.115+ofs6, 9.5346+hsw}}};
-    static const std::vector<std::vector<double>> WEST_FACING_INTERSECTIONS = {{{17.16466-hsw, 10.663231+ofs6}},{{1.31-hsw, 6.78+ofs6}},{{3.4726-hsw, 6.782+ofs6}},{{5.7189-hsw, 6.7818+ofs6}},{{5.7208-hsw, 3.88664+ofs6}},{{3.472454-hsw, 3.88726+ofs6}},{{1.3104-hsw, 3.887124+ofs6}},{{7.582-hsw, 3.886314+ofs6}},{{3.474682-hsw, 0.9671+ofs6}},{{16.26-hsw, 3.889+ofs6}}};
-    static const std::vector<std::vector<double>> EAST_FACING_INTERSECTIONS = {{{1.9637+hsw, 0.89432-ofs6}}, {{1.96576+hsw, 3.8132-ofs6}}, {{1.9647+hsw, 6.7074-ofs6}}, {{4.2125+hsw, 6.707-ofs6}}, {{4.2107+hsw, 3.813357-ofs6}}, {{4.2132+hsw, 0.8932-ofs6}}, {{6.0735+hsw, 0.5949+ofs6}}, {{14.7516+hsw, 0.89253-ofs6}}, {{14.99+hsw, 10.5895-ofs6}}};
+    static const std::vector<std::vector<double>> SOUTH_FACING_INTERSECTIONS = {
+        {{16.075438-ofs6, 11.684077-hsw}},
+        {{15.46-ofs6, 4.58-hsw}},
+        {{15.165376+ofs6, 1.4972-hsw}},
+        {{4.9156-ofs6, 4.581664-hsw}},
+        {{4.9143-ofs6, 1.3-hsw}},
+        {{2.667-ofs6, 1.3-hsw}},
+        {{2.67-ofs6, 4.584-hsw}},
+        {{0.50684-ofs6, 4.5849-hsw}},
+        {{0.50684-ofs6, 7.470675-hsw}},
+        {{0.50684-ofs6, 10.584-hsw}}
+    };
+    static const std::vector<std::vector<double>> NORTH_FACING_INTERSECTIONS = {
+        {{0.579612+ofs6, 9.0727+hsw}},
+        {{0.579612+ofs6, 5.96247+hsw}},
+        {{0.579612+ofs6, 3.07145+hsw}},
+        {{2.744851+ofs6, 3.07145+hsw}},
+        {{2.744851+ofs6, 5.9603+hsw}},
+        {{4.9887+ofs6, 5.958+hsw}},
+        {{4.9887+ofs6, 3.07+hsw}},
+        {{6.77784-ofs6, 3.44261+hsw}},
+        {{16.104+ofs6, 9.5053+hsw}}
+    };
+    static const std::vector<std::vector<double>> WEST_FACING_INTERSECTIONS = {
+        {{17.1571-hsw, 10.633+ofs6}},
+        {{1.296-hsw, 3.86375+ofs6}},
+        {{3.4543-hsw, 3.865637+ofs6}},
+        {{5.71-hsw, 3.8661+ofs6}},
+        {{5.708-hsw, 6.753+ofs6}},
+        {{3.4547-hsw, 6.7545+ofs6}},
+        {{1.296-hsw, 6.754754+ofs6}},
+        {{7.568552-hsw, 3.8674+ofs6}},
+        {{3.45624-hsw, 0.58153+ofs6}},
+        {{16.2485-hsw, 3.8678+ofs6}}
+    };
+    static const std::vector<std::vector<double>> EAST_FACING_INTERSECTIONS = {
+        {{1.95075+hsw, 0.503891-ofs6}},
+        {{1.95075+hsw, 3.794-ofs6}}, 
+        {{1.95+hsw, 6.6816-ofs6}}, 
+        {{4.19476+hsw, 6.681-ofs6}}, 
+        {{4.19476+hsw, 3.79216-ofs6}}, 
+        {{4.194644+hsw, 0.503836-ofs6}}, 
+        // {{6.0735+hsw, 0.5949+ofs6}}, 
+        {{14.7386+hsw, 1.07135-ofs6}}, 
+        {{14.983+hsw, 10.5538-ofs6}}
+    };
 
     static constexpr double ofs7 = 0.445;
     static constexpr double ofs3 = 0.062;
+    // 5.1y 5.6x
+    static constexpr double sign_ofs1 = 0.056;
+    static constexpr double sign_ofs2 = 0.051;
     static const std::vector<std::vector<double>> SOUTH_FACING_SIGNS = {
-        {{15.015, 4.6702}},
-        {{15.015, 1.375784}},
-        {{4.482, 4.665335}},
-        {{4.482, 1.74575}},
-        {{2.234, 1.74575}},
-        {{2.234, 4.665335}},
-        {{0.073, 4.662}},
-        {{0.073, 7.56054}},
-        {{0.073, 10.67525}}
+        {{15.46-ofs6*2-pole_size-sign_ofs1, 4.58+sign_ofs2}},
+        {{15.165376-pole_size-sign_ofs1, 1.4972+sign_ofs2}},
+        {{4.9156-ofs6*2-pole_size-sign_ofs1, 4.581664+sign_ofs2}},
+        {{4.9143-ofs6*2-pole_size-sign_ofs1, 1.3+sign_ofs2}},
+        {{2.667-ofs6*2-pole_size-sign_ofs1, 1.3+sign_ofs2}},
+        {{2.67-ofs6*2-pole_size-sign_ofs1, 4.584+sign_ofs2}},
+        {{0.50684-ofs6*2-pole_size-sign_ofs1, 4.5849+sign_ofs2}},
+        {{0.50684-ofs6*2-pole_size-sign_ofs1, 7.470675+sign_ofs2}},
+        {{0.50684-ofs6*2-pole_size-sign_ofs1, 10.584+sign_ofs2}}
     };
-    // static const std::vector<std::vector<double>> NORTH_FACING_SIGNS = {{{0.5943+ofs7, 9.1037-ofs3}},{{0.5943+ofs7, 5.9901-ofs3}},{{0.5943+ofs7, 3.0968-ofs3}},{{2.75684+ofs7, 3.0964-ofs3}},{{2.75684+ofs7, 5.99-ofs3}},{{5.00+ofs7, 5.99-ofs3}},{{5.00+ofs7, 3.096-ofs3}},{{6.79-2*ofs6+ofs7, 3.467-ofs3}}};
     static const std::vector<std::vector<double>> NORTH_FACING_SIGNS = {
-        {{1.0393, 9.0417}},
-        {{1.0393, 5.9281}},
-        {{1.0393, 3.0348}},
-        {{3.2018, 3.0344}},
-        {{3.2018, 5.9280}},
-        {{5.4450, 5.9280}},
-        {{5.4450, 3.0340}},
-        {{6.9377, 3.4050}}
+        {{0.579612+ofs6*2+pole_size+sign_ofs1, 9.0727-sign_ofs2}},
+        {{0.579612+ofs6*2+pole_size+sign_ofs1, 5.96247-sign_ofs2}},
+        {{0.579612+ofs6*2+pole_size+sign_ofs1, 3.07145-sign_ofs2}},
+        {{2.744851+ofs6*2+pole_size+sign_ofs1, 3.07145-sign_ofs2}},
+        {{2.744851+ofs6*2+pole_size+sign_ofs1, 5.9603-sign_ofs2}},
+        {{4.9887+ofs6*2+pole_size+sign_ofs1, 5.958-sign_ofs2}},
+        {{4.9887+ofs6*2+pole_size+sign_ofs1, 3.07-sign_ofs2}},
+        {{6.77784-ofs6*2+pole_size+sign_ofs1, 3.44261-sign_ofs2}},
     };
-    // static const std::vector<std::vector<double>> WEST_FACING_SIGNS = {{{1.31+ofs3, 6.78+ofs7}},{{3.4726+ofs3, 6.782+ofs7}},{{5.7189+ofs3, 6.7818+ofs7}},{{5.7208+ofs3, 3.88664+ofs7}},{{3.472454+ofs3, 3.88726+ofs7}},{{1.3104+ofs3, 3.887124+ofs7}},{{7.582+ofs3, 3.886314+ofs7}},{{3.474682+ofs3, 0.9671+ofs7}},{{16.26+ofs3, 3.889+ofs7}}};
+
     static const std::vector<std::vector<double>> WEST_FACING_SIGNS = {
-        {{1.3720, 7.2250}},
-        {{3.5346, 7.2270}},
-        {{5.7809, 7.2268}},
-        {{5.7828, 4.3316}},
-        {{3.5345, 4.3323}},
-        {{1.3724, 4.3321}},
-        {{7.6440, 4.3313}},
-        {{3.5367, 1.4121}},
-        {{16.3220, 4.3340}}
+        {{17.1571+sign_ofs2, 10.633+ofs6*2+pole_size+sign_ofs1}},
+        {{1.296+sign_ofs2, 3.86375+ofs6*2+pole_size+sign_ofs1}},
+        {{3.4543+sign_ofs2, 3.865637+ofs6*2+pole_size+sign_ofs1}},
+        {{5.71+sign_ofs2, 3.8661+ofs6*2+pole_size+sign_ofs1}},
+        {{5.708+sign_ofs2, 6.753+ofs6*2+pole_size+sign_ofs1}},
+        {{3.4547+sign_ofs2, 6.7545+ofs6*2+pole_size+sign_ofs1}},
+        {{1.296+sign_ofs2, 6.754754+ofs6*2+pole_size+sign_ofs1}},
+        {{7.568552+sign_ofs2, 3.8674+ofs6*2+pole_size+sign_ofs1}},
+        {{3.45624+sign_ofs2, 0.58153+ofs6*2+pole_size+sign_ofs1}},
+        {{16.2485+sign_ofs2, 3.8678+ofs6*2+pole_size+sign_ofs1}}
     };
-    // static const std::vector<std::vector<double>> EAST_FACING_SIGNS = {{{1.9637-ofs3, 0.89432-ofs7}}, {{1.96576-ofs3, 3.8132-ofs7}}, {{1.9647-ofs3, 6.7074-ofs7}}, {{4.2125-ofs3, 6.707-ofs7}}, {{4.2107-ofs3, 3.813357-ofs7}}, {{4.2132-ofs3, 0.8932-ofs7}}, {{6.0735-ofs3, 0.5949+ofs6*2-ofs7}}, {{14.7516-ofs3, 0.89253-ofs7}}};
+
     static const std::vector<std::vector<double>> EAST_FACING_SIGNS = {
-        {{1.9017, 0.4493}},
-        {{1.9038, 3.3682}},
-        {{1.9027, 6.2624}},
-        {{4.1505, 6.2620}},
-        {{4.1487, 3.3684}},
-        {{4.1512, 0.4482}},
-        {{6.0115, 0.4472}},
-        {{14.6896, 0.4475}}
+        {{1.95075-sign_ofs2, 0.503891-ofs6*2-pole_size-sign_ofs1}},
+        {{1.95075-sign_ofs2, 3.794-ofs6*2-pole_size-sign_ofs1}}, 
+        {{1.95-sign_ofs2, 6.6816-ofs6*2-pole_size-sign_ofs1}}, 
+        {{4.19476-sign_ofs2, 6.681-ofs6*2-pole_size-sign_ofs1}}, 
+        {{4.19476-sign_ofs2, 3.79216-ofs6*2-pole_size-sign_ofs1}}, 
+        {{4.194644-sign_ofs2, 0.503836-ofs6*2-pole_size-sign_ofs1}}, 
+        {{14.7386-sign_ofs2, 1.07135-ofs6*2-pole_size-sign_ofs1}}, 
+        {{14.983-sign_ofs2, 10.5538-ofs6*2-pole_size-sign_ofs1}}
     };
-    // object coordinates
-    static const std::vector<std::vector<double>> PARKING_SIGN_POSES = {{{{8.922497, 0.487}}, {{8.922405, 1.008329}}}};
-    static const std::vector<std::vector<double>> ROUNDABOUT_POSES = {{{{14.906, 10.190544}}, {{16.5132, 9.455325}}, {{17.247, 11.067}}, {{15.639, 11.80325}}}};
-    // static constexpr std::array<std::array<double, 2>, 11> INTERSECTION_SIGN_POSES = {{{{0.067568, 4.669999}}, {{1.90, 0.444024}}, {{3.207346, 3.032455}}, {{3.206, 5.9274}}, {{4.146563, 6.259}}, {{0.072, 10.682}}, {{15.016, 4.67363}}, {{7.6468, 4.33}}, {{5.791, 4.33}}, {{4.4838, 1.752361}}, {{6.06227, 0.511846}}}};
+
+    // PARKING SIGN COORDINATES
+    static constexpr double park_ofs1_left = 0.009, park_ofs1_right = 0.016;
+    static constexpr double park_ofs2 = 0.05325;
+    static const std::vector<std::vector<double>> PARKING_SIGN_POSES = {{{{8.99-park_ofs2, 0.703367-park_ofs1_right}}, {{8.99-park_ofs2, 1.1522+park_ofs1_left}}}};
+    
+    // ROUNDABOUT COORDINATES
+    static constexpr double rdb_ofs1 = 0.107834;
+    static constexpr double rdb_ofs2 = 0.05361;
+    static const std::vector<std::vector<double>> ROUNDABOUT_POSES = {{{{14.9777, 10.263}}, {{16.3974, 9.455325}}, {{17.247, 11.067}}, {{15.639, 11.80325}}}};
+    static const std::vector<std::vector<double>> EAST_FACING_ROUNDABOUT = {{{14.9777-rdb_ofs2, 10.263-rdb_ofs1}}};
+    static const std::vector<std::vector<double>> NORTH_FACING_ROUNDABOUT = {{{16.4+rdb_ofs1, 9.52-rdb_ofs2}}};
+    static const std::vector<std::vector<double>> WEST_FACING_ROUNDABOUT = {{{17.164+rdb_ofs2, 10.928+rdb_ofs1}}};
+    static const std::vector<std::vector<double>> SOUTH_FACING_ROUNDABOUT = {{{15.737-rdb_ofs1, 11.690741+rdb_ofs2}}};
+
+    // CROSSWALK COORDINATES
     static constexpr double ofs2 = 0.05361;
     static constexpr double ofs1 = 0.107834;
     // static const std::vector<std::vector<double>> CROSSWALK_POSES = {{{{17.365101, 2.282282}}, {{8.125406, 0.490722}}, {{8.914196, 3.406469}}, {{9.582251, 4.291623}}, {{1.833610, 10.3011}}}};

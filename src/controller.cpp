@@ -518,6 +518,11 @@ public:
             if (!hasGps && stopsign_flag != STOPSIGN_FLAGS::NONE) {
                 auto sign_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(sign_index), detected_dist, CAMERA_PARAMS);
                 if (stopsign_flag == STOPSIGN_FLAGS::RDB) {
+                    int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
+                    const auto& intersection_signs = (nearestDirectionIndex == 0) ? EAST_FACING_ROUNDABOUT :
+                                          (nearestDirectionIndex == 1) ? NORTH_FACING_ROUNDABOUT :
+                                          (nearestDirectionIndex == 2) ? WEST_FACING_ROUNDABOUT :
+                                                                        SOUTH_FACING_ROUNDABOUT;
                     sign_based_relocalization(sign_pose, ROUNDABOUT_POSES);
                 } else {
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
