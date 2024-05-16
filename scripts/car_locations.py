@@ -7,8 +7,8 @@ import numpy as np
 import os
 
 # Map and Car Icon dimensions
-MAP_WIDTH_METERS = 20.541
-MAP_HEIGHT_METERS = 13.656
+MAP_WIDTH_METERS = 20.696
+MAP_HEIGHT_METERS = 13.786
 
 # Load map image
 current_dir = os.path.dirname(os.path.abspath(__file__))

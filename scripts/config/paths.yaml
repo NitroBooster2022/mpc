@@ -1,21 +1,53 @@
 speedrun:
   # - start
-  - roundabout_entrance_south
-  - roundabout_west
   - nomarking_entrance
   - highway_entrance_east
-  - speed_entrance_west
-  - end
+  - speed_east_south
+  - 18
+
+speedrun1:
+  # - start
+  - nomarking_entrance
+  - highway_entrance_east
+  - speed_east_south
+  - 18
 
 run1:
   # - add somethin?
-  # - speed_north_west
-  # - highway_entrance_west
+  - speed_north_west
+  - highway_entrance_west
   - roundabout_exit_east
   - bus_lane
   # - add something?
   - end
-  
+
+test2: #speed curve
+  - speed_north_west
+  - highway_entrance_west
+  - roundabout_exit_east
+  - bus_lane
+  - end
+
+test3: #ramp
+  - highway_entrance_west
+  - roundabout_exit_east
+  - bus_lane
+  - end
+
+test4: #hw
+  - highway_entrance_west
+  - roundabout_exit_east
+  - bus_lane
+  - end
+
+test5: #rdb
+  - roundabout_exit_east
+  - bus_lane
+  - end
+
+test6: #parking
+  - end
+
 # path1:
 #   - start
 #   - highway1_start

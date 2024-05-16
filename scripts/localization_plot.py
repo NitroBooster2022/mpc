@@ -91,36 +91,36 @@ class Odom():
         
         radius = int(6/700 * self.map.shape[1])
         # ekf: color is red
-        img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])),
-                    ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.ekfState[0]/20.541*self.map.shape[1]),int((13.656-self.ekfState[1])/13.656*self.map.shape[0])), radius=radius, color=(0, 0, 255), thickness=-1)
+        img_map = cv2.arrowedLine(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((13.786-self.ekfState[1])/13.786*self.map.shape[0])),
+                    ((int((self.ekfState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((13.786- (self.ekfState[1]+0.75*math.sin(self.yaw1)))/13.786*self.map.shape[0]))), color=(255,0,255), thickness=3)
+        cv2.circle(img_map, (int(self.ekfState[0]/20.696*self.map.shape[1]),int((13.786-self.ekfState[1])/13.786*self.map.shape[0])), radius=radius, color=(0, 0, 255), thickness=-1)
 
         # odom: color is green
-        img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])),
-                    ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.odomState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), radius=radius, color=(0, 255, 0), thickness=-1)
-        # cv2.addText(img_map, "Odom", (int(self.odomState[0]/20.541*self.map.shape[1]),int((13.656-self.odomState[1])/13.656*self.map.shape[0])), "Arial", 1, (0, 255, 0))
+        img_map = cv2.arrowedLine(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((13.786-self.odomState[1])/13.786*self.map.shape[0])),
+                    ((int((self.odomState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((13.786- (self.odomState[1]+0.75*math.sin(self.yaw1)))/13.786*self.map.shape[0]))), color=(255,0,255), thickness=3)
+        cv2.circle(img_map, (int(self.odomState[0]/20.696*self.map.shape[1]),int((13.786-self.odomState[1])/13.786*self.map.shape[0])), radius=radius, color=(0, 255, 0), thickness=-1)
+        # cv2.addText(img_map, "Odom", (int(self.odomState[0]/20.696*self.map.shape[1]),int((13.786-self.odomState[1])/13.786*self.map.shape[0])), "Arial", 1, (0, 255, 0))
 
         # gps: color is blue
-        img_map = cv2.arrowedLine(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])),
-                    ((int((self.gpsState[0]+0.75*math.cos(self.yaw1))/20.541*self.map.shape[1]),int((13.656- (self.gpsState[1]+0.75*math.sin(self.yaw1)))/13.656*self.map.shape[0]))), color=(255,0,255), thickness=3)
-        cv2.circle(img_map, (int(self.gpsState[0]/20.541*self.map.shape[1]),int((13.656-self.gpsState[1])/13.656*self.map.shape[0])), radius=radius, color=(255, 0, 0), thickness=-1)
+        img_map = cv2.arrowedLine(img_map, (int(self.gpsState[0]/20.696*self.map.shape[1]),int((13.786-self.gpsState[1])/13.786*self.map.shape[0])),
+                    ((int((self.gpsState[0]+0.75*math.cos(self.yaw1))/20.696*self.map.shape[1]),int((13.786- (self.gpsState[1]+0.75*math.sin(self.yaw1)))/13.786*self.map.shape[0]))), color=(255,0,255), thickness=3)
+        cv2.circle(img_map, (int(self.gpsState[0]/20.696*self.map.shape[1]),int((13.786-self.gpsState[1])/13.786*self.map.shape[0])), radius=radius, color=(255, 0, 0), thickness=-1)
 
         # display the waypoints: color is yellow
         if self.waypoints is not None and len(self.waypoints) > 0:
             print("len: ", len(self.waypoints))
             for i in range(0, len(self.waypoints), 8):
                 # print("waypoint: ", self.waypoints[i], self.waypoints[i+1])
-                if self.waypoints[i] > 20.541 or self.waypoints[i+1] > 13.656 or self.waypoints[i] < -1 or self.waypoints[i+1] < -1:
+                if self.waypoints[i] > 20.696 or self.waypoints[i+1] > 13.786 or self.waypoints[i] < -1 or self.waypoints[i+1] < -1:
                     continue
-                # center = (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0]))
+                # center = (int(self.waypoints[i]/20.696*self.map.shape[1]),int((13.786-self.waypoints[i+1])/13.786*self.map.shape[0]))
                 # print("center: ", center)
-                cv2.circle(img_map, (int(self.waypoints[i]/20.541*self.map.shape[1]),int((13.656-self.waypoints[i+1])/13.656*self.map.shape[0])), radius=int(radius/6), color=(0, 255, 255), thickness=-1)
+                cv2.circle(img_map, (int(self.waypoints[i]/20.696*self.map.shape[1]),int((13.786-self.waypoints[i+1])/13.786*self.map.shape[0])), radius=int(radius/6), color=(0, 255, 255), thickness=-1)
 
         # display the detected cars: color is cyan
         if self.detected_cars is not None:
             for i in range(2, len(self.detected_cars), 2):
-                cv2.circle(img_map, (int(self.detected_cars[i]/20.541*self.map.shape[1]),int((13.656-self.detected_cars[i+1])/13.656*self.map.shape[0])), radius=int(radius/6*5), color=(255, 255, 0), thickness=-1)
+                cv2.circle(img_map, (int(self.detected_cars[i]/20.696*self.map.shape[1]),int((13.786-self.detected_cars[i+1])/13.786*self.map.shape[0])), radius=int(radius/6*5), color=(255, 255, 0), thickness=-1)
         
         windowName = 'track'
         cv2.namedWindow(windowName,cv2.WINDOW_NORMAL)

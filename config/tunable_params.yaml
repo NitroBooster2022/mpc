@@ -66,3 +66,12 @@ sim:
   parking_base_thresh: 0.1
   NORMAL_SPEED: 0.23
   FAST_SPEED: 0.4
+
+  # to measure:
+  #   sign offset x,y
+  #   highway entrance
+  #   highway exit
+  #   rdb
+  #   park
+  #   crosswalk
+  #   light

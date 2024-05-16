@@ -140,18 +140,18 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     odom_msg.pose.covariance[35] = variance_yaw_rate * dt * dt;
     odom_msg.twist.covariance[0] = variance_v;
     odom_msg.twist.covariance[7] = variance_yaw_rate;
-    for (int i = 0; i < 36; i++) {
-        std::cout << odom_msg.pose.covariance[i] << " ";
-        if (i % 6 == 5) {
-            std::cout << std::endl;
-        }
-    }
-    for (int i = 0; i < 36; i++) {
-        std::cout << odom_msg.twist.covariance[i] << " ";
-        if (i % 6 == 5) {
-            std::cout << std::endl;
-        }
-    }
+    // for (int i = 0; i < 36; i++) {
+    //     std::cout << odom_msg.pose.covariance[i] << " ";
+    //     if (i % 6 == 5) {
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // for (int i = 0; i < 36; i++) {
+    //     std::cout << odom_msg.twist.covariance[i] << " ";
+    //     if (i % 6 == 5) {
+    //         std::cout << std::endl;
+    //     }
+    // }
 
     odom_pub = nh.advertise<nav_msgs::Odometry>("odom", 3);
     odom_msg.header.frame_id = "odom";
@@ -434,7 +434,7 @@ void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
 
             // Convert Euler angles to quaternion
             tf2::Quaternion q;
-            q.setRPY(roll*M_PI/180, pitch*M_PI/180, yaw_deg*M_PI/180);
+            q.setRPY(roll*M_PI/180, pitch*M_PI/180, -yaw_deg*M_PI/180);
             imu_msg.orientation.x = q.x();
             imu_msg.orientation.y = q.y();
             imu_msg.orientation.z = q.z();

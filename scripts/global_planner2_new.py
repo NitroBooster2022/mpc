@@ -41,44 +41,24 @@ class GlobalPlanner:
         
         self.intersection_count = 0
         self.place_names = {
-            "parallel_parking": 454,
-            "highway_entrance_east": 262,
-            "highway_entrance_west": 194,
-            "roundabout_entrance_east": 370,
-            "roundabout_exit_east": 302,
-            "roundabout_entrance_west": 230,
-            "roundabout_exit_west": 260,
-            "roundabout_entrance_north": 331,
-            "roundabout_exit_north": 332,
-            "roundabout_entrance_south": 357,
-            "roundabout_exit_south": 372,
-            "roundabout_west": 365,
-            "nomarking_entrance": 302,
-            "uniri_square_entrance": 480,
-            "uniri_square_exit": 486,
-            "ferdinand_entrance_left": 490,
-            "ferdinand_entrance_right": 496,
-            "ferdinand_exit": 503,
-            "avram_entance": 404,
-            "speed_entrance_south": 7,
-            "speed_entrance_west": 66,
-            "speed_north_west": 66,
-            "speed_east_south": 66,
-            "bus_lane_entrance": 427,
-            "bus_lane": 437,
-            "start": 472,
-            "end": 467,
-            "2019_north": 115,
-            "2019_east": 108,
-            "2020_north": 97,
-            "2020_south": 94,
-            "2023_south": 100,
-            "2023_north": 103,
-            "2022_north": 128,
-            "2022_south": 124,
-            "2021_north": 134,
-            "2021_south": 131,
-            "top_left": 235,
+            "highway_entrance_east": 401,
+            "highway_entrance_west": 423,
+            "roundabout_entrance_east": 367,
+            "roundabout_exit_east": 368,
+            "roundabout_entrance_west": 405,
+            "roundabout_exit_west": 398,
+            "roundabout_entrance_north": 397,
+            "roundabout_exit_north": 342,
+            "roundabout_entrance_south": 317,
+            "roundabout_exit_south": 318,
+            "roundabout_west": 337,
+            "nomarking_entrance": 369,
+            "speed_north_west": 157,
+            "speed_east_south": 171,
+            "bus_lane_entrance": 271,
+            "bus_lane": 277,
+            "start": 263,
+            "end": 241
         }
         max_x = float('-inf')
         max_y = float('-inf')
@@ -100,7 +80,7 @@ class GlobalPlanner:
     def plan_path(self, start, end):
         path = nx.dijkstra_path(self.G, source=str(start), target=str(end))
         path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
-        print("path: ", path)
+        # print("path: ", path)
         wp_x = []
         wp_y = []
         wp_attributes = []
@@ -172,7 +152,7 @@ class GlobalPlanner:
 
     def illustrate_path(self, start, end):
         _, path_edges, _, _ = self.plan_path(start, end)
-        img = mpimg.imread(self.current_dir + '/maps/Competition_track_graph_new.png')
+        img = mpimg.imread(self.current_dir + '/maps/Track.png')
         fig, ax = plt.subplots()
         color_map = {
             0: 'blue',
