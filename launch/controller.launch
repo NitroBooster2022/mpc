@@ -40,10 +40,10 @@
   <arg name = "path" default="test4"/> -->
 
   <!-- rdb, head of car at end of dotted line -->
-  <!-- <arg name="x0" default="13.454"/>
-  <arg name="y0" default="5.8"/>
+  <arg name="x0" default="13.454"/>
+  <arg name="y0" default="10.4"/>
   <arg name="yaw0" default="0"/>
-  <arg name = "path" default="test5"/> -->
+  <arg name = "path" default="test5"/>
 
   <!-- parking -->
   <!-- <arg name="x0" default="7.394"/>
