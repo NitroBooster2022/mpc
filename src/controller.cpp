@@ -14,6 +14,7 @@
 #include <std_srvs/Trigger.h>
 #include <std_srvs/SetBool.h>
 #include <ncurses.h>
+#include <std_msgs/Byte.h>
 
 using namespace VehicleConstants;
 
@@ -47,6 +48,9 @@ public:
             nh.param<double>("/real/intersection_localization_orientation_threshold", intersection_localization_orientation_threshold, 15);
             nh.param<double>("/real/NORMAL_SPEED", NORMAL_SPEED, 0.175);
             nh.param<double>("/real/FAST_SPEED", FAST_SPEED, 0.4);
+            nh.param<bool>("/real/relocalize", relocalize, true);
+            nh.param<bool>("/real/use_lane", use_lane, false);
+            nh.param<bool>("/real/has_light", has_light, false);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -70,6 +74,9 @@ public:
             nh.param<double>("/sim/intersection_localization_orientation_threshold", intersection_localization_orientation_threshold, 15);
             nh.param<double>("/sim/NORMAL_SPEED", NORMAL_SPEED, 0.175);
             nh.param<double>("/sim/FAST_SPEED", FAST_SPEED, 0.4);
+            nh.param<bool>("/sim/relocalize", relocalize, true);
+            nh.param<bool>("/sim/use_lane", use_lane, false);
+            nh.param<bool>("/sim/has_light", has_light, false);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -115,7 +122,7 @@ public:
             intersection_localization_threshold = 0.5, stop_duration = 3.0, parking_base_target_yaw = 0.166, parking_base_speed=-0.2, parking_base_thresh=0.1,
             change_lane_speed=0.2, change_lane_thresh=0.05, intersection_localization_orientation_threshold = 15, NORMAL_SPEED = 0.175,
             FAST_SPEED = 0.4;
-    bool use_stopline = true;
+    bool use_stopline = true, relocalize = true, use_lane = false, has_light = false;
     int pedestrian_count_thresh = 8;
 
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
@@ -444,7 +451,7 @@ public:
                 } else {
                     return false;
                 }
-                if (!hasGps) {
+                if (relocalize) {
                     intersection_based_relocalization();
                 }
                 return true;
@@ -519,7 +526,7 @@ public:
                     }
                 }
             }
-            if (!hasGps && stopsign_flag != STOPSIGN_FLAGS::NONE) {
+            if (relocalize && stopsign_flag != STOPSIGN_FLAGS::NONE) {
                 auto sign_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(sign_index), detected_dist, CAMERA_PARAMS);
                 if (stopsign_flag == STOPSIGN_FLAGS::RDB) {
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
@@ -564,7 +571,7 @@ public:
                 double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * cw_speed_ratio;
                 crosswalk_cooldown_timer = ros::Time::now() + ros::Duration(cd);
                 std::cout << "crosswalk detected at a distance of: " << detected_dist << std::endl;
-                if (!hasGps) {
+                if (relocalize) {
                     auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
@@ -748,6 +755,27 @@ public:
         }
         return 0;
     }
+    void wait_for_green() {
+        if (has_light) {
+            int neareastDirection = mpc.NearestDirectionIndex(utils.get_yaw());
+            static std::string light_topic_name;
+            if (neareastDirection == 0) light_topic_name = "/east_traffic_light";
+            else if (neareastDirection == 1) light_topic_name = "/north_traffic_light";
+            else if (neareastDirection == 2) light_topic_name = "/west_traffic_light";
+            else if (neareastDirection == 3) light_topic_name = "/south_traffic_light";
+            auto is_green = ros::topic::waitForMessage<std_msgs::Byte>(light_topic_name, ros::Duration(3));
+            while (is_green->data != 1) {
+                is_green = ros::topic::waitForMessage<std_msgs::Byte>(light_topic_name, ros::Duration(3));
+                utils.publish_cmd_vel(0, 0);
+                rate->sleep();
+            }
+            ROS_INFO("light turned green, proceeding...");
+            return;
+        } else {
+            stop_for(stop_duration);
+            return;
+        }
+    }
     void publish_waypoints() {
         static Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(mpc.N, 3);
         mpc.get_current_waypoints(waypoints);
@@ -867,7 +895,7 @@ public:
                             end_index_scaler *= 1.5;
                             ROS_INFO("in highway left, overtake on right");
                         }
-                        if (!lane) {
+                        if (!use_lane) {
                             int start_index = closest_idx + static_cast<int>(start_dist * density);
                             
                             end_index = start_index + static_cast<int>((CAR_LENGTH * 2 + MIN_DIST_TO_CAR * 2) * density * end_index_scaler);
@@ -1015,30 +1043,35 @@ void StateMachine::run() {
                 if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
                     stopsign_flag = STOPSIGN_FLAGS::NONE;
                     // change_state(STATE::WAITING_FOR_STOPSIGN);
-                    ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
-                    stop_for(stop_duration);
-                    if (lane) {
+                    if (stopsign_flag == STOPSIGN_FLAGS::STOP) {
+                        ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
+                        stop_for(stop_duration);
+                    } else if (stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
+                        ROS_INFO("traffic light detected, stopping until it's green...");
+                        wait_for_green();
+                    }
+                    if (use_lane) {
                         change_state(STATE::INTERSECTION_MANEUVERING);
                         continue;
                     }
                 } else if(stopsign_flag == STOPSIGN_FLAGS::PRIO) {
                     ROS_INFO("priority detected. transitioning to intersection maneuvering");
                     stopsign_flag = STOPSIGN_FLAGS::NONE;
-                    if (lane) {
+                    if (use_lane) {
                         change_state(STATE::INTERSECTION_MANEUVERING);
                         continue;
                     }
                 } else if(stopsign_flag == STOPSIGN_FLAGS::RDB) {
                     ROS_INFO("roundabout detected. using mpc...");
                     stopsign_flag = STOPSIGN_FLAGS::NONE;
-                    if (lane) {
+                    if (use_lane) {
                         mpc.update_current_states(running_x, running_y, running_yaw, false);
                         solve(false);
                         rate->sleep();
                         continue;
                     }
                 } else {
-                    if (lane) {
+                    if (use_lane) {
                         ROS_WARN("intersection reached but no sign detected, using mpc...");
                         stopsign_flag = STOPSIGN_FLAGS::NONE;
                         mpc.update_current_states(running_x, running_y, running_yaw, false);
@@ -1061,7 +1094,7 @@ void StateMachine::run() {
             }
             mpc.update_current_states(running_x, running_y, running_yaw, false);
             int closest_idx = mpc.find_closest_waypoint();
-            if (!hasGps) {
+            if (relocalize) {
                 static int lane_relocalization_semaphore = 0;
                 lane_relocalization_semaphore++;
                 if (lane_relocalization_semaphore >= 5) {
@@ -1069,7 +1102,7 @@ void StateMachine::run() {
                     lane_relocalization_semaphore = 0;
                 }
             }
-            if (!lane) {
+            if (!use_lane) {
                 update_mpc_state();
                 double error_sq = (mpc.x_current.head(2) - destination).squaredNorm();
                 if (error_sq < TOLERANCE_SQUARED && mpc.target_waypoint_index >= mpc.state_refs.rows() * 0.9) {
@@ -1109,7 +1142,7 @@ void StateMachine::run() {
                     utils.publish_cmd_vel(0.0, 0.0);
                     break;
                 }
-                if (lane) {
+                if (use_lane) {
                     if (norm_sq > offset * offset * 0.2) {
                         // double yaw_error = orientation - utils.get_yaw();
                         // if(yaw_error > M_PI * 1.5) yaw_error -= 2 * M_PI;
@@ -1176,7 +1209,7 @@ void StateMachine::run() {
             }
             mpc.update_current_states(running_x, running_y, running_yaw, false);
             int closest_idx = mpc.find_closest_waypoint();
-            if (!hasGps) {
+            if (relocalize && lane) {
                 static int lane_relocalization_semaphore = 0;
                 lane_relocalization_semaphore++;
                 if (lane_relocalization_semaphore >= 5) {
@@ -1234,7 +1267,7 @@ void StateMachine::run() {
                     ROS_WARN("parking sign invalid... returning to STATE::MOVING");
                     change_state(STATE::MOVING);
                 }
-                if (!hasGps) {
+                if (relocalize) {
                     auto park_sign_pose = utils.estimate_object_pose2d(x0, y0, yaw0, utils.object_box(park_index), detected_dist, CAMERA_PARAMS);
                     int success = sign_based_relocalization(park_sign_pose, PARKING_SIGN_POSES);
                 }
@@ -1375,6 +1408,7 @@ void StateMachine::run() {
             // } else {
             //     change_state(STATE::MOVING);
             // }
+            mpc.target_waypoint_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows() - 1);
             change_state(STATE::MOVING);
         } else if (state == STATE::INTERSECTION_MANEUVERING) {
             double x, y, yaw;
