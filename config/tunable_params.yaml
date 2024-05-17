@@ -13,6 +13,7 @@ real:
   relocalize: false
   use_lane: false
   has_light: false
+  change_lane_offset_scaler: 1.2
 
   # almost good:
   sigma_delta: 10 # degrees
@@ -72,6 +73,7 @@ sim:
   relocalize: false
   use_lane: false
   has_light: false
+  change_lane_offset_scaler: 1.3
 
   # to measure:
   #   sign offset x,y

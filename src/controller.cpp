@@ -51,6 +51,7 @@ public:
             nh.param<bool>("/real/relocalize", relocalize, true);
             nh.param<bool>("/real/use_lane", use_lane, false);
             nh.param<bool>("/real/has_light", has_light, false);
+            nh.param<double>("/real/change_lane_offset_scaler", change_lane_offset_scaler, 1.2);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -77,6 +78,7 @@ public:
             nh.param<bool>("/sim/relocalize", relocalize, true);
             nh.param<bool>("/sim/use_lane", use_lane, false);
             nh.param<bool>("/sim/has_light", has_light, false);
+            nh.param<double>("/sim/change_lane_offset_scaler", change_lane_offset_scaler, 1.3);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -121,7 +123,7 @@ public:
             lane_localization_orientation_threshold = 10, pixel_center_offset = -30.0, constant_distance_to_intersection_at_detection = 0.371,
             intersection_localization_threshold = 0.5, stop_duration = 3.0, parking_base_target_yaw = 0.166, parking_base_speed=-0.2, parking_base_thresh=0.1,
             change_lane_speed=0.2, change_lane_thresh=0.05, intersection_localization_orientation_threshold = 15, NORMAL_SPEED = 0.175,
-            FAST_SPEED = 0.4;
+            FAST_SPEED = 0.4, change_lane_offset_scaler = 1.2;
     bool use_stopline = true, relocalize = true, use_lane = false, has_light = false;
     int pedestrian_count_thresh = 8;
 
@@ -881,7 +883,7 @@ public:
                         double start_dist = std::max(dist - CAM_TO_CAR_FRONT, MIN_DIST_TO_CAR) - MIN_DIST_TO_CAR;
                         bool right = false;
                         double density = mpc.density;
-                        double lane_offset = LANE_OFFSET * 1.5;
+                        static double lane_offset = LANE_OFFSET * change_lane_offset_scaler ;
                         int end_index_scaler = 1.2;
                         // if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
                         if (mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYRIGHT)) { // if on right side of highway, overtake on left
