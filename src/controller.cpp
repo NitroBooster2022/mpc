@@ -103,6 +103,7 @@ public:
             PARKING_SPOTS.push_back(spot_right);
             PARKING_SPOTS.push_back(spot_left);
         }
+        
 
         double rateVal = 1/mpc.T;
         rate = new ros::Rate(rateVal);
@@ -147,7 +148,7 @@ public:
     bool debug = true, sign, ekf, lane, real, dashboard, keyboardControl, hasGps, pubWaypoints;
     std::string pathName;
     double running_x, running_y, running_yaw;
-
+    
     std::array<double, 3> x0;
     ros::Rate* rate;
 
@@ -155,6 +156,10 @@ public:
     Utility utils;
     Optimizer mpc;
 
+    ros::Timer ekf_update_timer;
+    void ekf_update_timer_callback(const ros::TimerEvent&) {
+        utils.update_odom_with_ekf();
+    }
     void call_trigger_service() {
         ros::ServiceClient client = nh.serviceClient<std_srvs::Trigger>("/trigger_service");
         std_srvs::Trigger srv;
