@@ -845,10 +845,10 @@ int Utility::update_states_rk4 (double speed, double steering_angle, double dt) 
         dt = (ros::Time::now() - timerodom).toSec();
         timerodom = ros::Time::now();
     }
-    if (dt > (0.1)) {
-        ROS_WARN("update_states_rk4(): dt is too large: %.3f", dt);
-        return 0;
-    }
+    // if (dt > (0.1)) {
+    //     ROS_WARN("update_states_rk4(): dt is too large: %.3f", dt);
+    //     return 0;
+    // }
     double magnitude = speed * dt * odomRatio;
     double yaw_rate = magnitude * tan(-steering_angle * M_PI / 180) / wheelbase;
 

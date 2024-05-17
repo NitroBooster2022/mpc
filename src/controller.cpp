@@ -52,6 +52,7 @@ public:
             nh.param<bool>("/real/use_lane", use_lane, false);
             nh.param<bool>("/real/has_light", has_light, false);
             nh.param<double>("/real/change_lane_offset_scaler", change_lane_offset_scaler, 1.2);
+            nh.param<bool>("/real/use_trajectory", useTrajectory, true);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -79,6 +80,7 @@ public:
             nh.param<bool>("/sim/use_lane", use_lane, false);
             nh.param<bool>("/sim/has_light", has_light, false);
             nh.param<double>("/sim/change_lane_offset_scaler", change_lane_offset_scaler, 1.3);
+            nh.param<bool>("/sim/use_trajectory", useTrajectory, true);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -125,7 +127,7 @@ public:
             intersection_localization_threshold = 0.5, stop_duration = 3.0, parking_base_target_yaw = 0.166, parking_base_speed=-0.2, parking_base_thresh=0.1,
             change_lane_speed=0.2, change_lane_thresh=0.05, intersection_localization_orientation_threshold = 15, NORMAL_SPEED = 0.175,
             FAST_SPEED = 0.4, change_lane_offset_scaler = 1.2;
-    bool use_stopline = true, relocalize = true, use_lane = false, has_light = false;
+    bool use_stopline = true, relocalize = true, use_lane = false, has_light = false, useTrajectory=true;
     int pedestrian_count_thresh = 8;
 
     std::vector<Eigen::Vector2d> PARKING_SPOTS;
@@ -1539,17 +1541,19 @@ void StateMachine::run() {
                         if (std::abs(yaw_error) < left_trajectory_threshold) {
                             break;
                         }
-                        // odomFrame << x - x0, y - y0;
-                        // transformedFrame = odomFrame.transpose() * rotation_matrices[direction_index];
-                        // double referenceY = utils.computeTrajectory(transformedFrame[0]);
-                        // double error = (referenceY - transformedFrame[1]);
-                        // double steer = -utils.computeTrajectoryPid(error);
-                        // // ROS_INFO("target_yaw: %2f, cur_yaw: %2f, yaw_err: %.3f, tar y: %.3f, cur y: %.3f, err: %.3f, steer: %.3f", target_yaw, utils.get_yaw(), yaw_error, referenceY, transformedFrame[1], error, steer);
-                        // mpc.target_waypoint_index++;
-                        // utils.publish_cmd_vel(steer, 0.25);
-                        // rate->sleep();
-                        mpc.update_current_states(x, y, yaw, false);
-                        solve(false);
+                        if (useTrajectory) {
+                            odomFrame << x - x0, y - y0;
+                            transformedFrame = odomFrame.transpose() * rotation_matrices[direction_index];
+                            double referenceY = utils.computeTrajectory(transformedFrame[0]);
+                            double error = (referenceY - transformedFrame[1]);
+                            double steer = -utils.computeTrajectoryPid(error);
+                            // ROS_INFO("target_yaw: %2f, cur_yaw: %2f, yaw_err: %.3f, tar y: %.3f, cur y: %.3f, err: %.3f, steer: %.3f", target_yaw, utils.get_yaw(), yaw_error, referenceY, transformedFrame[1], error, steer);
+                            mpc.target_waypoint_index++;
+                            utils.publish_cmd_vel(steer, 0.25);
+                        } else {
+                            mpc.update_current_states(x, y, yaw, false);
+                            solve(false);
+                        }
                         rate->sleep();
                     }
                     

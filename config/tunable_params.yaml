@@ -14,6 +14,7 @@ real:
   use_lane: false
   has_light: false
   change_lane_offset_scaler: 1.2
+  useTrajectory: true
 
   # almost good:
   sigma_delta: 10 # degrees
@@ -74,6 +75,7 @@ sim:
   use_lane: false
   has_light: false
   change_lane_offset_scaler: 1.3
+  useTrajectory: true
 
   # to measure:
   #   sign offset x,y

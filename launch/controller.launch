@@ -56,7 +56,7 @@
 
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>
-  <arg name = "rate" default="1000"/>
+  <arg name = "rate" default="300"/>
   <param name="pathName" value="$(arg path)"/>
   <param name="vrefInt" value="$(arg v)"/>
   <arg name = "gmapping" default="false"/>
