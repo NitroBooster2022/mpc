@@ -16,9 +16,9 @@ constraints:
   # v_ref: 1.3
 
   # gazebo
-  v_max: 0.5
-  v_min: -0.4
-  v_ref: 0.4
+  v_max: 0.375
+  v_min: -0.25
+  v_ref: 0.35
 
   delta_max: 0.42
   delta_min: -0.42

@@ -174,7 +174,7 @@ class Path:
         self.hw_density_factor = rospy.get_param('hw', default=1.33)
 
         self.v_ref = v_ref
-        # print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
+        print("v_ref: ", v_ref, ", N: ", N, ", T: ", T, ", x0: ", x0, ", name: ", name)
         self.N = N
         self.global_planner = GlobalPlanner()
         self.name = name
@@ -446,7 +446,8 @@ class Path:
 
         import cv2
         self.map = cv2.imread(os.path.dirname(os.path.realpath(__file__))+'/maps/Track.png')
-        self.map = cv2.resize(self.map, (1400, int(1/1.38342246*1400)))
+        size1 = 1000
+        self.map = cv2.resize(self.map, (size1, int(1/1.38342246*size1)))
         for i in range(0, state_refs.shape[1], 8):
             radius = 2
             color = (0, 255, 255)
@@ -473,7 +474,10 @@ def handle_array_service(req):
     Service callback function to return numpy arrays a, b, and c.
     """
     current_path = os.path.dirname(os.path.realpath(__file__))
-    config_path='config/mpc_config' + req.vrefName + '.yaml'
+    vrefName = req.vrefName
+    if int(vrefName) >30:
+        vrefName = "50"
+    config_path='config/mpc_config' + vrefName + '.yaml'
     # print("config_path: ", config_path)
     path = os.path.join(current_path, config_path)
     with open(path, 'r') as f:
@@ -489,10 +493,11 @@ def handle_array_service(req):
     # initial_state = None
 
     v_ref = config[constraint_name]['v_ref']
-    # print("v_ref: ", v_ref)
+    # print("v_reeeeeeeeeeeeeeefffffffffff: ", v_ref)
+
     path = Path(v_ref = v_ref, N = N, T = T, x0= initial_state, name = req.pathName)
 
-    # path.illustrate_path(path.state_refs.T)
+    path.illustrate_path(path.state_refs.T)
     state_refs = Float32MultiArray(data = path.state_refs.flatten())
     input_refs = Float32MultiArray(data = path.input_refs.flatten())
     attributes = Float32MultiArray(data = path.attributes.flatten())
