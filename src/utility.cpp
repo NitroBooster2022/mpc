@@ -164,7 +164,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     // if (robot_name[0] != '/') {
     //     robot_name = "/" + robot_name;
     // }
-    cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 3);
+    cmd_vel_pub = nh.advertise<std_msgs::String>("/" + robot_name + "/command", 8);
     waypoints_pub = nh.advertise<std_msgs::Float32MultiArray>("/waypoints", 3);
     detected_cars_pub = nh.advertise<std_msgs::Float32MultiArray>("/detected_cars", 3);
     state_offset_pub = nh.advertise<std_msgs::Float32MultiArray>("/state_offset", 3);
@@ -899,19 +899,12 @@ void Utility::publish_cmd_vel(double steering_angle, double velocity, bool clip)
     float steer = steering_angle;
     if(real) {
         send_speed_and_steer(vel, steer);
-        // ROS_INFO("publishing steer: %.3f, speed: %.3f", steer, vel);
-        msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
-        cmd_vel_pub.publish(msg2);
-        // ros::Duration(0.03).sleep();
-        msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
-        cmd_vel_pub.publish(msg);
-    } else {
-        msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
-        cmd_vel_pub.publish(msg2);
-        // ros::Duration(0.03).sleep();
-        msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
-        cmd_vel_pub.publish(msg);
     }
+    msg2.data = "{\"action\":\"2\",\"steerAngle\":" + std::to_string(steer) + "}";
+    cmd_vel_pub.publish(msg2);
+    // ros::Duration(0.03).sleep();
+    msg.data = "{\"action\":\"1\",\"speed\":" + std::to_string(vel) + "}";
+    cmd_vel_pub.publish(msg);
 }
 void Utility::lane_follow() {
     steer_command = get_steering_angle();
