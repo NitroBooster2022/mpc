@@ -11,14 +11,14 @@ graph = nx.read_graphml(file_path)
 
 crosswalk = [ 151, 51, 258, 259, 252, 253, 254, 226, 227, 284, 285]
 dotted_crosswalk = [ 82, 164, 81, 165, 176, 177, 8, 7]
+highwayRight = []
 highwayLeft = []
 for i in range(444, 463):
-    highwayLeft.append(i)
+    highwayRight.append(i)
 for i in range(483, 502):
     highwayLeft.append(i)
-highwayRight = []
 for i in range(502, 521):
-    highwayRight.append(i)
+    highwayLeft.append(i)
 for i in range(463, 483):
     highwayRight.append(i)
 
