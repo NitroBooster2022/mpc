@@ -188,6 +188,7 @@ public:
                 x_ = ekf_x;
                 y_ = ekf_y;
             } else {
+                ROS_INFO("Using ekf without gps: %.3f, %.3f", ekf_x, ekf_y);
                 x_ = ekf_x + x0;
                 y_ = ekf_y + y0;
             }
@@ -215,7 +216,7 @@ public:
             if (hasGps) {
                 ekf_x += x_offset;
                 ekf_y += y_offset;
-                set_pose_using_service(ekf_x, ekf_y, yaw);
+                // set_pose_using_service(ekf_x, ekf_y, yaw);
             } else {
                 x0 += x_offset;
                 y0 += y_offset;

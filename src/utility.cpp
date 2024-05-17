@@ -53,7 +53,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         nh.param<double>("/sim/sigma_delta", sigma_delta, 10.0);
         nh.param<double>("/sim/odom_rate", odom_publish_frequency, 50);
     }
-    nh.param<bool>("/hasGps", hasGps, false);
+    nh.param<bool>("/gps", hasGps, false);
     if (real) {
         serial = std::make_unique<boost::asio::serial_port>(io, "/dev/ttyACM0");
         serial->set_option(boost::asio::serial_port_base::baud_rate(115200));
@@ -601,6 +601,8 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     lock.lock();
     ekf_x = msg->pose.pose.position.x;
     ekf_y = msg->pose.pose.position.y;
+    x0 = ekf_x - odomX;
+    y0 = ekf_y - odomY;
     // tf2::fromMsg(msg->pose.pose.orientation, tf2_quat);
     // ekf_yaw = tf2::impl::getYaw(tf2_quat);
     if (subSign) {

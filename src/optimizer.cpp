@@ -31,8 +31,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     nlp_in_park = park_acados_get_nlp_in(acados_ocp_capsule_park);
     nlp_out_park = park_acados_get_nlp_out(acados_ocp_capsule_park);
 
-    if (v_ref_int >= 40) {
-        std::cout << "reference speed is 40 cm/s" << std::endl;
+    if (v_ref_int >= 30) {
+        std::cout << "reference speed is 35. cm/s" << std::endl;
         // Create a capsule according to the pre-defined model
         acados_ocp_capsule = mobile_robot_acados_create_capsule();
 
@@ -170,6 +170,8 @@ Optimizer::Optimizer(double T, int N, double v_ref, double x_init, double y_init
     y_errors = Eigen::VectorXd::Zero(len, 1);
     yaw_errors = Eigen::VectorXd::Zero(len, 1);
     time_record = Eigen::MatrixXd::Zero(len, nu);
+    std::cout << "v ref: " << v_ref << ", int:" << v_ref_int << std::endl;
+    if(v_ref > 0.3) v_ref = 0.35;
 }
 
 int Optimizer::run() {
@@ -310,7 +312,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
             simX(iter, ii) = i_current_state[ii];
         }
         // if (idx < state_refs.rows()) printf("%d) x_cur: %.3f, %.3f, %.3f, ref: %.3f, %.3f, %.3f, u: %.3f, %.3f, error: %.3f\n", iter, x_current[0], x_current[1], x_current[2], state_refs(idx, 0), state_refs(idx, 1), state_refs(idx, 2), u_current[0], u_current[1], error);
-        // printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
+        printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
         iter++;
     }
     return 0;
@@ -384,7 +386,7 @@ int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current
 
     static int limit = floor(rdb_circumference / (v_ref * T)); // rdb circumference [m] * wpt density [wp/m]
     static int lookahead = 1;
-    if (v_ref > 0.375) lookahead = 2;
+    if (v_ref > 0.375) lookahead = 1;
     static Eigen::Vector3d last_state = i_current_state;
     double distance_travelled_sq = (i_current_state.head(2) - last_state.head(2)).squaredNorm();
     // static int stuck_count = 0;
@@ -400,6 +402,12 @@ int Optimizer::find_next_waypoint(int &output_target, Eigen::Vector3d &i_current
 
     static int count = 0;
     closest_waypoint_index = find_closest_waypoint(min_index, max_index);
+    double distance_to_current = std::sqrt((state_refs(closest_waypoint_index, 0) - i_current_state[0]) * (state_refs(closest_waypoint_index, 0) - i_current_state[0]) + (state_refs(closest_waypoint_index, 1) - i_current_state[1]) * (state_refs(closest_waypoint_index, 1) - i_current_state[1]));
+    if (distance_to_current > 1.2) {
+        std::cout << "WARNING: Optimizer::find_next_waypoint(): distance to closest waypoint is too large: " << distance_to_current << std::endl;
+        min_index = static_cast<int>(std::max(closest_waypoint_index - distance_to_current * density * 1.2, 0.0));
+        closest_waypoint_index = find_closest_waypoint(min_index , max_index);
+    }
     // if (stuck_count > 3) {
     //     printf("ERROR: Optimizer::find_next_waypoint(): vehicle is stuck. resetting solver\n");
     //     // reset_solver();
