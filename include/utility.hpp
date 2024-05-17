@@ -137,6 +137,10 @@ public:
     void odom_pub_timer_callback(const ros::TimerEvent&);
     ros::Timer imu_pub_timer;
     void imu_pub_timer_callback(const ros::TimerEvent&);
+    ros::Timer ekf_update_timer;
+    void ekf_update_timer_callback(const ros::TimerEvent&) {
+        update_odom_with_ekf();
+    }
     ros::Publisher imu_pub;
 
     // Callbacks
@@ -262,6 +266,12 @@ public:
         yaw_ = yaw;
     }
     
+    int update_odom_with_ekf() {
+        x0 = ekf_x - odomX;
+        y0 = ekf_y - odomY;
+        return 1;
+    }
+
     // Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw, double x1, double y1, double x2, double y2, double object_distance, const std::array<double, 4>& camera_params, bool is_car = false) {
     Eigen::Vector2d estimate_object_pose2d(double x, double y, double yaw,
                                        double x1, double y1, double x2, double y2,

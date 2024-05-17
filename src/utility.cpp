@@ -176,6 +176,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     if (useEkf) {
         this->subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
+        ekf_update_timer = nh.createTimer(ros::Duration(2), &Utility::ekf_update_timer_callback, this);
     } 
     if (this->subModel) {
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);
@@ -601,8 +602,8 @@ void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     lock.lock();
     ekf_x = msg->pose.pose.position.x;
     ekf_y = msg->pose.pose.position.y;
-    x0 = ekf_x - odomX;
-    y0 = ekf_y - odomY;
+    // x0 = ekf_x - odomX;
+    // y0 = ekf_y - odomY;
     // tf2::fromMsg(msg->pose.pose.orientation, tf2_quat);
     // ekf_yaw = tf2::impl::getYaw(tf2_quat);
     if (subSign) {

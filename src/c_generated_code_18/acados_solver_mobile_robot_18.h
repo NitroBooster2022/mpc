@@ -63,7 +63,7 @@
 #define MOBILE_ROBOT_18_NY0    5
 #define MOBILE_ROBOT_18_NY     5
 #define MOBILE_ROBOT_18_NYN    3
-#define MOBILE_ROBOT_18_N      40
+#define MOBILE_ROBOT_18_N      80
 #define MOBILE_ROBOT_18_NH     0
 #define MOBILE_ROBOT_18_NHN    0
 #define MOBILE_ROBOT_18_NH0    0
