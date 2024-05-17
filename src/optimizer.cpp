@@ -312,7 +312,7 @@ int Optimizer::update_and_solve(Eigen::Vector3d &i_current_state, bool safety_ch
             simX(iter, ii) = i_current_state[ii];
         }
         // if (idx < state_refs.rows()) printf("%d) x_cur: %.3f, %.3f, %.3f, ref: %.3f, %.3f, %.3f, u: %.3f, %.3f, error: %.3f\n", iter, x_current[0], x_current[1], x_current[2], state_refs(idx, 0), state_refs(idx, 1), state_refs(idx, 2), u_current[0], u_current[1], error);
-        printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
+        // printf("u: (%.3f, %.3f)\n", u_current[0], u_current[1]);
         iter++;
     }
     return 0;

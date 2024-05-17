@@ -13,7 +13,7 @@ real:
   relocalize: false
   use_lane: false
   has_light: false
-  change_lane_offset_scaler: 1.2
+  change_lane_offset_scaler: 0.9
   useTrajectory: true
 
   # almost good:

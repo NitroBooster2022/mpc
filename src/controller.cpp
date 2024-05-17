@@ -52,7 +52,7 @@ public:
             nh.param<bool>("/real/use_lane", use_lane, false);
             nh.param<bool>("/real/has_light", has_light, false);
             nh.param<double>("/real/change_lane_offset_scaler", change_lane_offset_scaler, 1.2);
-            nh.param<bool>("/real/use_trajectory", useTrajectory, true);
+            nh.param<bool>("/real/useTrajectory", useTrajectory, true);
         } else {
             nh.param<double>("/sim/straight_trajectory_threshold", straight_trajectory_threshold, 1.3);
             nh.param<double>("/sim/right_trajectory_threshold", right_trajectory_threshold, 5.73 * M_PI/180);
@@ -80,7 +80,7 @@ public:
             nh.param<bool>("/sim/use_lane", use_lane, false);
             nh.param<bool>("/sim/has_light", has_light, false);
             nh.param<double>("/sim/change_lane_offset_scaler", change_lane_offset_scaler, 1.3);
-            nh.param<bool>("/sim/use_trajectory", useTrajectory, true);
+            nh.param<bool>("/sim/useTrajectory", useTrajectory, true);
         }
         left_trajectory_threshold *= M_PI/180;
         right_trajectory_threshold *= M_PI/180;
@@ -874,7 +874,7 @@ public:
                 }
                 std::cout << "min dist between car and closest waypoint: " << min_dist << ", same lane: " << (detected_car_state == DETECTED_CAR_STATE::SAME_LANE) << std::endl;
                 if (detected_car_state == DETECTED_CAR_STATE::SAME_LANE) {
-                    int idx = closest_idx + dist * mpc.density * 0.75; // compute index of midpoint between detected car and ego car
+                    int idx = static_cast<int>(closest_idx + dist * mpc.density * 0.75); // compute index of midpoint between detected car and ego car
                     // int attribute = mpc.state_attributes(idx);
                     // std::cout << "attribute: " << attribute << std::endl;
                     // if (attribute != mpc.ATTRIBUTE::DOTTED && attribute != mpc.ATTRIBUTE::DOTTED_CROSSWALK && attribute != mpc.ATTRIBUTE::HIGHWAYLEFT && attribute != mpc.ATTRIBUTE::HIGHWAYRIGHT) {
@@ -893,17 +893,21 @@ public:
                         static double lane_offset = LANE_OFFSET * change_lane_offset_scaler ;
                         int end_index_scaler = 1.2;
                         // if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
-                        if (mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYRIGHT)) { // if on right side of highway, overtake on left
-                            density *= 1/1.33;
-                            end_index_scaler *= 1.5;
-                            ROS_INFO("in highway right, overtake on left");
-                        }
-                        // else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
-                        else if (mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYLEFT)) { // if on left side of highway, overtake on right
-                            right = true; 
-                            density *= 1/1.33;
-                            end_index_scaler *= 1.5;
-                            ROS_INFO("in highway left, overtake on right");
+                        for (int i = idx; i < static_cast<int>(idx + 0.5 * mpc.density); i++) {
+                            if (mpc.attribute_cmp(i, mpc.ATTRIBUTE::HIGHWAYRIGHT)) { // if on right side of highway, overtake on left
+                                density *= 1/1.33;
+                                end_index_scaler *= 1.5;
+                                ROS_INFO("in highway right, overtake on left");
+                                break;
+                            }
+                            // else if (attribute == mpc.ATTRIBUTE::HIGHWAYLEFT) { // if on left side of highway, overtake on right
+                            else if (mpc.attribute_cmp(i, mpc.ATTRIBUTE::HIGHWAYLEFT)) { // if on left side of highway, overtake on right
+                                right = true; 
+                                density *= 1/1.33;
+                                end_index_scaler *= 1.5;
+                                ROS_INFO("in highway left, overtake on right");
+                                break;
+                            }
                         }
                         if (!use_lane) {
                             int start_index = closest_idx + static_cast<int>(start_dist * density);
