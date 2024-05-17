@@ -95,6 +95,9 @@ public:
         NORMAL, CROSSWALK, INTERSECTION, ONEWAY, HIGHWAYLEFT, HIGHWAYRIGHT, ROUNDABOUT, STOPLINE, DOTTED, DOTTED_CROSSWALK
     };
     bool attribute_cmp(int idx, int attr) {
+        if (idx < 0 || idx >= state_attributes.size()) {
+            return false;
+        }
         return state_attributes(idx) == attr || state_attributes(idx) == attr + 100;
     }
     bool is_not_detectable(int idx) {

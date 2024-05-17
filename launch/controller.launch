@@ -16,10 +16,13 @@
   <arg name = "path" default="speedrun"/> -->
 
   <!-- start -->
+  <arg name="x0" default="-5"/>
+  <arg name="y0" default="-5"/>
+  <arg name="yaw0" default="0"/>
   <!-- <arg name="x0" default="0.39"/>
-  <arg name="y0" default="5.8"/>
-  <arg name="yaw0" default="-1.57"/>
-  <arg name = "path" default="run1"/> -->
+  <arg name="y0" default="5.8"/> -->
+  <!-- <arg name="yaw0" default="-1.57"/> -->
+  <arg name = "path" default="run1"/>
 
   <!-- speed curve -->
   <!-- <arg name="x0" default="5.118"/>
@@ -46,10 +49,10 @@
   <arg name = "path" default="test5"/> -->
 
   <!-- parking -->
-  <arg name="x0" default="7.966"/>
+  <!-- <arg name="x0" default="7.966"/>
   <arg name="y0" default="0.946"/>
   <arg name="yaw0" default="0"/>
-  <arg name = "path" default="test6"/>
+  <arg name = "path" default="test6"/> -->
 
   <arg name="real" default="false"/>
   <arg name="subModel" default="false"/>

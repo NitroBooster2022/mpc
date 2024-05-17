@@ -125,15 +125,15 @@ class GlobalPlanner:
                     maneuver_directions.append(0)
                     # print(f"node {node} is a left turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x, y = self.pos[node]
-                    x += vec1[0] / mag1 * 0.15
-                    y += vec1[1] / mag1 * 0.15
+                    x += vec1[0] / mag1 * 0.05 #15
+                    y += vec1[1] / mag1 * 0.05 #15
                     wp_x.append(x)
                     wp_y.append(y)
                 elif normalized_cross < -0.75:
                     maneuver_directions.append(2)
                     # print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
-                    x = prev_x + vec1[0] / mag1 * 0.3#57
-                    y = prev_y + vec1[1] / mag1 * 0.3#57
+                    x = prev_x + vec1[0] / mag1 * 0.02#25#57
+                    y = prev_y + vec1[1] / mag1 * 0.02#25#57
                     wp_x.append(x)
                     wp_y.append(y)
         return np.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions

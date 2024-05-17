@@ -181,6 +181,7 @@ public:
             ROS_ERROR("Failed to get param 'vrefInt'");
             vrefInt = 25;
         }
+        if (vrefInt > 30) vrefInt = 35;
         srv.request.vrefName = std::to_string(vrefInt);
         ROS_INFO("waiting for waypoints service");
         if(waypoints_client.waitForExistence(ros::Duration(5))) {
@@ -195,9 +196,6 @@ public:
             std::vector<double> wp_normals(srv.response.wp_normals.data.begin(), srv.response.wp_normals.data.end()); // N by 2
             std::vector<int> maneuver_directions(srv.response.maneuver_directions.data.begin(), srv.response.maneuver_directions.data.end()); // N by 1
             maneuver_indices = maneuver_directions;
-            for (int i = 0; i < maneuver_indices.size(); i++) {
-                std::cout << "maneuver direction " << i << ": " << maneuver_indices[i] << std::endl;
-            }
             // exit(0);
             int N = state_refs.size() / 3;
             mpc.state_refs = Eigen::Map<Eigen::MatrixXd>(state_refs.data(), 3, N).transpose();
@@ -418,6 +416,7 @@ public:
                 int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
                 int num_index = static_cast<int>(0.15 * mpc.density);
                 for (int i = closest_idx; i < closest_idx + num_index; i++) {
+                    if (i >= mpc.state_refs.rows()) break;
                     if (mpc.attribute_cmp(i, mpc.ATTRIBUTE::CROSSWALK) || mpc.attribute_cmp(i, mpc.ATTRIBUTE::DOTTED_CROSSWALK)) {
                         ROS_INFO("detected crosswalk lines, ignoring...");
                         return false;
@@ -434,6 +433,7 @@ public:
                 lookahead_dist = 0.4;
                 num_index = static_cast<int>(lookahead_dist * mpc.density);
                 for (int i = 0; i < num_index; i++) {
+                    if (target_index + i >= mpc.state_refs.rows()) break;
                     if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                         // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                         found = true;
@@ -462,6 +462,7 @@ public:
         int target_index = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
         bool found = false;
         for (int i = 0; i < num_index; i++) {
+            if (target_index + i >= mpc.state_refs.rows()) break;
             if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                 // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                 found = true;
@@ -868,7 +869,7 @@ public:
                     // int attribute = mpc.state_attributes(idx);
                     // std::cout << "attribute: " << attribute << std::endl;
                     // if (attribute != mpc.ATTRIBUTE::DOTTED && attribute != mpc.ATTRIBUTE::DOTTED_CROSSWALK && attribute != mpc.ATTRIBUTE::HIGHWAYLEFT && attribute != mpc.ATTRIBUTE::HIGHWAYRIGHT) {
-                    if (!mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED_CROSSWALK) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYLEFT) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYRIGHT)) {
+                    if (idx < mpc.state_refs.rows() && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED_CROSSWALK) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYLEFT) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYRIGHT)) {
                         if (dist < MAX_TAILING_DIST) {
                             ROS_INFO("detected car is in oneway or non-dotted region, dist = %.3f, stopping...", dist);
                             stop_for(20*T);
@@ -1715,6 +1716,7 @@ int main(int argc, char **argv) {
     } else {
         std::cout << "Successfully loaded parameters" << std::endl;
     }
+    if(vref>30) vref = 35.;
     std::cout << "ekf: " << ekf << ", sign: " << sign << ", T: " << T << ", N: " << N << ", vref: " << vref << ", real: " << real << std::endl;
     StateMachine sm(nh, T, N, vref, sign, ekf, lane, T_park, name, x0, y0, yaw0, real);
 

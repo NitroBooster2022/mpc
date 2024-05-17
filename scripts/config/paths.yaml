@@ -1,7 +1,8 @@
 speedrun:
   # - start
   - nomarking_entrance
-  - highway_entrance_east
+  # - highway_entrance_east
+  - 444
   - speed_east_south
   - 18
 
