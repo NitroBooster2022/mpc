@@ -435,6 +435,7 @@ public:
         if(lane && use_stopline) {
             if (utils.stopline)
             {
+                // ROS_INFO("intersection check 1 passed");
                 mpc.update_current_states(running_x, running_y, running_yaw);
                 int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
                 int num_index = static_cast<int>(0.15 * mpc.density);
@@ -455,6 +456,7 @@ public:
                 bool found = false;
                 lookahead_dist = 0.4;
                 num_index = static_cast<int>(lookahead_dist * mpc.density);
+                // ROS_INFO("intersection check 2 passed");
                 for (int i = 0; i < num_index; i++) {
                     if (target_index + i >= mpc.state_refs.rows()) break;
                     if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
@@ -462,6 +464,7 @@ public:
                         found = true;
                     }
                 }
+                // ROS_INFO("intersection check 3 passed");
                 if (found) {
                     double x, y, yaw;
                     utils.get_states(x, y, yaw);
@@ -474,6 +477,7 @@ public:
                 } else {
                     return false;
                 }
+                // ROS_INFO("intersection check 4 passed");
                 if (relocalize) {
                     intersection_based_relocalization();
                 }
@@ -550,8 +554,8 @@ public:
                     }
                 }
             }
-            // if (relocalize && stopsign_flag != STOPSIGN_FLAGS::NONE) {
-            if (stopsign_flag != STOPSIGN_FLAGS::NONE) {
+            if (relocalize && stopsign_flag != STOPSIGN_FLAGS::NONE) {
+            // if (stopsign_flag != STOPSIGN_FLAGS::NONE) {
                 auto sign_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(sign_index), detected_dist, CAMERA_PARAMS);
                 if (stopsign_flag == STOPSIGN_FLAGS::RDB) {
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
@@ -596,8 +600,8 @@ public:
                 double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * cw_speed_ratio;
                 crosswalk_cooldown_timer = ros::Time::now() + ros::Duration(cd);
                 std::cout << "crosswalk detected at a distance of: " << detected_dist << std::endl;
-                // if (relocalize) {
-                if (1) {
+                if (relocalize) {
+                // if (1) {
                     auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
@@ -671,6 +675,8 @@ public:
             ROS_INFO("sign_based_relocalization(): SUCCESS! estimated sign pose: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_sign_pose[0], estimated_sign_pose[1], EMPIRICAL_POSES[min_index][0], EMPIRICAL_POSES[min_index][1], EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
             utils.recalibrate_states(EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
         }
+        // stop_for(5);
+        // exit(0);
         return 1;
     }
     int intersection_based_relocalization() {
@@ -1312,8 +1318,8 @@ void StateMachine::run() {
                     ROS_WARN("parking sign invalid... returning to STATE::MOVING");
                     change_state(STATE::MOVING);
                 }
-                if (1) {
-                // if (relocalize) {
+                // if (1) {
+                if (relocalize) {
                     auto park_sign_pose = utils.estimate_object_pose2d(x0, y0, yaw0, utils.object_box(park_index), detected_dist, CAMERA_PARAMS);
                     int success = sign_based_relocalization(park_sign_pose, PARKING_SIGN_POSES);
                 }
