@@ -280,9 +280,15 @@ public:
             rate->sleep();
         }
         if (utils.useEkf) {
+            double difference_x = utils.x0 + utils.odomX - total_x / n;
+            double difference_y = utils.y0 + utils.odomY - total_y / n;
+            double distance = std::sqrt(difference_x * difference_x + difference_y * difference_y);
+            if (distance > 3.0) {
+                ROS_WARN("large distance between ekf and odom: %.3f", distance);
+            }
             utils.x0 = total_x / n - utils.odomX;
             utils.y0 = total_y / n - utils.odomY;
-            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f", utils.x0, utils.y0);
+            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f, xy offset: %.3f, %.3f", utils.x0, utils.y0, difference_x, difference_y);
         }
     }
     int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20, double initial_y_error = 0, double initial_yaw_error = 0) {
@@ -460,6 +466,7 @@ public:
                     if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                         // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                         found = true;
+                        break;
                     }
                 }
                 if (found) {
@@ -489,6 +496,7 @@ public:
             if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                 // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                 found = true;
+                break;
             }
         }
         if (found) {

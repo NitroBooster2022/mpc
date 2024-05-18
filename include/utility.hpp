@@ -36,7 +36,7 @@ public:
 // private:
 
     //tunables
-    double left_trajectory1, left_trajectory2, right_trajectory1, right_trajectory2, p_rad;
+    double left_trajectory1, left_trajectory2, right_trajectory1, right_trajectory2, p_rad, gps_offset_x, gps_offset_y;
 
     typedef double (Utility::*TrajectoryFunction)(double x);
     TrajectoryFunction trajectoryFunction;
@@ -58,7 +58,7 @@ public:
         double x;
         double y;
         double z;
-    } const CAMERA_POSE = {0, 0, 0.2};
+    } const CAMERA_POSE = {0.095, 0, 0.165};
 
     int num_obj = 0;
     std::mutex lock;
@@ -361,6 +361,9 @@ public:
         // Convert image coordinates to normalized coordinates
         double x_norm = (bbox_center_x - cx) / fx;
         double y_norm = (bbox_center_y - cy) / fy;
+
+        // Add distance from camera to robot center
+        object_distance += CAMERA_POSE.x;
 
         // Estimate 3D coordinates in the camera frame
         double X_c = x_norm * object_distance;

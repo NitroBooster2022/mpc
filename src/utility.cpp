@@ -44,6 +44,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         nh.param<double>("/real/sigma_delta", sigma_delta, 10.0);
         nh.param<double>("/real/odom_rate", odom_publish_frequency, 50);
         nh.param<double>("/real/ekf_timer_time", ekf_timer_time, 2.0);
+        nh.param<double>("/real/gps_offset_x", gps_offset_x, 0.075);
+        nh.param<double>("/real/gps_offset_y", gps_offset_y, 0.0);
     } else {
         nh.param<double>("/sim/left_trajectory1", left_trajectory1, 3.75);
         nh.param<double>("/sim/left_trajectory2", left_trajectory2, -0.49);
@@ -54,6 +56,8 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         nh.param<double>("/sim/sigma_delta", sigma_delta, 10.0);
         nh.param<double>("/sim/odom_rate", odom_publish_frequency, 50);
         nh.param<double>("/sim/ekf_timer_time", ekf_timer_time, 2.0);
+        nh.param<double>("/sim/gps_offset_x", gps_offset_x, 0.0);
+        nh.param<double>("/sim/gps_offset_y", gps_offset_y, 0.0);
     }
     nh.param<bool>("/gps", hasGps, false);
     if (real) {
@@ -601,9 +605,11 @@ void Utility::imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
 }
 void Utility::ekf_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     // ros::Time now = ros::Time::now();
+    double offset_x = gps_offset_x * std::cos(yaw) - gps_offset_y * std::sin(yaw);
+    double offset_y = gps_offset_x * std::sin(yaw) + gps_offset_y * std::cos(yaw);
     lock.lock();
-    ekf_x = msg->pose.pose.position.x;
-    ekf_y = msg->pose.pose.position.y;
+    ekf_x = msg->pose.pose.position.x + offset_x;
+    ekf_y = msg->pose.pose.position.y + offset_y;
     // x0 = ekf_x - odomX;
     // y0 = ekf_y - odomY;
     // tf2::fromMsg(msg->pose.pose.orientation, tf2_quat);
@@ -945,10 +951,10 @@ void Utility::publish_static_transforms() {
     geometry_msgs::TransformStamped t_imu0 = add_static_link(0, 0, 0, 0, 0, 0, "chassis", "imu0");
     static_transforms.push_back(t_imu0);
 
-    geometry_msgs::TransformStamped t_imu_cam = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "realsense");
+    geometry_msgs::TransformStamped t_imu_cam = add_static_link(CAMERA_POSE.x, CAMERA_POSE.y, CAMERA_POSE.z, 0, 0.15, 0, "chassis", "realsense");
     static_transforms.push_back(t_imu_cam);
 
-    geometry_msgs::TransformStamped t_imu_cam2 = add_static_link(0.1, 0, 0.16, 0, 0.15, 0, "chassis", "camera_imu_optical_frame");
+    geometry_msgs::TransformStamped t_imu_cam2 = add_static_link(CAMERA_POSE.x, CAMERA_POSE.y, CAMERA_POSE.z, 0, 0.15, 0, "chassis", "camera_imu_optical_frame");
     static_transforms.push_back(t_imu_cam2);
 
     static_broadcaster.sendTransform(static_transforms);
