@@ -43,6 +43,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         nh.param<double>("/real/sigma_v", sigma_v, 0.1);
         nh.param<double>("/real/sigma_delta", sigma_delta, 10.0);
         nh.param<double>("/real/odom_rate", odom_publish_frequency, 50);
+        nh.param<double>("/real/ekf_timer_time", ekf_timer_time, 2.0);
     } else {
         nh.param<double>("/sim/left_trajectory1", left_trajectory1, 3.75);
         nh.param<double>("/sim/left_trajectory2", left_trajectory2, -0.49);
@@ -52,6 +53,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
         nh.param<double>("/sim/sigma_v", sigma_v, 0.1);
         nh.param<double>("/sim/sigma_delta", sigma_delta, 10.0);
         nh.param<double>("/sim/odom_rate", odom_publish_frequency, 50);
+        nh.param<double>("/sim/ekf_timer_time", ekf_timer_time, 2.0);
     }
     nh.param<bool>("/gps", hasGps, false);
     if (real) {
@@ -176,7 +178,7 @@ Utility::Utility(ros::NodeHandle& nh_, bool real, double x0, double y0, double y
     if (useEkf) {
         this->subModel = false;
         ekf_sub = nh.subscribe("/odometry/filtered", 3, &Utility::ekf_callback, this);
-        ekf_update_timer = nh.createTimer(ros::Duration(2), &Utility::ekf_update_timer_callback, this);
+        ekf_update_timer = nh.createTimer(ros::Duration(ekf_timer_time), &Utility::ekf_update_timer_callback, this);
     } 
     if (this->subModel) {
         model_sub = nh.subscribe("/gazebo/model_states", 3, &Utility::model_callback, this);

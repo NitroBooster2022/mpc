@@ -138,6 +138,7 @@ public:
     ros::Timer imu_pub_timer;
     void imu_pub_timer_callback(const ros::TimerEvent&);
     ros::Timer ekf_update_timer;
+    double ekf_timer_time = 2;
     void ekf_update_timer_callback(const ros::TimerEvent&) {
         update_odom_with_ekf();
     }
@@ -181,45 +182,45 @@ public:
         return yaw;
     }
     int get_states(double &x_, double &y_, double &yaw_) {
-        // if(!initializationFlag || !imuInitialized || x0 < 0 || y0 < 0) {
-        //     ROS_INFO("get_states: Initialization not done");
-        //     return -1;
-        // }
         yaw_ = yaw;
-        if(useEkf) {
-            // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
-            if (hasGps) {
-                x_ = ekf_x;
-                y_ = ekf_y;
-            } else {
-                ROS_INFO("Using ekf without gps: %.3f, %.3f", ekf_x, ekf_y);
-                x_ = ekf_x + x0;
-                y_ = ekf_y + y0;
-            }
-        } else if(subModel) {
-            // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
-            x_ = gps_x;
-            y_ = gps_y;
-        } else if(useGmapping || useAmcl) {
-            // ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
-            x_ = gmapping_x;
-            y_ = gmapping_y;
-        } else if(useLidarOdom) {
-            // ROS_INFO("Using lidar odom: %.3f, %.3f", odomX_lidar, odomY_lidar);
-            x_ = odomX_lidar + x0;
-            y_ = odomY_lidar + y0;
-        } else {
-            // ROS_INFO("Using odom: %.3f, %.3f", odomX, odomY);
-            x_ = odomX + x0;
-            y_ = odomY + y0;
-        }
+        x_ = odomX + x0;
+        y_ = odomY + y0;
+        // if(useEkf) {
+        //     // ROS_INFO("Using ekf: %.3f, %.3f", ekf_x, ekf_y);
+        //     if (hasGps) {
+        //         x_ = ekf_x;
+        //         y_ = ekf_y;
+        //     } else {
+        //         ROS_INFO("Using ekf without gps: %.3f, %.3f", ekf_x, ekf_y);
+        //         x_ = ekf_x + x0;
+        //         y_ = ekf_y + y0;
+        //     }
+        // } else if(subModel) {
+        //     // ROS_INFO("Using gps: %.3f, %.3f", gps_x, gps_y);
+        //     x_ = gps_x;
+        //     y_ = gps_y;
+        // } else if(useGmapping || useAmcl) {
+        //     // ROS_INFO("Using gmapping: %.3f, %.3f", gmapping_x, gmapping_y);
+        //     x_ = gmapping_x;
+        //     y_ = gmapping_y;
+        // } else if(useLidarOdom) {
+        //     // ROS_INFO("Using lidar odom: %.3f, %.3f", odomX_lidar, odomY_lidar);
+        //     x_ = odomX_lidar + x0;
+        //     y_ = odomY_lidar + y0;
+        // } else {
+        //     // ROS_INFO("Using odom: %.3f, %.3f", odomX, odomY);
+        //     x_ = odomX + x0;
+        //     y_ = odomY + y0;
+        // }
         return 0;
     }
     int recalibrate_states(double x_offset, double y_offset) {
         if(useEkf) {
             if (hasGps) {
-                ekf_x += x_offset;
-                ekf_y += y_offset;
+                x0 += x_offset;
+                y0 += y_offset;
+                // ekf_x += x_offset;
+                // ekf_y += y_offset;
                 // set_pose_using_service(ekf_x, ekf_y, yaw);
             } else {
                 x0 += x_offset;
@@ -230,13 +231,27 @@ public:
             y0 += y_offset;
         }
     }
+    int get_mean_ekf(double &x_, double &y_, int n = 10) {
+        auto ekf_states = Eigen::MatrixXd (2, n);
+        for (int i = 0; i < n; i++) {
+            ekf_states(0, i) = ekf_x;
+            ekf_states(1, i) = ekf_y;
+            ros::Duration(0.2).sleep();
+        }
+        // take the average of the last n states
+        x_ = ekf_states.row(0).mean();
+        y_ = ekf_states.row(1).mean();
+        return 1;
+    }
     int reinitialize_states() {
         if(useEkf) {
             std::cout << "waiting for ekf message" << std::endl;
             ros::topic::waitForMessage<nav_msgs::Odometry>("/odometry/filtered");
             std::cout << "received message from ekf" << std::endl;
-            x0 = ekf_x;
-            y0 = ekf_y;
+            double x, y;
+            get_mean_ekf(x, y);
+            x0 = x;
+            y0 = y;
         } else if(subModel) {
             std::cout << "waiting for model message" << std::endl;
             ros::topic::waitForMessage<gazebo_msgs::ModelStates>("/gazebo/model_states");
@@ -255,15 +270,13 @@ public:
         }
         return 1;
     }
-    void get_gps_states(double &x_, double &y_, double &yaw_) {
+    void get_gps_states(double &x_, double &y_) {
         x_ = gps_x;
         y_ = gps_y;
-        yaw_ = yaw;
     }
-    void get_ekf_states(double &x_, double &y_, double &yaw_) {
+    void get_ekf_states(double &x_, double &y_) {
         x_ = ekf_x;
         y_ = ekf_y;
-        yaw_ = yaw;
     }
     
     int update_odom_with_ekf() {

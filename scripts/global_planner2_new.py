@@ -8,13 +8,19 @@ ATTRIBUTES = ["normal", "crosswalk", "intersection", "oneway", "highwayLeft", "h
 
 class GlobalPlanner:
     def __init__(self):
+        self.hw_safety_offset = 0.066
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.G = nx.read_graphml(self.current_dir + '/maps/Competition_track_graph_modified_new.graphml')
         self.pos = {}
         self.attribute = {}
         for node, data in self.G.nodes(data=True):
             x = data.get('x', 0.0)  # Default value 0.0 if 'x' is missing
-            y = data.get('y', 0.0)  # Default value 0.0 if 'y' is missing
+            if 502 <= int(node) <= 521:
+                y = data.get('y', 0.0) + self.hw_safety_offset
+            elif 483 <= int(node) <= 502:
+                y = data.get('y', 0.0) - self.hw_safety_offset
+            else:
+                y = data.get('y', 0.0)  # Default value 0.0 if 'y' is missing
             self.pos[node] = (x, 13.786 - y)
             self.attribute[node] = data.get('new_attribute', 0)
         
@@ -125,15 +131,15 @@ class GlobalPlanner:
                     maneuver_directions.append(0)
                     # print(f"node {node} is a left turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
                     x, y = self.pos[node]
-                    x += vec1[0] / mag1 * 0.05 #15
-                    y += vec1[1] / mag1 * 0.05 #15
+                    x += vec1[0] / mag1 * 0.005 #15
+                    y += vec1[1] / mag1 * 0.005 #15
                     wp_x.append(x)
                     wp_y.append(y)
                 elif normalized_cross < -0.75:
                     maneuver_directions.append(2)
                     # print(f"node {node} is a right turn, cross: {normalized_cross}, (x, y): ({self.pos[node][0]}, {self.pos[node][1]})")
-                    x = prev_x + vec1[0] / mag1 * 0.02#25#57
-                    y = prev_y + vec1[1] / mag1 * 0.02#25#57
+                    x = prev_x + vec1[0] / mag1 * 0.001#25#57
+                    y = prev_y + vec1[1] / mag1 * 0.001#25#57
                     wp_x.append(x)
                     wp_y.append(y)
         return np.array([wp_x, wp_y]), path_edges, wp_attributes, maneuver_directions

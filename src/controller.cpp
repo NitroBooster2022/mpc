@@ -266,9 +266,23 @@ public:
     void run();
     void stop_for(double duration) {
         ros::Time timer = ros::Time::now() + ros::Duration(duration);
+        int n = 0;
+        double ekf_x, ekf_y;
+        double total_x, total_y;
         while (ros::Time::now() < timer) {
             utils.publish_cmd_vel(0.0, 0.0);
+            if(utils.useEkf) {
+                utils.get_ekf_states(ekf_x, ekf_y);
+                total_x += ekf_x;
+                total_y += ekf_y;
+                n++;
+            }
             rate->sleep();
+        }
+        if (utils.useEkf) {
+            utils.x0 = total_x / n - utils.odomX;
+            utils.y0 = total_y / n - utils.odomY;
+            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f", utils.x0, utils.y0);
         }
     }
     int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20, double initial_y_error = 0, double initial_yaw_error = 0) {
@@ -418,7 +432,7 @@ public:
         static const double INTERSECTION_DISTANCE_THRESHOLD = 0.753; // minimum distance between two intersections
         static double lookahead_dist = 0.15;
         static int num_index = static_cast<int>(lookahead_dist * mpc.density);
-        if(use_stopline) {
+        if(lane && use_stopline) {
             if (utils.stopline)
             {
                 mpc.update_current_states(running_x, running_y, running_yaw);
@@ -536,7 +550,8 @@ public:
                     }
                 }
             }
-            if (relocalize && stopsign_flag != STOPSIGN_FLAGS::NONE) {
+            // if (relocalize && stopsign_flag != STOPSIGN_FLAGS::NONE) {
+            if (stopsign_flag != STOPSIGN_FLAGS::NONE) {
                 auto sign_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(sign_index), detected_dist, CAMERA_PARAMS);
                 if (stopsign_flag == STOPSIGN_FLAGS::RDB) {
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
@@ -581,7 +596,8 @@ public:
                 double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * cw_speed_ratio;
                 crosswalk_cooldown_timer = ros::Time::now() + ros::Duration(cd);
                 std::cout << "crosswalk detected at a distance of: " << detected_dist << std::endl;
-                if (relocalize) {
+                // if (relocalize) {
+                if (1) {
                     auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
@@ -774,12 +790,25 @@ public:
             else if (neareastDirection == 2) light_topic_name = "/west_traffic_light";
             else if (neareastDirection == 3) light_topic_name = "/south_traffic_light";
             auto is_green = ros::topic::waitForMessage<std_msgs::Byte>(light_topic_name, ros::Duration(3));
+            int n = 0;
+            double ekf_x, ekf_y;
+            double total_x, total_y;
             while (is_green->data != 1) {
                 is_green = ros::topic::waitForMessage<std_msgs::Byte>(light_topic_name, ros::Duration(3));
                 utils.publish_cmd_vel(0, 0);
+                if (utils.useEkf) {
+                    utils.get_ekf_states(ekf_x, ekf_y);
+                    total_x += ekf_x;
+                    total_y += ekf_y;
+                    n++;
+                }
                 rate->sleep();
             }
             ROS_INFO("light turned green, proceeding...");
+            if (utils.useEkf) {
+                utils.x0 = total_x / n - utils.odomX;
+                utils.y0 = total_y / n - utils.odomY;
+            }
             return;
         } else {
             stop_for(stop_duration);
@@ -1055,9 +1084,11 @@ void StateMachine::run() {
                     // change_state(STATE::WAITING_FOR_STOPSIGN);
                     if (stopsign_flag == STOPSIGN_FLAGS::STOP) {
                         ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
+                        mpc.reset_solver();
                         stop_for(stop_duration);
                     } else if (stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
                         ROS_INFO("traffic light detected, stopping until it's green...");
+                        mpc.reset_solver();
                         wait_for_green();
                     }
                     if (use_lane) {
@@ -1277,7 +1308,8 @@ void StateMachine::run() {
                     ROS_WARN("parking sign invalid... returning to STATE::MOVING");
                     change_state(STATE::MOVING);
                 }
-                if (relocalize) {
+                if (1) {
+                // if (relocalize) {
                     auto park_sign_pose = utils.estimate_object_pose2d(x0, y0, yaw0, utils.object_box(park_index), detected_dist, CAMERA_PARAMS);
                     int success = sign_based_relocalization(park_sign_pose, PARKING_SIGN_POSES);
                 }
