@@ -241,11 +241,8 @@ public:
     bool start_bool_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res) {
         static int history = -1;
         if (req.data && state == STATE::INIT) {
-            if (history == -1) {
-                change_state(STATE::MOVING);
-            } else {
-                change_state(static_cast<STATE>(history));
-            }
+            initialize();
+            start();
             res.success = true;
             res.message = "Started";
         } else {
@@ -271,25 +268,27 @@ public:
         double total_x, total_y;
         while (ros::Time::now() < timer) {
             utils.publish_cmd_vel(0.0, 0.0);
-            if(utils.useEkf) {
-                utils.get_ekf_states(ekf_x, ekf_y);
-                total_x += ekf_x;
-                total_y += ekf_y;
-                n++;
-            }
+            // if(utils.useEkf) {
+            //     utils.get_ekf_states(ekf_x, ekf_y);
+            //     total_x += ekf_x;
+            //     total_y += ekf_y;
+            //     n++;
+            // }
             rate->sleep();
         }
-        if (utils.useEkf) {
-            double difference_x = utils.x0 + utils.odomX - total_x / n;
-            double difference_y = utils.y0 + utils.odomY - total_y / n;
-            double distance = std::sqrt(difference_x * difference_x + difference_y * difference_y);
-            if (distance > 3.0) {
-                ROS_WARN("large distance between ekf and odom: %.3f", distance);
-            }
-            utils.x0 = total_x / n - utils.odomX;
-            utils.y0 = total_y / n - utils.odomY;
-            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f, xy offset: %.3f, %.3f", utils.x0, utils.y0, difference_x, difference_y);
-        }
+        // if (utils.useEkf) {
+        //     lock.lock();
+        //     double difference_x = utils.x0 + utils.odomX - total_x / n;
+        //     double difference_y = utils.y0 + utils.odomY - total_y / n;
+        //     double distance = std::sqrt(difference_x * difference_x + difference_y * difference_y);
+        //     if (distance > 3.0) {
+        //         ROS_WARN("large distance between ekf and odom: %.3f", distance);
+        //     }
+        //     utils.x0 = total_x / n - utils.odomX;
+        //     utils.y0 = total_y / n - utils.odomY;
+        //     ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f, xy offset: %.3f, %.3f", utils.x0, utils.y0, difference_x, difference_y);
+        //     lock.unlock();
+        // }
     }
     int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20, double initial_y_error = 0, double initial_yaw_error = 0) {
         Eigen::VectorXd targets(3);
@@ -597,7 +596,7 @@ public:
         static ros::Time crosswalk_cooldown_timer = ros::Time::now();
         static double detected_dist = -1;
         if(crosswalk_cooldown_timer > ros::Time::now()) {
-            std::cout << "crosswalk detected previously, cd expire in " << (crosswalk_cooldown_timer - ros::Time::now()).toSec() << "s" << std::endl;
+            // std::cout << "crosswalk detected previously, cd expire in " << (crosswalk_cooldown_timer - ros::Time::now()).toSec() << "s" << std::endl;
             return 100;
         }
         int crosswalk_index = utils.object_index(OBJECT::CROSSWALK);
@@ -607,8 +606,8 @@ public:
                 double cd = (detected_dist + CROSSWALK_LENGTH) / NORMAL_SPEED * cw_speed_ratio;
                 crosswalk_cooldown_timer = ros::Time::now() + ros::Duration(cd);
                 std::cout << "crosswalk detected at a distance of: " << detected_dist << std::endl;
-                // if (relocalize) {
-                if (1) {
+                if (relocalize) {
+                // if (1) {
                     auto crosswalk_pose = utils.estimate_object_pose2d(running_x, running_y, running_yaw, utils.object_box(crosswalk_index), detected_dist, CAMERA_PARAMS);
                     int nearestDirectionIndex = mpc.NearestDirectionIndex(running_yaw);
                     const auto& direction_crosswalks = (nearestDirectionIndex == 0) ? EAST_FACING_CROSSWALKS :
@@ -1145,10 +1144,19 @@ void StateMachine::run() {
                 check_stop_sign();
                 int park_index = park_sign_detected();
                 if(park_index>=0 && park_count < 1) {
-                    ROS_INFO("parking sign detected, proceeding to parking...");
-                    change_state(STATE::PARKING);
-                    park_count++;
-                    continue;
+                    auto x1 = PARKING_SIGN_POSES[0][0];
+                    auto y1 = PARKING_SIGN_POSES[0][1];
+                    double distance_to_parking_spot = std::sqrt(std::pow((running_x - x1), 2) + std::pow((running_y - y1), 2));
+                    double detected_dist = utils.object_distance(park_index);
+                    double abs_error = std::abs(detected_dist - distance_to_parking_spot);
+                    if (abs_error < 1.) {
+                        ROS_INFO("parking sign detected, proceeding to parking...");
+                        change_state(STATE::PARKING);
+                        park_count++;
+                        continue;
+                    } else {
+                        ROS_WARN("parking sign detected, but detected distance too large: %.3f, expected: %.3f, relocalizing...", detected_dist, distance_to_parking_spot);
+                    }
                 }
                 check_car();    
             }
@@ -1327,8 +1335,8 @@ void StateMachine::run() {
                     ROS_WARN("parking sign invalid... returning to STATE::MOVING");
                     change_state(STATE::MOVING);
                 }
-                if (1) {
-                // if (relocalize) {
+                // if (1) {
+                if (relocalize) {
                     auto park_sign_pose = utils.estimate_object_pose2d(x0, y0, yaw0, utils.object_box(park_index), detected_dist, CAMERA_PARAMS);
                     int success = sign_based_relocalization(park_sign_pose, PARKING_SIGN_POSES);
                 }
@@ -1618,11 +1626,12 @@ void StateMachine::run() {
             mpc.target_waypoint_index = index;
             change_state(STATE::LANE_FOLLOWING);
         } else if (state == STATE::INIT) {
-            initialize();
+            // initialize();
             if (dashboard) {
                 utils.publish_cmd_vel(0, 0);
                 rate->sleep();
             } else {
+                initialize();
                 start();
             }
             // change_state(STATE::INTERSECTION_MANEUVERING);

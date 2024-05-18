@@ -23,7 +23,7 @@ run1:
   - end
 
 test2: #speed curve
-  - 136
+  # - 136
   - speed_north_west
   - highway_entrance_west
   - roundabout_exit_east
