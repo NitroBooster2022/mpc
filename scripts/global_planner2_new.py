@@ -134,8 +134,8 @@ class GlobalPlanner:
                     x += vec1[0] / mag1 * 0.005 #15
                     y += vec1[1] / mag1 * 0.005 #15
                     # adjust with vec2
-                    x += vec2[0] / mag2 * 0.2 #15
-                    y += vec2[1] / mag2 * 0.2 #15
+                    x += vec2[0] / mag2 * 0.23 #15
+                    y += vec2[1] / mag2 * 0.23 #15
                     wp_x.append(x)
                     wp_y.append(y)
                 elif normalized_cross < -0.75:

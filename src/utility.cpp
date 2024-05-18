@@ -321,6 +321,7 @@ void Utility::odom_pub_timer_callback(const ros::TimerEvent&) {
     publish_odom();
 }
 void Utility::imu_pub_timer_callback(const ros::TimerEvent&) {
+    // ROS_INFO("hi");
     // auto start = std::chrono::high_resolution_clock::now();
     static char data[256]; // Buffer to store data
     static size_t length = 0;

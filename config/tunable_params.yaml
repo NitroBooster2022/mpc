@@ -10,7 +10,7 @@ real:
   change_lane_speed: 0.2
   left_trajectory_threshold: 12 # degrees
   right_trajectory_threshold: 12
-  relocalize: true
+  relocalize: false
   use_lane: false
   has_light: false
   change_lane_offset_scaler: 0.9
