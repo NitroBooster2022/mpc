@@ -8,7 +8,7 @@ ATTRIBUTES = ["normal", "crosswalk", "intersection", "oneway", "highwayLeft", "h
 
 class GlobalPlanner:
     def __init__(self):
-        self.hw_safety_offset = 0.066
+        self.hw_safety_offset = 0.1
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.G = nx.read_graphml(self.current_dir + '/maps/Competition_track_graph_modified_new.graphml')
         self.pos = {}
