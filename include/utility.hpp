@@ -280,6 +280,7 @@ public:
     }
     
     int update_odom_with_ekf() {
+        ROS_INFO("DEBUG: update_odom_with_ekf(), ekf_x: %.3f, ekf_y: %.3f, odomX: %.3f, odomY: %.3f", ekf_x, ekf_y, odomX + x0, odomY + y0);
         x0 = ekf_x - odomX;
         y0 = ekf_y - odomY;
         return 1;
