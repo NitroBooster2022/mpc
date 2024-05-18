@@ -2,7 +2,7 @@ real:
   # to tune:
   parking_base_thresh: 0.1
   parking_base_speed: -0.2
-  parking_base_yaw_target: 0.166 # times pi
+  parking_base_yaw_target: 0.23 # times pi
   pixel_center_offset: -30
   constant_distance_to_intersection_at_detection: 0.3725
   change_lane_yaw: 0.29 # times pi
