@@ -635,6 +635,7 @@ public:
             detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0 || utils.object_index(OBJECT::HIGHWAYEXIT) >= 0;
         }
         if (detected) {
+            mpc.reset_solver();
             while (true) {
                 if (real) {
                     detected = utils.object_index(OBJECT::PEDESTRIAN) >= 0;
@@ -922,6 +923,7 @@ public:
                     // if (attribute != mpc.ATTRIBUTE::DOTTED && attribute != mpc.ATTRIBUTE::DOTTED_CROSSWALK && attribute != mpc.ATTRIBUTE::HIGHWAYLEFT && attribute != mpc.ATTRIBUTE::HIGHWAYRIGHT) {
                     if (idx < mpc.state_refs.rows() && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::DOTTED_CROSSWALK) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYLEFT) && !mpc.attribute_cmp(idx, mpc.ATTRIBUTE::HIGHWAYRIGHT)) {
                         if (dist < MAX_TAILING_DIST) {
+                            mpc.reset_solver();
                             ROS_INFO("detected car is in oneway or non-dotted region, dist = %.3f, stopping...", dist);
                             stop_for(20*T);
                             return;
@@ -933,7 +935,7 @@ public:
                         bool right = false;
                         double density = mpc.density;
                         static double lane_offset = LANE_OFFSET * change_lane_offset_scaler ;
-                        int end_index_scaler = 1.2;
+                        int end_index_scaler = 1.15;
                         // if (attribute == mpc.ATTRIBUTE::HIGHWAYRIGHT) { // if on right side of highway, overtake on left
                         for (int i = idx; i < static_cast<int>(idx + 0.5 * mpc.density); i++) {
                             if (mpc.attribute_cmp(i, mpc.ATTRIBUTE::HIGHWAYRIGHT)) { // if on right side of highway, overtake on left
