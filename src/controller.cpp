@@ -280,9 +280,15 @@ public:
             rate->sleep();
         }
         if (utils.useEkf) {
+            double difference_x = utils.x0 + utils.odomX - total_x / n;
+            double difference_y = utils.y0 + utils.odomY - total_y / n;
+            double distance = std::sqrt(difference_x * difference_x + difference_y * difference_y);
+            if (distance > 3.0) {
+                ROS_WARN("large distance between ekf and odom: %.3f", distance);
+            }
             utils.x0 = total_x / n - utils.odomX;
             utils.y0 = total_y / n - utils.odomY;
-            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f", utils.x0, utils.y0);
+            ROS_INFO("reset x0 with odom: new x0: %.3f, y0: %.3f, xy offset: %.3f, %.3f", utils.x0, utils.y0, difference_x, difference_y);
         }
     }
     int parking_maneuver_hardcode(bool right=true, bool exit=false, double rate_val=20, double initial_y_error = 0, double initial_yaw_error = 0) {
@@ -435,7 +441,7 @@ public:
         if(lane && use_stopline) {
             if (utils.stopline)
             {
-                // ROS_INFO("intersection check 1 passed");
+                // std::cout << "DEBUG: utils.stopline is true" << std::endl;
                 mpc.update_current_states(running_x, running_y, running_yaw);
                 int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
                 int num_index = static_cast<int>(0.15 * mpc.density);
@@ -462,9 +468,10 @@ public:
                     if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                         // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                         found = true;
+                        break;
                     }
                 }
-                // ROS_INFO("intersection check 3 passed");
+                // std::cout << "DEBUG: found: " << found << std::endl;
                 if (found) {
                     double x, y, yaw;
                     utils.get_states(x, y, yaw);
@@ -477,7 +484,7 @@ public:
                 } else {
                     return false;
                 }
-                // ROS_INFO("intersection check 4 passed");
+                // std::cout << "DEBUG: returning true" << std::endl;
                 if (relocalize) {
                     intersection_based_relocalization();
                 }
@@ -493,6 +500,7 @@ public:
             if(mpc.attribute_cmp(target_index+i, mpc.ATTRIBUTE::STOPLINE)) {
                 // std::cout << "stopline detected at (" << mpc.state_refs(mpc.target_waypoint_index, 0) << ", " << mpc.state_refs(mpc.target_waypoint_index, 1) << ")" << std::endl;
                 found = true;
+                break;
             }
         }
         if (found) {
@@ -673,6 +681,9 @@ public:
             return 0;
         } else {
             ROS_INFO("sign_based_relocalization(): SUCCESS! estimated sign pose: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_sign_pose[0], estimated_sign_pose[1], EMPIRICAL_POSES[min_index][0], EMPIRICAL_POSES[min_index][1], EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
+            double x,y,yaw;
+            utils.get_states(x, y, yaw);
+            ROS_INFO("relative estimated pose to car: (%.3f, %.3f)", estimated_sign_pose[0] - x, estimated_sign_pose[1] - y);
             utils.recalibrate_states(EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
         }
         // stop_for(5);
@@ -1089,8 +1100,8 @@ void StateMachine::run() {
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
             if(intersection_reached()) {
+                ROS_INFO("MOVING: intersection reached");
                 if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
-                    stopsign_flag = STOPSIGN_FLAGS::NONE;
                     // change_state(STATE::WAITING_FOR_STOPSIGN);
                     if (stopsign_flag == STOPSIGN_FLAGS::STOP) {
                         ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
@@ -1101,6 +1112,7 @@ void StateMachine::run() {
                         mpc.reset_solver();
                         wait_for_green();
                     }
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
                     if (use_lane) {
                         change_state(STATE::INTERSECTION_MANEUVERING);
                         continue;

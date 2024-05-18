@@ -16,6 +16,8 @@ real:
   change_lane_offset_scaler: 0.9
   useTrajectory: true
   ekf_timer_time: 2.0
+  gps_offset_x: 0.075
+  gps_offset_y: 0.0
 
   # almost good:
   sigma_delta: 10 # degrees
@@ -78,6 +80,8 @@ sim:
   change_lane_offset_scaler: 1.3
   useTrajectory: true
   ekf_timer_time: 2.0
+  gps_offset_x: 0.
+  gps_offset_y: 0.
 
   # to measure:
   #   sign offset x,y
