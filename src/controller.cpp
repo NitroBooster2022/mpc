@@ -441,6 +441,7 @@ public:
         if(lane && use_stopline) {
             if (utils.stopline)
             {
+                // std::cout << "DEBUG: utils.stopline is true" << std::endl;
                 mpc.update_current_states(running_x, running_y, running_yaw);
                 int closest_idx = mpc.find_closest_waypoint(0, mpc.state_refs.rows()-1);
                 int num_index = static_cast<int>(0.15 * mpc.density);
@@ -469,6 +470,7 @@ public:
                         break;
                     }
                 }
+                // std::cout << "DEBUG: found: " << found << std::endl;
                 if (found) {
                     double x, y, yaw;
                     utils.get_states(x, y, yaw);
@@ -481,6 +483,7 @@ public:
                 } else {
                     return false;
                 }
+                // std::cout << "DEBUG: returning true" << std::endl;
                 if (relocalize) {
                     intersection_based_relocalization();
                 }
@@ -677,6 +680,9 @@ public:
             return 0;
         } else {
             ROS_INFO("sign_based_relocalization(): SUCCESS! estimated sign pose: (%.3f, %.3f), actual: (%.3f, %.3f), error: (%.3f, %.3f)", estimated_sign_pose[0], estimated_sign_pose[1], EMPIRICAL_POSES[min_index][0], EMPIRICAL_POSES[min_index][1], EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
+            double x,y,yaw;
+            utils.get_states(x, y, yaw);
+            ROS_INFO("relative estimated pose to car: (%.3f, %.3f)", estimated_sign_pose[0] - x, estimated_sign_pose[1] - y);
             utils.recalibrate_states(EMPIRICAL_POSES[min_index][0] - estimated_sign_pose[0], EMPIRICAL_POSES[min_index][1] - estimated_sign_pose[1]);
         }
         return 1;
@@ -1091,8 +1097,8 @@ void StateMachine::run() {
         // if (mpc.target_waypoint_index >= mpc.num_waypoints -1) change_state(STATE::DONE);
         if (state == STATE::MOVING) {
             if(intersection_reached()) {
+                ROS_INFO("MOVING: intersection reached");
                 if(stopsign_flag == STOPSIGN_FLAGS::STOP || stopsign_flag == STOPSIGN_FLAGS::LIGHT) {
-                    stopsign_flag = STOPSIGN_FLAGS::NONE;
                     // change_state(STATE::WAITING_FOR_STOPSIGN);
                     if (stopsign_flag == STOPSIGN_FLAGS::STOP) {
                         ROS_INFO("stop sign detected, stopping for %.3f seconds...", stop_duration);
@@ -1103,6 +1109,7 @@ void StateMachine::run() {
                         mpc.reset_solver();
                         wait_for_green();
                     }
+                    stopsign_flag = STOPSIGN_FLAGS::NONE;
                     if (use_lane) {
                         change_state(STATE::INTERSECTION_MANEUVERING);
                         continue;
